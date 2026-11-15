@@ -180,20 +180,20 @@ export class TelegramService {
       const parts = text.split(/\s+/);
       if (parts.length < 2) {
         return {
-          replyText: `⚠️ *Format pengaitan salah.*\nContoh: \`/link siti@stockflow.com\``,
+          replyText: `⚠️ *Format pengaitan salah.*\nContoh: \`/link admin@stockflow.com\``,
           success: false,
         };
       }
 
-      const email = parts[1].trim();
-      const user = await prisma.user.findUnique({
-        where: { email },
+      const inputEmail = parts[1].trim().toLowerCase();
+      const allUsers = await prisma.user.findMany({
         include: { telegram: true },
       });
+      const user = allUsers.find((u) => u.email.toLowerCase() === inputEmail);
 
       if (!user) {
         return {
-          replyText: `❌ Akun dengan email *${email}* tidak ditemukan di StockFlow. Hubungi administrator.`,
+          replyText: `❌ Akun dengan email *${inputEmail}* tidak ditemukan di StockFlow. Hubungi administrator.`,
           success: false,
         };
       }
@@ -217,7 +217,7 @@ export class TelegramService {
       });
 
       return {
-        replyText: `✅ *Berhasil terhubung!*\nAkun StockFlow atas nama *${user.name}* (${user.email}) kini telah terhubung dengan Telegram Anda.`,
+        replyText: `✅ *Berhasil terhubung!*\n\nAkun StockFlow atas nama *${user.name}* (${user.email}) kini telah resmi terhubung dengan Telegram Anda.\n\nSekarang Anda dapat langsung melaporkan pemakaian barang dengan format \`PAKAI\`!`,
         success: true,
         actionTaken: 'LINKED',
       };
@@ -446,8 +446,8 @@ export class TelegramService {
     let notes = '';
 
     for (const line of lines) {
-      if (/^barang\s*:/i.test(line)) {
-        productQuery = line.replace(/^barang\s*:/i, '').trim();
+      if (/^(?:pakai\s+)?barang\s*:/i.test(line)) {
+        productQuery = line.replace(/^(?:pakai\s+)?barang\s*:/i, '').trim();
       } else if (/^jumlah\s*:/i.test(line)) {
         const val = line.replace(/^jumlah\s*:/i, '').trim();
         const num = parseInt(val, 10);
