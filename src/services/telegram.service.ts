@@ -49,10 +49,15 @@ export class TelegramService {
     const username = msg.from.username || msg.from.first_name || 'pengguna';
     const text = msg.text.trim();
 
-    // 1. Cek Idempotensi Webhook Update
-    const existingUpdate = await prisma.telegramUpdate.findUnique({
-      where: { telegramUpdateId: updateId },
-    });
+    // 1. Cek Idempotensi Webhook Update (Resilient)
+    let existingUpdate = null;
+    try {
+      existingUpdate = await prisma.telegramUpdate.findUnique({
+        where: { telegramUpdateId: updateId },
+      });
+    } catch (e: any) {
+      console.warn('Idempotency check skipped (DB warning):', e.message);
+    }
 
     if (existingUpdate && existingUpdate.status === 'PROCESSED') {
       return {
@@ -64,15 +69,19 @@ export class TelegramService {
 
     // Catat penerimaan update
     if (!existingUpdate) {
-      await prisma.telegramUpdate.create({
-        data: {
-          telegramUpdateId: updateId,
-          chatId,
-          telegramUserId,
-          payload: JSON.stringify(payload),
-          status: 'PROCESSING',
-        },
-      });
+      try {
+        await prisma.telegramUpdate.create({
+          data: {
+            telegramUpdateId: updateId,
+            chatId,
+            telegramUserId,
+            payload: JSON.stringify(payload),
+            status: 'PROCESSING',
+          },
+        });
+      } catch (e: any) {
+        console.warn('Update logging skipped (DB warning):', e.message);
+      }
     }
 
     try {
@@ -85,24 +94,28 @@ export class TelegramService {
       });
 
       // Tandai update PROCESSED
-      await prisma.telegramUpdate.update({
-        where: { telegramUpdateId: updateId },
-        data: {
-          status: 'PROCESSED',
-          processedAt: new Date(),
-        },
-      });
+      try {
+        await prisma.telegramUpdate.update({
+          where: { telegramUpdateId: updateId },
+          data: {
+            status: 'PROCESSED',
+            processedAt: new Date(),
+          },
+        });
+      } catch (e) {}
 
       return result;
     } catch (err: any) {
-      await prisma.telegramUpdate.update({
-        where: { telegramUpdateId: updateId },
-        data: {
-          status: 'FAILED',
-          errorMessage: err.message,
-          processedAt: new Date(),
-        },
-      });
+      try {
+        await prisma.telegramUpdate.update({
+          where: { telegramUpdateId: updateId },
+          data: {
+            status: 'FAILED',
+            errorMessage: err.message,
+            processedAt: new Date(),
+          },
+        });
+      } catch (e) {}
 
       return {
         replyText: `Terjadi kendala saat memproses: ${err.message}`,
