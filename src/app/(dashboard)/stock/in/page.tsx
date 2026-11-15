@@ -138,17 +138,17 @@ function StockInContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form Column */}
-        <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-slate-200 shadow-soft">
+        <div className="lg:col-span-2 glass-panel rounded-2xl p-6 shadow-soft">
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             {/* Pilih Barang */}
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-bold text-slate-700 mb-1">
                 Pilih Barang Persediaan <span className="text-rose-500">*</span>
               </label>
               <select
                 value={selectedProductId}
                 onChange={(e) => setSelectedProductId(e.target.value)}
-                className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
+                className="w-full text-xs px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
                 required
               >
                 <option value="">-- Pilih Barang --</option>
@@ -163,7 +163,7 @@ function StockInContent() {
             {/* Kuantitas & Tanggal */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-bold text-slate-700 mb-1">
                   Jumlah Barang Masuk ({selectedProduct?.unit || 'satuan'}){' '}
                   <span className="text-rose-500">*</span>
                 </label>
@@ -176,19 +176,19 @@ function StockInContent() {
                     setQuantity(e.target.value === '' ? '' : parseInt(e.target.value, 10))
                   }
                   placeholder="Misal: 10"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                  className="w-full px-3.5 py-2.5 border border-slate-200/80 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Tanggal Transaksi</label>
+                <label className="block font-bold text-slate-700 mb-1">Tanggal Transaksi</label>
                 <div className="relative">
-                  <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     type="date"
                     value={txDate}
                     onChange={(e) => setTxDate(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                    className="w-full pl-10 pr-3 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
                   />
                 </div>
               </div>
@@ -197,33 +197,33 @@ function StockInContent() {
             {/* Supplier & No Dokumen */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-bold text-slate-700 mb-1">
                   Pemasok / Supplier (Opsional)
                 </label>
                 <div className="relative">
-                  <Building className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <Building className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     type="text"
                     value={supplier}
                     onChange={(e) => setSupplier(e.target.value)}
                     placeholder="Contoh: PT Sumber Berkah"
-                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                    className="w-full pl-10 pr-3 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-bold text-slate-700 mb-1">
                   Nomor PO / Surat Jalan (Opsional)
                 </label>
                 <div className="relative">
-                  <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <FileText className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     type="text"
                     value={referenceId}
                     onChange={(e) => setReferenceId(e.target.value)}
                     placeholder="Contoh: PO-2026-11-09"
-                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 font-mono"
+                    className="w-full pl-10 pr-3 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-mono font-medium"
                   />
                 </div>
               </div>
@@ -231,7 +231,7 @@ function StockInContent() {
 
             {/* Catatan */}
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-bold text-slate-700 mb-1">
                 Catatan Penerimaan (Opsional)
               </label>
               <textarea
@@ -239,20 +239,20 @@ function StockInContent() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Misal: Diterima dalam kondisi baik, disimpan di rak B-02"
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 resize-none"
+                className="w-full px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner resize-none font-medium"
               />
             </div>
 
             {/* Action Submit */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">
-                Pencatat: <strong>{currentUser?.name || 'Administrator'}</strong>
+            <div className="pt-4 border-t border-slate-200/60 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400 font-medium">
+                Pencatat: <strong className="text-slate-700">{currentUser?.name || 'Administrator'}</strong>
               </span>
 
               <button
                 type="submit"
                 disabled={isSubmitting || !selectedProductId || !parsedQty}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-xs shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="btn-3d-emerald px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isSubmitting ? 'Memproses...' : 'Simpan Barang Masuk'}</span>
@@ -261,53 +261,53 @@ function StockInContent() {
           </form>
         </div>
 
-        {/* Live Calculation Preview Card (Required by UX Spec 6.6) */}
+        {/* Live Calculation Preview Card */}
         <div className="space-y-4">
-          <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-soft">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5 text-maroon-800">
+          <div className="glass-card rounded-2xl p-5 shadow-soft">
+            <h3 className="text-xs font-black uppercase tracking-wider mb-3.5 flex items-center gap-1.5 text-maroon-800">
               <HelpCircle className="w-4 h-4" />
               Ringkasan Perubahan Stok
             </h3>
 
             {selectedProduct ? (
               <div className="space-y-4">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-[11px] text-slate-500 font-semibold uppercase">Barang Dipilih</p>
-                  <p className="text-sm font-bold text-slate-900 mt-0.5">{selectedProduct.name}</p>
+                <div className="p-3.5 bg-white/70 backdrop-blur-sm rounded-xl border border-white/80 shadow-inner">
+                  <p className="text-[11px] text-slate-500 font-bold uppercase">Barang Dipilih</p>
+                  <p className="text-sm font-black text-slate-900 mt-0.5">{selectedProduct.name}</p>
                   <p className="text-[11px] font-mono text-slate-400 mt-0.5">
                     SKU: {selectedProduct.sku}
                   </p>
                 </div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Stok Saat Ini:</span>
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60">
+                    <span className="text-slate-500 font-medium">Stok Saat Ini:</span>
                     <span className="font-bold text-slate-800">
                       {currentStock} {selectedProduct.unit}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between py-1 border-b border-slate-100 text-emerald-700 font-medium">
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60 text-emerald-700 font-bold">
                     <span>Jumlah Masuk:</span>
-                    <span className="font-bold text-sm">
+                    <span className="text-sm">
                       +{parsedQty} {selectedProduct.unit}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between py-2 bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
-                    <span className="font-semibold text-emerald-900">Stok Sesudah Transaksi:</span>
-                    <span className="font-extrabold text-base text-emerald-800">
+                  <div className="flex items-center justify-between py-2.5 bg-emerald-50/80 p-3 rounded-xl border border-emerald-200/80 badge-3d">
+                    <span className="font-bold text-emerald-950">Stok Sesudah Transaksi:</span>
+                    <span className="font-black text-lg text-emerald-700">
                       {projectedStock} {selectedProduct.unit}
                     </span>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-500 leading-relaxed italic">
+                <p className="text-[11px] text-slate-500 leading-relaxed italic font-medium">
                   💡 Saldo baru akan otomatis tercermin di dashboard dan riwayat pergerakan setelah disimpan.
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-slate-400 py-6 text-center">
+              <p className="text-xs text-slate-400 py-6 text-center font-medium">
                 Pilih barang untuk melihat kalkulasi perubahan stok
               </p>
             )}

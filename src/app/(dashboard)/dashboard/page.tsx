@@ -64,10 +64,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick action buttons */}
-        <div className="flex items-center flex-wrap gap-2">
+        <div className="flex items-center flex-wrap gap-2.5">
           <Link
             href="/stock/in"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-all hover:shadow"
+            className="btn-3d-emerald inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all"
           >
             <ArrowDownToLine className="w-3.5 h-3.5" />
             <span>Barang Masuk</span>
@@ -75,7 +75,7 @@ export default function DashboardPage() {
 
           <Link
             href="/stock/out"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-maroon-800 hover:bg-maroon-900 text-white text-xs font-semibold shadow-sm transition-all hover:shadow"
+            className="btn-3d inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-maroon-800 hover:bg-maroon-700 text-white text-xs font-bold transition-all"
           >
             <ArrowUpFromLine className="w-3.5 h-3.5" />
             <span>Barang Keluar</span>
@@ -83,7 +83,7 @@ export default function DashboardPage() {
 
           <Link
             href="/products"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold shadow-sm transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white/80 hover:bg-white text-slate-700 border border-white/90 text-xs font-bold shadow-soft hover:shadow-md transition-all badge-3d"
           >
             <Plus className="w-3.5 h-3.5 text-maroon-800" />
             <span>Tambah Barang</span>
@@ -91,7 +91,7 @@ export default function DashboardPage() {
 
           <button
             onClick={fetchSummary}
-            className="p-2 rounded-xl bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 shadow-sm transition-colors"
+            className="p-2.5 rounded-xl bg-white/80 hover:bg-white text-slate-600 border border-white/90 shadow-soft hover:shadow-md transition-all badge-3d"
             title="Muat ulang data"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-maroon-700' : ''}`} />
@@ -136,58 +136,64 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Telegram Feature Highlight Banner */}
-      <div className="p-4 rounded-xl bg-gradient-to-r from-maroon-900 via-maroon-800 to-maroon-950 text-white shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-maroon-200 flex-shrink-0">
-            <Send className="w-5 h-5 text-maroon-200" />
+      {/* Telegram Feature Highlight Banner - 3D Glass Maroon */}
+      <div className="glass-maroon rounded-2xl p-5 text-white relative overflow-hidden group">
+        <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform duration-700" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-lg group-hover:rotate-6 transition-transform">
+              <Send className="w-6 h-6 text-white drop-shadow-md" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-white flex items-center gap-2">
+                <span>Integrasi Telegram Bot Real-time</span>
+                <span className="text-[10px] bg-amber-400/90 text-amber-950 font-black px-2 py-0.5 rounded-full badge-3d">
+                  Auto-Sync
+                </span>
+                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              </h4>
+              <p className="text-xs text-rose-100/90 mt-1 max-w-xl font-medium">
+                Staff gudang & karyawan dapat melaporkan mutasi barang langsung lewat format chat Telegram tanpa perlu membuka laptop.
+              </p>
+            </div>
           </div>
-          <div>
-            <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>Integrasi Telegram Bot Siap Pakai</span>
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            </h4>
-            <p className="text-xs text-maroon-200 mt-0.5">
-              Staff gudang & karyawan dapat melaporkan pengambilan barang langsung lewat chat Telegram tanpa buka web.
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Link
-            href="/telegram"
-            className="px-3.5 py-1.5 rounded-lg bg-white text-maroon-900 hover:bg-maroon-50 text-xs font-bold transition-all shadow-sm"
-          >
-            Buka Simulator & Pengaturan
-          </Link>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href="/telegram"
+              className="px-4 py-2.5 rounded-xl bg-white text-maroon-900 hover:bg-maroon-50 text-xs font-black transition-all shadow-[0_4px_14px_rgba(0,0,0,0.15)] hover:shadow-lg active:translate-y-0.5"
+            >
+              Buka Simulator & Pengaturan
+            </Link>
+          </div>
         </div>
       </div>
 
       {/* Movement Chart Section */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-soft">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
+      <div className="glass-panel rounded-2xl p-6 shadow-soft">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-200/60">
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900">
+            <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
               Tren Mutasi Barang (Masuk vs Keluar)
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">
               Volume kuantitas barang masuk (IN) dan keluar (OUT) per hari
             </p>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg self-start sm:self-auto text-xs">
+          <div className="flex items-center gap-1 bg-white/70 backdrop-blur-md p-1 rounded-xl border border-white/80 shadow-inner self-start sm:self-auto text-xs">
             <button
               onClick={() => setDays(7)}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                days === 7 ? 'bg-white text-maroon-900 font-bold shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                days === 7 ? 'bg-maroon-800 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               7 Hari
             </button>
             <button
               onClick={() => setDays(30)}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                days === 30 ? 'bg-white text-maroon-900 font-bold shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                days === 30 ? 'bg-maroon-800 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               30 Hari
