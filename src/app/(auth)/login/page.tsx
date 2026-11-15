@@ -84,56 +84,51 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F7] relative flex items-center justify-center p-4 overflow-hidden">
-      {/* 3D Ambient Glow Blobs */}
-      <div className="ambient-glow w-96 h-96 bg-maroon-300/35 -top-16 -left-16 pointer-events-none" />
-      <div className="ambient-glow w-[30rem] h-[30rem] bg-rose-200/40 -bottom-20 -right-20 pointer-events-none" />
-      <div className="ambient-glow w-72 h-72 bg-amber-200/25 top-1/2 left-1/3 pointer-events-none" />
-
-      <div className="max-w-md w-full relative z-10">
-        {/* Glass Card */}
-        <div className="glass-panel rounded-3xl shadow-[0_20px_50px_rgba(128,0,32,0.1)] border-2 border-white/85 p-6 sm:p-8 backdrop-blur-xl">
+    <div className="min-h-screen bg-gradient-to-br from-[#FDF2F4] via-white to-[#F8FAFC] flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200/80 p-6 sm:p-8">
           {/* Brand */}
           <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-maroon-700 via-maroon-800 to-maroon-950 text-white flex items-center justify-center mx-auto shadow-maroon shadow-lg ring-2 ring-white/50 mb-3.5 transform-gpu hover:scale-110 hover:rotate-3 transition-all duration-300">
-              <Boxes className="w-7 h-7 drop-shadow" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-maroon-700 via-maroon-800 to-maroon-950 text-white flex items-center justify-center mx-auto shadow-maroon shadow-md mb-3">
+              <Boxes className="w-6 h-6" />
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Masuk ke <span className="bg-gradient-to-r from-maroon-800 to-maroon-950 bg-clip-text text-transparent">StockFlow</span>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              Masuk ke <span className="text-maroon-800">StockFlow</span>
             </h1>
-            <p className="text-xs text-slate-500 mt-1 font-medium">
-              Sistem Manajemen Persediaan & Integrasi Telegram 3D
+            <p className="text-xs text-slate-500 mt-1">
+              Sistem Manajemen Persediaan & Integrasi Telegram Bot
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Alamat Email</label>
+              <label className="block font-semibold text-slate-700 mb-1">Alamat Email</label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@stockflow.com"
-                  className="w-full pl-10 pr-3 py-2.5 bg-white/80 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 text-slate-900 font-medium shadow-inner"
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 text-slate-900"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Kata Sandi</label>
+              <label className="block font-semibold text-slate-700 mb-1">Kata Sandi</label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 bg-white/80 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 text-slate-900 font-medium shadow-inner"
+                  className="w-full pl-9 pr-10 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 text-slate-900"
                 />
                 <button
                   type="button"
@@ -145,18 +140,18 @@ function LoginForm() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] font-medium">
+            <div className="flex items-center justify-between text-[11px]">
               <label className="flex items-center gap-1.5 text-slate-600 cursor-pointer">
                 <input type="checkbox" defaultChecked className="rounded text-maroon-800 focus:ring-maroon-500" />
                 Ingat saya di perangkat ini
               </label>
-              <span className="text-maroon-800 hover:underline cursor-pointer font-semibold">Lupa kata sandi?</span>
+              <span className="text-maroon-800 hover:underline cursor-pointer">Lupa kata sandi?</span>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="btn-3d w-full py-3 px-4 rounded-xl bg-maroon-800 hover:bg-maroon-700 text-white font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none"
+              className="w-full py-2.5 px-4 rounded-xl bg-maroon-800 hover:bg-maroon-900 active:bg-maroon-950 text-white font-semibold text-xs shadow-soft hover:shadow-maroon transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <span>{isLoading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -164,43 +159,43 @@ function LoginForm() {
           </form>
 
           {/* Quick Demo Login Personas */}
-          <div className="mt-6 pt-5 border-t border-slate-200/60">
+          <div className="mt-6 pt-5 border-t border-slate-100">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">
               Akses Cepat Mode Uji Coba (Demo Personas)
             </p>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => quickLogin('admin@stockflow.com')}
-                className="p-3 rounded-2xl border border-maroon-200/80 bg-white/80 hover:bg-white text-maroon-900 transition-all text-left flex flex-col justify-between group shadow-sm hover:shadow-md hover:-translate-y-0.5 badge-3d"
+                className="p-2.5 rounded-xl border border-maroon-200 bg-maroon-50/60 hover:bg-maroon-100 text-maroon-900 transition-colors text-left flex flex-col justify-between group"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase bg-maroon-100 text-maroon-900 px-2 py-0.5 rounded-full border border-maroon-200/60">
+                  <span className="text-[10px] font-bold uppercase bg-maroon-200/70 text-maroon-900 px-1.5 py-0.2 rounded">
                     Admin
                   </span>
-                  <ShieldCheck className="w-4 h-4 text-maroon-800 group-hover:scale-110 transition-transform" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-maroon-700" />
                 </div>
-                <div className="mt-2.5">
-                  <p className="font-black text-xs leading-tight text-slate-900">Budi Pratama</p>
-                  <p className="text-[10px] text-maroon-800/80 truncate font-semibold">admin@stockflow.com</p>
+                <div className="mt-2">
+                  <p className="font-bold text-xs leading-tight">Budi Pratama</p>
+                  <p className="text-[10px] text-maroon-700/80 truncate">admin@stockflow.com</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => quickLogin('siti@stockflow.com')}
-                className="p-3 rounded-2xl border border-slate-200/80 bg-white/80 hover:bg-white text-slate-800 transition-all text-left flex flex-col justify-between group shadow-sm hover:shadow-md hover:-translate-y-0.5 badge-3d"
+                className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 transition-colors text-left flex flex-col justify-between group"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200">
+                  <span className="text-[10px] font-bold uppercase bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">
                     Staff
                   </span>
-                  <UserCheck className="w-4 h-4 text-slate-600 group-hover:scale-110 transition-transform" />
+                  <UserCheck className="w-3.5 h-3.5 text-slate-600" />
                 </div>
-                <div className="mt-2.5">
-                  <p className="font-black text-xs leading-tight text-slate-900">Siti Rahma</p>
-                  <p className="text-[10px] text-slate-500 truncate font-semibold">siti@stockflow.com</p>
+                <div className="mt-2">
+                  <p className="font-bold text-xs leading-tight">Siti Rahma</p>
+                  <p className="text-[10px] text-slate-500 truncate">siti@stockflow.com</p>
                 </div>
               </button>
             </div>
@@ -208,8 +203,8 @@ function LoginForm() {
         </div>
 
         {/* Footer info */}
-        <p className="text-center text-[11px] text-slate-400 mt-4 font-medium">
-          StockFlow v1.0 • Standar Operasional Gudang Modern 3D & Persediaan
+        <p className="text-center text-[11px] text-slate-400 mt-4">
+          StockFlow v1.0 • Standar Operasional Gudang & Persediaan
         </p>
       </div>
     </div>

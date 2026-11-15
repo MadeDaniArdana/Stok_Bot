@@ -153,17 +153,17 @@ function StockOutContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form Column */}
-        <div className="lg:col-span-2 glass-panel rounded-2xl p-6 shadow-soft">
+        <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-slate-200 shadow-soft">
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             {/* Pilih Barang */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 mb-1">
                 Pilih Barang <span className="text-rose-500">*</span>
               </label>
               <select
                 value={selectedProductId}
                 onChange={(e) => setSelectedProductId(e.target.value)}
-                className="w-full text-xs px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
+                className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
                 required
               >
                 <option value="">-- Pilih Barang --</option>
@@ -178,7 +178,7 @@ function StockOutContent() {
             {/* Kuantitas & Tanggal */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1">
                   Jumlah Pengambilan ({selectedProduct?.unit || 'satuan'}){' '}
                   <span className="text-rose-500">*</span>
                 </label>
@@ -192,14 +192,14 @@ function StockOutContent() {
                     setQuantity(e.target.value === '' ? '' : parseInt(e.target.value, 10))
                   }
                   placeholder="Misal: 2"
-                  className={`w-full px-3.5 py-2.5 border rounded-xl text-sm font-bold shadow-inner focus:outline-none focus:ring-2 ${
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm font-bold focus:outline-none focus:ring-2 ${
                     isExceeding
-                      ? 'border-rose-400 text-rose-700 focus:ring-rose-200 focus:border-rose-600 bg-rose-50/70'
-                      : 'border-slate-200/80 text-slate-900 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90'
+                      ? 'border-rose-400 text-rose-700 focus:ring-rose-200 focus:border-rose-600 bg-rose-50/50'
+                      : 'border-slate-200 text-slate-900 focus:ring-maroon-500/20 focus:border-maroon-700'
                   }`}
                 />
                 {isExceeding && (
-                  <p className="text-[11px] text-rose-600 font-bold mt-1 flex items-center gap-1">
+                  <p className="text-[11px] text-rose-600 font-semibold mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     Jumlah melebihi stok yang ada ({currentStock} {selectedProduct?.unit})
                   </p>
@@ -207,14 +207,14 @@ function StockOutContent() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Tanggal Pengambilan</label>
+                <label className="block font-semibold text-slate-700 mb-1">Tanggal Pengambilan</label>
                 <div className="relative">
-                  <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
                     type="date"
                     value={txDate}
                     onChange={(e) => setTxDate(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
                   />
                 </div>
               </div>
@@ -222,13 +222,13 @@ function StockOutContent() {
 
             {/* Pemohon / Penerima */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 mb-1">
                 Penerima / Pengguna Barang <span className="text-rose-500">*</span>
               </label>
               <select
                 value={recipientUserId}
                 onChange={(e) => setRecipientUserId(e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
                 required
               >
                 {availableUsers.map((u) => (
@@ -241,7 +241,7 @@ function StockOutContent() {
 
             {/* Keperluan Pengambilan */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 mb-1">
                 Keperluan / Peruntukan <span className="text-rose-500">*</span>
               </label>
               <textarea
@@ -250,20 +250,20 @@ function StockOutContent() {
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
                 placeholder="Contoh: Kebutuhan cetak laporan keuangan bulanan audit internal"
-                className="w-full px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner resize-none font-medium"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 resize-none"
               />
             </div>
 
             {/* Action Submit */}
-            <div className="pt-4 border-t border-slate-200/60 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400 font-medium">
-                Pencatat: <strong className="text-slate-700">{currentUser?.name || 'Administrator'}</strong>
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">
+                Pencatat: <strong>{currentUser?.name || 'Administrator'}</strong>
               </span>
 
               <button
                 type="submit"
                 disabled={isSubmitting || !selectedProductId || !parsedQty || isExceeding}
-                className="btn-3d px-6 py-3 rounded-xl bg-maroon-800 hover:bg-maroon-700 text-white font-bold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl bg-maroon-800 hover:bg-maroon-900 active:bg-maroon-950 text-white font-semibold text-xs shadow-soft hover:shadow-maroon transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>{isSubmitting ? 'Memproses...' : 'Simpan Barang Keluar'}</span>
@@ -274,15 +274,15 @@ function StockOutContent() {
 
         {/* Live Calculation Preview Card (Required by UX Spec 6.7) */}
         <div className="space-y-4">
-          <div className="glass-card rounded-2xl p-5 shadow-soft">
-            <h3 className="text-xs font-black uppercase tracking-wider mb-3.5 flex items-center gap-1.5 text-maroon-800">
+          <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-soft">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5 text-maroon-800">
               <HelpCircle className="w-4 h-4" />
               Prakiraan Stok Sesudah Transaksi
             </h3>
 
             {selectedProduct ? (
               <div className="space-y-4">
-                <div className="p-3.5 bg-white/70 backdrop-blur-sm rounded-xl border border-white/80 shadow-inner">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                   <p className="text-[11px] text-slate-500 font-semibold uppercase">Barang Dipilih</p>
                   <p className="text-sm font-bold text-slate-900 mt-0.5">{selectedProduct.name}</p>
                   <p className="text-[11px] font-mono text-slate-400 mt-0.5">

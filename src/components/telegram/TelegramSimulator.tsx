@@ -105,29 +105,29 @@ export function TelegramSimulator() {
   ];
 
   return (
-    <div className="glass-panel rounded-3xl border-2 border-white/80 shadow-[0_20px_50px_rgba(128,0,32,0.12)] ring-1 ring-black/5 overflow-hidden flex flex-col h-[640px] relative">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-soft flex flex-col h-[600px]">
       {/* Simulator Header */}
-      <div className="px-5 py-4 bg-gradient-to-r from-maroon-900 via-maroon-800 to-maroon-950 text-white flex items-center justify-between border-b border-white/10 shadow-sm">
+      <div className="px-5 py-3.5 bg-gradient-to-r from-maroon-900 to-maroon-950 text-white flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-md">
-            <Bot className="w-5 h-5 text-rose-200 drop-shadow-sm" />
+          <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/20">
+            <Bot className="w-5 h-5 text-maroon-200" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h4 className="font-black text-sm text-white tracking-tight">StockFlow 3D Telegram Bot</h4>
-              <span className="flex h-2 w-2 rounded-full bg-emerald-400 shadow-sm animate-pulse"></span>
+              <h4 className="font-bold text-sm text-white">StockFlow Bot Simulator</h4>
+              <span className="flex h-2 w-2 rounded-full bg-emerald-400"></span>
             </div>
-            <p className="text-[11px] text-rose-200/90 font-medium">Uji webhook & parser perintah real-time</p>
+            <p className="text-[11px] text-maroon-200">Uji webhook & pemrosesan perintah langsung</p>
           </div>
         </div>
 
         {/* User Persona Picker */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-rose-200 hidden sm:inline font-medium">Persona:</span>
+          <span className="text-xs text-maroon-200 hidden sm:inline">Simulasi Pengguna:</span>
           <select
             value={selectedUser}
             onChange={(e: any) => setSelectedUser(e.target.value)}
-            className="text-xs bg-maroon-950/80 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-rose-400 font-medium"
+            className="text-xs bg-maroon-800 text-white border border-maroon-700 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-white"
           >
             <option value="siti">Siti Rahma (@sitirahma_ops)</option>
             <option value="ahmad">Ahmad Fauzi (@ahmadfauzi_dev)</option>
@@ -137,29 +137,29 @@ export function TelegramSimulator() {
       </div>
 
       {/* Chat Messages Body */}
-      <div className="flex-1 p-5 overflow-y-auto bg-slate-50/50 backdrop-blur-sm space-y-4">
+      <div className="flex-1 p-4 overflow-y-auto bg-slate-50 space-y-3">
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`flex items-start gap-3 ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex items-start gap-2.5 ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {m.sender === 'bot' && (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-maroon-800 to-maroon-950 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5 shadow-maroon shadow-sm ring-1 ring-white/50">
+              <div className="w-7 h-7 rounded-full bg-maroon-800 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5 shadow-sm">
                 <Bot className="w-4 h-4" />
               </div>
             )}
 
             <div
-              className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3.5 text-xs transition-all ${
+              className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 text-xs shadow-sm ${
                 m.sender === 'user'
-                  ? 'bg-gradient-to-br from-maroon-800 via-maroon-900 to-maroon-950 text-white rounded-tr-xs shadow-[0_6px_18px_rgba(128,0,32,0.25)] border border-maroon-700/60'
-                  : 'glass-card text-slate-800 rounded-tl-xs shadow-soft'
+                  ? 'bg-maroon-800 text-white rounded-tr-none'
+                  : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
               }`}
             >
               <div className="whitespace-pre-wrap leading-relaxed font-sans">{m.text}</div>
               <div
-                className={`text-[9px] mt-1.5 text-right font-semibold ${
-                  m.sender === 'user' ? 'text-rose-200' : 'text-slate-400'
+                className={`text-[9px] mt-1 text-right ${
+                  m.sender === 'user' ? 'text-maroon-200' : 'text-slate-400'
                 }`}
               >
                 {m.time}
@@ -167,7 +167,7 @@ export function TelegramSimulator() {
             </div>
 
             {m.sender === 'user' && (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5 shadow-sm ring-1 ring-white/50">
+              <div className="w-7 h-7 rounded-full bg-slate-700 text-white flex items-center justify-center text-xs flex-shrink-0 mt-0.5 shadow-sm">
                 <User className="w-4 h-4" />
               </div>
             )}
@@ -175,22 +175,22 @@ export function TelegramSimulator() {
         ))}
 
         {isSending && (
-          <div className="flex items-center gap-2 text-xs text-maroon-800 font-semibold italic bg-white/70 backdrop-blur-md px-3 py-2 rounded-xl border border-white/80 w-fit">
+          <div className="flex items-center gap-2 text-xs text-slate-400 italic">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-maroon-700" />
-            StockFlow Bot sedang memproses mutasi transaksi...
+            StockFlow Bot sedang memproses transaksi...
           </div>
         )}
       </div>
 
       {/* Quick Pills */}
-      <div className="px-4 py-2.5 border-t border-white/80 bg-white/60 backdrop-blur-md flex items-center gap-2 overflow-x-auto">
-        <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Template:</span>
+      <div className="px-4 py-2 border-t border-slate-100 bg-white flex items-center gap-2 overflow-x-auto">
+        <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">Template:</span>
         {quickPills.map((pill, idx) => (
           <button
             key={idx}
             onClick={() => handleSend(pill.cmd)}
             disabled={isSending}
-            className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-white/80 text-slate-700 hover:bg-white hover:text-maroon-900 border border-white/90 whitespace-nowrap transition-all shadow-sm hover:shadow hover:-translate-y-0.5 active:translate-y-0 badge-3d"
+            className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 hover:bg-maroon-50 hover:text-maroon-800 border border-slate-200 whitespace-nowrap transition-colors"
           >
             {pill.label}
           </button>
@@ -203,7 +203,7 @@ export function TelegramSimulator() {
           e.preventDefault();
           handleSend();
         }}
-        className="p-3.5 border-t border-white/80 bg-white/80 backdrop-blur-md flex items-center gap-2.5"
+        className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
       >
         <textarea
           rows={2}
@@ -216,14 +216,14 @@ export function TelegramSimulator() {
               handleSend();
             }
           }}
-          className="flex-1 text-xs bg-white/90 border border-slate-200/80 rounded-2xl px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-maroon-500/30 focus:border-maroon-700 font-medium shadow-inner"
+          className="flex-1 text-xs border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
         />
         <button
           type="submit"
           disabled={!inputText.trim() || isSending}
-          className="btn-3d h-12 px-5 rounded-2xl bg-maroon-800 hover:bg-maroon-700 text-white text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          className="h-10 px-4 rounded-xl bg-maroon-800 hover:bg-maroon-900 active:bg-maroon-950 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
-          <Send className="w-4 h-4" />
+          <Send className="w-3.5 h-3.5" />
           <span>Kirim</span>
         </button>
       </form>

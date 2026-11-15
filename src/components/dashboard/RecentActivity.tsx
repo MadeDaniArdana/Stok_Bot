@@ -31,28 +31,28 @@ interface RecentActivityProps {
 export function RecentActivity({ movements }: RecentActivityProps) {
   if (!movements || movements.length === 0) {
     return (
-      <div className="p-8 text-center glass-panel rounded-2xl shadow-soft">
-        <p className="text-xs text-slate-400 font-medium">Belum ada transaksi mutasi stok pada periode ini.</p>
+      <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
+        <p className="text-xs text-slate-400">Belum ada transaksi mutasi stok pada periode ini.</p>
       </div>
     );
   }
 
   return (
-    <div className="glass-panel rounded-2xl overflow-hidden shadow-soft">
-      <div className="p-4 sm:p-5 border-b border-slate-200/60 flex items-center justify-between">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-soft">
+      <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
         <div>
-          <h3 className="text-sm sm:text-base font-extrabold text-slate-900">Aktivitas Terkini</h3>
-          <p className="text-xs text-slate-500 mt-0.5 font-medium">Catatan pergerakan stok real-time</p>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Aktivitas Terkini</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Catatan pergerakan stok real-time</p>
         </div>
         <Link
           href="/stock/history"
-          className="text-xs font-bold text-maroon-800 hover:text-maroon-950 flex items-center gap-1 hover:underline"
+          className="text-xs font-semibold text-maroon-800 hover:text-maroon-900 flex items-center gap-1 hover:underline"
         >
           Riwayat Lengkap <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
 
-      <div className="divide-y divide-slate-100/80">
+      <div className="divide-y divide-slate-100">
         {movements.map((m) => {
           const isIncoming = m.type === 'IN';
           const isReversal = m.type === 'REVERSAL';
@@ -67,23 +67,23 @@ export function RecentActivity({ movements }: RecentActivityProps) {
           });
 
           return (
-            <div key={m.id} className="p-4 hover:bg-white/60 transition-colors flex items-start gap-3.5">
+            <div key={m.id} className="p-4 hover:bg-slate-50/70 transition-colors flex items-start gap-3">
               {/* Icon pill */}
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ring-1 ring-white/60 ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
                   isReversal
-                    ? 'bg-gradient-to-br from-purple-500 to-purple-700 text-white shadow-purple-500/20'
+                    ? 'bg-purple-50 text-purple-700 border border-purple-200'
                     : isIncoming
-                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-emerald-500/20'
-                    : 'bg-gradient-to-br from-maroon-700 to-maroon-900 text-white shadow-maroon/20'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border border-rose-200'
                 }`}
               >
                 {isReversal ? (
-                  <RotateCcw className="w-4 h-4 drop-shadow-sm" />
+                  <RotateCcw className="w-4 h-4" />
                 ) : isIncoming ? (
-                  <ArrowDownLeft className="w-4 h-4 drop-shadow-sm" />
+                  <ArrowDownLeft className="w-4 h-4" />
                 ) : (
-                  <ArrowUpRight className="w-4 h-4 drop-shadow-sm" />
+                  <ArrowUpRight className="w-4 h-4" />
                 )}
               </div>
 
@@ -94,7 +94,7 @@ export function RecentActivity({ movements }: RecentActivityProps) {
                     {m.product.name}
                   </p>
                   <span
-                    className={`font-mono text-xs font-black ${
+                    className={`font-mono text-xs font-extrabold ${
                       isIncoming ? 'text-emerald-600' : isReversal ? 'text-purple-600' : 'text-maroon-800'
                     }`}
                   >
@@ -103,29 +103,29 @@ export function RecentActivity({ movements }: RecentActivityProps) {
                   </span>
                 </div>
 
-                <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-medium">
+                <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
                   {m.notes || (isIncoming ? 'Barang masuk ke gudang' : 'Pengambilan persediaan')}
                 </p>
 
-                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400 font-medium">
+                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
                   <span>{timeLabel}</span>
                   <span>•</span>
-                  <span className="font-bold text-slate-600">{m.actor?.name || 'Sistem'}</span>
+                  <span className="font-medium text-slate-600">{m.actor?.name || 'Sistem'}</span>
                   <span>•</span>
                   <span className="inline-flex items-center gap-1">
                     {isTelegram ? (
-                      <span className="inline-flex items-center gap-0.5 text-sky-700 bg-sky-100/70 border border-sky-200/60 px-2 py-0.2 rounded-full font-bold badge-3d">
+                      <span className="inline-flex items-center gap-0.5 text-sky-600 bg-sky-50 px-1 py-0.2 rounded font-medium">
                         <Send className="w-2.5 h-2.5" /> Telegram
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-0.5 text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.2 rounded-full font-bold badge-3d">
+                      <span className="inline-flex items-center gap-0.5 text-slate-600 bg-slate-100 px-1 py-0.2 rounded font-medium">
                         <Globe className="w-2.5 h-2.5" /> Web
                       </span>
                     )}
                   </span>
                   <span>•</span>
                   <span>
-                    Stok: {m.stockBefore} → <strong className="text-slate-800 font-bold">{m.stockAfter}</strong>
+                    Stok: {m.stockBefore} → <strong className="text-slate-700">{m.stockAfter}</strong>
                   </span>
                 </div>
               </div>

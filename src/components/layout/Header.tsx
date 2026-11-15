@@ -86,20 +86,20 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/75 backdrop-blur-xl border-b border-white/60 shadow-[0_4px_20px_rgba(128,0,32,0.03)] px-4 sm:px-6 flex items-center justify-between">
+    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between">
       {/* Left: Mobile Toggle + Title */}
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleMobile}
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-white/80 border border-transparent hover:border-slate-200 transition-all lg:hidden"
+          className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 lg:hidden"
           aria-label="Toggle menu"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 bg-white/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/80 shadow-sm">
+        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
           <Clock className="w-3.5 h-3.5 text-maroon-700" />
-          <span className="font-mono font-medium text-slate-700">{timeStr}</span>
+          <span className="font-mono font-medium">{timeStr}</span>
           <span className="text-slate-300">|</span>
           <span className="text-slate-600 font-medium">Gudang Utama (StockFlow)</span>
         </div>
@@ -110,7 +110,7 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
         {/* Telegram Quick Launch Button */}
         <Link
           href="/telegram"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-maroon-50 to-maroon-100/70 text-maroon-900 hover:from-maroon-100 hover:to-maroon-200/80 border border-maroon-200/80 transition-all shadow-sm hover:shadow hover:-translate-y-0.5"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-maroon-50 text-maroon-800 hover:bg-maroon-100 border border-maroon-200 transition-colors shadow-sm"
           title="Buka Telegram Bot Simulator & Webhook Manager"
         >
           <Send className="w-3.5 h-3.5 text-maroon-700" />
@@ -121,24 +121,24 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 rounded-xl text-slate-600 hover:text-maroon-800 hover:bg-white/80 border border-transparent hover:border-slate-200/80 transition-all"
+            className="relative p-2 rounded-lg text-slate-500 hover:text-maroon-800 hover:bg-maroon-50 transition-colors"
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-bold text-white bg-gradient-to-br from-rose-500 to-maroon-700 rounded-full px-1 border-2 border-white shadow-sm animate-pulse">
+              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[18px] h-[18px] text-[10px] font-bold text-white bg-maroon-700 rounded-full px-1 border-2 border-white shadow-sm">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 glass-panel rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100/80">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-slate-900">Pemberitahuan</h3>
                   {unreadCount > 0 && (
-                    <span className="text-[10px] bg-maroon-100 text-maroon-800 font-bold px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] bg-maroon-100 text-maroon-800 font-bold px-1.5 py-0.5 rounded-full">
                       {unreadCount} baru
                     </span>
                   )}
@@ -153,7 +153,7 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
                 )}
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100/60">
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                 {notifications.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-400">
                     Tidak ada notifikasi saat ini
@@ -162,8 +162,8 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
                   notifications.map((n) => (
                     <div
                       key={n.id}
-                      className={`p-3 text-xs transition-colors hover:bg-white/60 ${
-                        !n.isRead ? 'bg-maroon-50/50 font-medium' : ''
+                      className={`p-3 text-xs transition-colors hover:bg-slate-50 ${
+                        !n.isRead ? 'bg-maroon-50/40 font-medium' : ''
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
@@ -190,7 +190,7 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
                 )}
               </div>
 
-              <div className="p-2 border-t border-slate-100/80 text-center">
+              <div className="p-2 border-t border-slate-100 text-center">
                 <Link
                   href="/products?stockStatus=low"
                   onClick={() => setShowNotifications(false)}
@@ -207,9 +207,9 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl bg-white/70 backdrop-blur-md border border-white/90 hover:border-maroon-300 shadow-soft hover:shadow transition-all text-left group"
+            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-slate-200 hover:border-maroon-300 hover:bg-maroon-50/30 transition-all text-left"
           >
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-maroon-800 to-maroon-950 text-white font-bold text-xs flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-maroon-800 to-maroon-950 text-white font-bold text-xs flex items-center justify-center shadow-sm">
               {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
             </div>
             <div className="hidden sm:block text-xs">
@@ -223,8 +223,8 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-64 glass-panel rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-4 py-2 border-b border-slate-100/80">
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-4 py-2 border-b border-slate-100">
                 <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
                   Ganti Pengguna (Role Switcher)
                 </p>
@@ -243,21 +243,21 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
                         switchUser(u.id);
                         setShowUserMenu(false);
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors ${
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
                         isSelected
-                          ? 'bg-gradient-to-r from-maroon-50 to-maroon-100/50 text-maroon-900 font-semibold border border-maroon-200/50'
-                          : 'text-slate-700 hover:bg-white/60'
+                          ? 'bg-maroon-50 text-maroon-900 font-semibold'
+                          : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
                       <div className="text-left">
                         <div className="flex items-center gap-1.5">
                           <span>{u.name}</span>
                           {u.role === 'ADMIN' ? (
-                            <span className="text-[9px] bg-maroon-100 text-maroon-800 font-bold px-1.5 py-0.2 rounded-full">
+                            <span className="text-[9px] bg-maroon-100 text-maroon-800 font-bold px-1 py-0.2 rounded">
                               Admin
                             </span>
                           ) : (
-                            <span className="text-[9px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.2 rounded-full">
+                            <span className="text-[9px] bg-slate-100 text-slate-600 font-bold px-1 py-0.2 rounded">
                               Staff
                             </span>
                           )}
@@ -270,11 +270,11 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
                 })}
               </div>
 
-              <div className="border-t border-slate-100/80 p-2 mt-1">
+              <div className="border-t border-slate-100 p-2 mt-1">
                 <Link
                   href="/login"
                   onClick={() => setShowUserMenu(false)}
-                  className="block text-center text-xs text-rose-600 hover:bg-rose-50/80 py-1.5 rounded-xl transition-colors font-medium"
+                  className="block text-center text-xs text-rose-600 hover:bg-rose-50 py-1.5 rounded-lg transition-colors font-medium"
                 >
                   Keluar Sesi (Logout)
                 </Link>

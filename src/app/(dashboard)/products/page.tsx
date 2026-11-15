@@ -249,7 +249,7 @@ export default function ProductsPage() {
               resetForm();
               setIsAddOpen(true);
             }}
-            className="btn-3d inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-maroon-800 hover:bg-maroon-700 text-white text-xs font-bold transition-all"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-maroon-800 hover:bg-maroon-900 active:bg-maroon-950 text-white text-xs font-semibold shadow-soft hover:shadow-maroon transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>Tambah Barang Baru</span>
@@ -258,17 +258,17 @@ export default function ProductsPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="glass-panel p-4 rounded-2xl shadow-soft space-y-3">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-soft space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Search Input */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cari Nama Barang atau SKU..."
-              className="w-full text-xs pl-10 pr-3 py-2.5 bg-white/90 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 shadow-inner font-medium"
+              className="w-full text-xs pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
             />
           </div>
 
@@ -277,7 +277,7 @@ export default function ProductsPage() {
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full text-xs px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
+              className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
             >
               <option value="all">Semua Kategori</option>
               {categories.map((c) => (
@@ -293,7 +293,7 @@ export default function ProductsPage() {
             <select
               value={stockStatus}
               onChange={(e) => setStockStatus(e.target.value)}
-              className="w-full text-xs px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
+              className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
             >
               <option value="all">Semua Kondisi Stok</option>
               <option value="safe">🟢 Stok Aman (&gt; Min)</option>
@@ -307,7 +307,7 @@ export default function ProductsPage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full text-xs px-3.5 py-2.5 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white/90 shadow-inner font-medium"
+              className="w-full text-xs px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
             >
               <option value="all">Status: Semua</option>
               <option value="active">Aktif Saja</option>
@@ -318,7 +318,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Table Card */}
-      <div className="glass-panel rounded-2xl shadow-soft overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">

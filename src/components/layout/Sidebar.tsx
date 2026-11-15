@@ -88,22 +88,22 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-white/75 backdrop-blur-xl border-r border-white/70 shadow-[4px_0_30px_rgba(128,0,32,0.04)] flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-white/60 bg-gradient-to-r from-white/90 via-white/70 to-maroon-50/30">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-gradient-to-r from-white via-white to-maroon-50/40">
           <Link href="/dashboard" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-maroon-700 via-maroon-800 to-maroon-950 flex items-center justify-center text-white shadow-maroon shadow-md ring-1 ring-white/40 group-hover:scale-105 transition-all duration-300">
-              <Boxes className="w-5 h-5 text-white drop-shadow-sm" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-maroon-700 via-maroon-800 to-maroon-950 flex items-center justify-center text-white shadow-maroon shadow-sm group-hover:scale-105 transition-transform">
+              <Boxes className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-lg tracking-tight text-slate-900">Stock</span>
-                <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-maroon-800 to-maroon-950 bg-clip-text text-transparent">Flow</span>
+                <span className="font-bold text-lg tracking-tight text-slate-900">Stock</span>
+                <span className="font-bold text-lg tracking-tight text-maroon-800">Flow</span>
               </div>
-              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Inventory 3D System</p>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Inventory System</p>
             </div>
           </Link>
 
@@ -134,27 +134,25 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                     onClick={onCloseMobile}
                     className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
                       isActive
-                        ? 'bg-gradient-to-r from-maroon-100/80 via-maroon-50/70 to-white/40 text-maroon-950 font-bold border-l-4 border-maroon-800 shadow-[0_4px_14px_rgba(128,0,32,0.08)] backdrop-blur-sm'
-                        : 'text-slate-600 hover:text-maroon-900 hover:bg-white/70 hover:shadow-sm'
+                        ? 'bg-maroon-50 text-maroon-900 font-semibold border-l-4 border-maroon-800 shadow-sm'
+                        : 'text-slate-600 hover:text-maroon-900 hover:bg-maroon-50/50'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`p-1 rounded-lg transition-all ${
-                        isActive
-                          ? 'bg-maroon-800 text-white shadow-sm'
-                          : 'text-slate-400 group-hover:text-maroon-800 group-hover:bg-maroon-50'
-                      }`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
+                      <Icon
+                        className={`w-4 h-4 transition-colors ${
+                          isActive ? 'text-maroon-800' : 'text-slate-400 group-hover:text-maroon-700'
+                        }`}
+                      />
                       <span>{item.name}</span>
                     </div>
 
                     {item.badge && (
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold badge-3d ${
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
                           item.badge === 'IN'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
-                            : 'bg-maroon-50 text-maroon-800 border border-maroon-200 shadow-sm'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-maroon-100 text-maroon-800 border border-maroon-200'
                         }`}
                       >
                         {item.badge}
@@ -162,9 +160,9 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                     )}
 
                     {item.highlight && (
-                      <span className="flex h-2.5 w-2.5 relative">
+                      <span className="flex h-2 w-2 relative">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-maroon-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-maroon-700 shadow-sm"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-maroon-700"></span>
                       </span>
                     )}
                   </Link>
@@ -175,35 +173,35 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
         </div>
 
         {/* User Card at bottom of sidebar */}
-        <div className="p-3 border-t border-white/60 bg-white/40 backdrop-blur-md">
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/80 backdrop-blur-md border border-white/90 shadow-[0_4px_16px_rgba(0,0,0,0.04)] hover:shadow-md transition-all">
+        <div className="p-3 border-t border-slate-100 bg-slate-50/70">
+          <div className="flex items-center gap-3 p-2 rounded-xl bg-white border border-slate-200/80 shadow-soft">
             <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-xs shadow-sm ring-1 ring-white/50 ${
+              className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-xs ${
                 isAdmin
-                  ? 'bg-gradient-to-br from-maroon-700 to-maroon-950 shadow-maroon'
+                  ? 'bg-gradient-to-br from-maroon-800 to-maroon-950'
                   : 'bg-gradient-to-br from-slate-600 to-slate-800'
               }`}
             >
               {currentUser?.name ? currentUser.name.substring(0, 2).toUpperCase() : 'SF'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-slate-800 truncate">
+              <p className="text-xs font-semibold text-slate-800 truncate">
                 {currentUser?.name || 'Memuat...'}
               </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1 mt-0.5">
                 {isAdmin ? (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-maroon-800 bg-maroon-100/70 px-2 py-0.2 rounded-full border border-maroon-200/60 badge-3d">
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-maroon-800 bg-maroon-50 px-1.5 py-0.2 rounded border border-maroon-200">
                     <ShieldCheck className="w-2.5 h-2.5" />
                     Admin
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.2 rounded-full border border-slate-200 badge-3d">
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
                     <UserCheck className="w-2.5 h-2.5" />
                     Staff
                   </span>
                 )}
                 {currentUser?.telegram && (
-                  <span className="text-[10px] font-bold text-sky-700 bg-sky-100/70 border border-sky-200/60 px-1.5 py-0.2 rounded-full badge-3d">TG</span>
+                  <span className="text-[10px] text-sky-600 bg-sky-50 px-1 py-0.2 rounded">TG</span>
                 )}
               </div>
             </div>
