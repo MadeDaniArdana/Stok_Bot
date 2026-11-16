@@ -13,10 +13,6 @@ import {
   ArrowUpRight,
   X,
   FileSpreadsheet,
-  Camera,
-  Image as ImageIcon,
-  ExternalLink,
-  Check,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
@@ -43,10 +39,6 @@ export default function StockHistoryPage() {
   const [reversalTarget, setReversalTarget] = useState<any | null>(null);
   const [reversalReason, setReversalReason] = useState('');
   const [isReversing, setIsReversing] = useState(false);
-
-  // Photo Lightbox & Link Copy
-  const [viewingPhoto, setViewingPhoto] = useState<any | null>(null);
-  const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
 
   const fetchMovements = async () => {
     try {
@@ -270,20 +262,19 @@ export default function StockHistoryPage() {
                 <th className="py-3.5 px-4">Aktor / Pemakai</th>
                 <th className="py-3.5 px-4 text-center">Sumber</th>
                 <th className="py-3.5 px-4">Catatan / Dokumen</th>
-                <th className="py-3.5 px-4 text-center">Bukti Foto</th>
                 {isAdmin && <th className="py-3.5 px-4 text-right">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     Memuat riwayat transaksi...
                   </td>
                 </tr>
               ) : movements.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                  <td colSpan={9} className="py-12 text-center text-slate-400">
                     Belum ada transaksi pada kriteria filter ini.
                   </td>
                 </tr>
@@ -381,57 +372,6 @@ export default function StockHistoryPage() {
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        {m.proofPhoto ? (
-                          <button
-                            type="button"
-                            onClick={() => setViewingPhoto(m)}
-                            className="inline-flex items-center gap-1.5 p-1 rounded-lg border border-slate-200 hover:border-maroon-400 bg-white shadow-soft transition-all group"
-                            title="Klik untuk melihat foto bukti fisik"
-                          >
-                            <img
-                              src={m.proofPhoto}
-                              alt="Bukti Foto"
-                              className="w-8 h-8 rounded object-cover group-hover:scale-105 transition-transform"
-                            />
-                            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                              ✓ Ada Foto
-                            </span>
-                          </button>
-                        ) : m.type === 'OUT' && m.proofToken ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const url = `${window.location.origin}/proof/${m.proofToken}`;
-                              navigator.clipboard.writeText(url);
-                              setCopiedTokenId(m.id);
-                              showToast('Link Disalin!', 'Link kamera bukti fisik telah disalin ke clipboard.');
-                              setTimeout(() => setCopiedTokenId(null), 2500);
-                            }}
-                            className={`inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg font-bold border transition-all ${
-                              copiedTokenId === m.id
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
-                            }`}
-                            title="Klik untuk menyalin link kamera untuk pegawai"
-                          >
-                            {copiedTokenId === m.id ? (
-                              <>
-                                <Check className="w-3 h-3 text-emerald-600" />
-                                <span>Tersalin</span>
-                              </>
-                            ) : (
-                              <>
-                                <Camera className="w-3 h-3 text-amber-600" />
-                                <span>Salin Link</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-slate-300 font-mono">-</span>
-                        )}
-                      </td>
-
                       {isAdmin && (
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           {m.type !== 'REVERSAL' && (
@@ -523,65 +463,6 @@ export default function StockHistoryPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Lightbox Modal Foto Bukti Fisik */}
-      {viewingPhoto && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Bukti Fisik Barang Dipakai</h4>
-                <p className="text-xs text-slate-400">
-                  {viewingPhoto.product?.name} ({viewingPhoto.quantity} {viewingPhoto.product?.unit})
-                </p>
-              </div>
-              <button
-                onClick={() => setViewingPhoto(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-950 flex items-center justify-center max-h-[60vh] overflow-hidden">
-              <img
-                src={viewingPhoto.proofPhoto}
-                alt="Foto Bukti"
-                className="max-h-[55vh] max-w-full object-contain rounded-lg shadow-md"
-              />
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs space-y-1.5">
-              <div className="flex justify-between text-slate-600">
-                <span className="text-slate-400">Pegawai Pengambil:</span>
-                <span className="font-semibold text-slate-800">{viewingPhoto.actor?.name || 'Sistem'}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span className="text-slate-400">Waktu Diambil:</span>
-                <span>
-                  {new Date(viewingPhoto.createdAt).toLocaleString('id-ID', {
-                    timeZone: 'Asia/Jakarta',
-                  })}
-                </span>
-              </div>
-              {viewingPhoto.notes && (
-                <div className="pt-1 text-slate-500 border-t border-slate-200/60">
-                  Catatan: {viewingPhoto.notes}
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 bg-white border-t border-slate-100 text-right">
-              <button
-                onClick={() => setViewingPhoto(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
-              >
-                Tutup
-              </button>
-            </div>
           </div>
         </div>
       )}

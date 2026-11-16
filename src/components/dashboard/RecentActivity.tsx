@@ -12,7 +12,6 @@ interface Movement {
   stockAfter: number;
   source: string;
   notes?: string | null;
-  proofPhoto?: string | null;
   createdAt: string;
   product: {
     name: string;
@@ -128,14 +127,6 @@ export function RecentActivity({ movements }: RecentActivityProps) {
                   <span>
                     Stok: {m.stockBefore} → <strong className="text-slate-700">{m.stockAfter}</strong>
                   </span>
-                  {m.proofPhoto && (
-                    <>
-                      <span>•</span>
-                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                        📸 Ada Foto
-                      </span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
