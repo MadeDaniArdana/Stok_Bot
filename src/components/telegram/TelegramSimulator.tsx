@@ -18,7 +18,7 @@ export function TelegramSimulator() {
     {
       id: '1',
       sender: 'bot',
-      text: '👋 *Selamat datang di StockFlow Bot!*\n\nKetik `/bantuan` untuk melihat format pengambilan barang, atau gunakan tombol cepat di bawah.',
+      text: '👋 *Selamat datang di StockFlow Bot!*\n\nKetik `/bantuan` untuk melihat panduan bot, atau gunakan tombol cepat di bawah.',
       time: '19:00',
     },
   ]);
@@ -94,14 +94,7 @@ export function TelegramSimulator() {
     { label: '📦 Cek Stok (/stok)', cmd: '/stok' },
     { label: '🔍 Cari Kertas (/cari Kertas)', cmd: '/cari Kertas' },
     { label: '📜 Riwayat Saya (/riwayat)', cmd: '/riwayat' },
-    {
-      label: '📝 Ambil 5 Kertas A4',
-      cmd: `PAKAI\nBarang: PAP-A4-01\nJumlah: 5\nKeperluan: Cetak berkas operasional mingguan`,
-    },
-    {
-      label: '⚠️ Coba Ambil Melebihi Stok (Toner)',
-      cmd: `PAKAI\nBarang: TNR-HP-85A\nJumlah: 10\nKeperluan: Kebutuhan printer divisi`,
-    },
+    { label: '❔ Panduan Bot (/bantuan)', cmd: '/bantuan' },
   ];
 
   return (
@@ -209,7 +202,7 @@ export function TelegramSimulator() {
           rows={2}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Ketik perintah atau format PAKAI (Enter untuk kirim)..."
+          placeholder="Ketik perintah bot (Enter untuk kirim)..."
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();

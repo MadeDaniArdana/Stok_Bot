@@ -2,63 +2,66 @@
 ## Arsitektur Aplikasi Web dan Integrasi Telegram
 
 **Versi:** 1.0  
-**Stack utama:** Next.js, TypeScript, Prisma ORM, PostgreSQL, Telegram Bot API
+**Stack utama:** Next.js, TypeScript, Prisma ORM, SQLite, Telegram Bot API
 
 ---
 
 ## 1. Gambaran Arsitektur
 
-StockFlow menggunakan pendekatan aplikasi full-stack modular. Next.js menangani antarmuka web dan endpoint backend. Prisma menjadi lapisan akses data ke PostgreSQL. Telegram Bot API mengirim update ke endpoint webhook Next.js.
+StockFlow menggunakan pendekatan aplikasi full-stack modular. Next.js menangani antarmuka web dan endpoint backend. Prisma menjadi lapisan akses data ke SQLite pada server lokal. Telegram Bot API menerima tugas admin melalui webhook. Vercel hanya digunakan untuk demo karena database SQLite dan file foto di filesystem instance tidak persisten.
 
 ### Komponen utama
 1. **Admin Web:** dashboard dan halaman pengelolaan inventori.
 2. **Next.js Application:** UI, autentikasi, API/Route Handler, dan business logic.
 3. **Application Services:** aturan stok, pengguna, notifikasi, dan Telegram.
 4. **Prisma ORM:** komunikasi terstruktur dengan database.
-5. **PostgreSQL:** penyimpanan master data, saldo, ledger, update Telegram, dan notifikasi.
-6. **Telegram Bot API:** menerima laporan dan mengirim balasan.
-7. **Hosting/Operations:** HTTPS, environment secrets, backup, logging, dan monitoring.
+5. **SQLite:** penyimpanan master data, saldo, ledger, tugas, update Telegram, dan notifikasi.
+6. **Penyimpanan lokal:** foto bukti disimpan di folder persisten pada server dan dicadangkan bersama database.
+7. **Telegram Bot API:** menerima tugas admin, mengirim link, balasan, dan notifikasi.
+8. **Hosting/Operations:** HTTPS, environment secrets, backup, logging, dan monitoring.
 
 ## 2. Diagram Konteks
 
 ```mermaid
 flowchart LR
-  Admin[Admin Gudang] -->|Kelola barang dan stok| Web[StockFlow Web]
-  User[Pengguna] -->|Laporan pengambilan| TG[Telegram Bot]
+  Admin[Admin Gudang] -->|Lihat stok dan tambah stok| Web[StockFlow Web]
+  Admin -->|Buat tugas pemasangan| TG[Telegram Bot]
   TG -->|Webhook update| App[Next.js Backend]
+  TG -->|Link tugas| WA[WhatsApp]
+  WA -->|Foto bukti| Web
   Web --> App
   App --> Services[Application Services]
   Services --> ORM[Prisma ORM]
-  ORM --> DB[(PostgreSQL)]
+  ORM --> DB[(SQLite)]
+  App --> Files[(Folder foto lokal)]
   Services -->|Balasan dan notifikasi| TG
   DB -->|Data dashboard| App
 ```
 
-## 3. Alur Barang Keluar dari Telegram
+## 3. Alur Tugas Pemasangan
 
 ```mermaid
 sequenceDiagram
-  participant U as Pengguna
+  participant A as Admin
   participant T as Telegram
-  participant W as Webhook Next.js
-  participant S as Telegram/Stock Service
-  participant D as PostgreSQL
+  participant W as WhatsApp
+  participant P as Halaman bukti
+  participant S as Task/Inventory Service
+  participant D as SQLite
+  participant F as Penyimpanan foto
 
-  U->>T: Kirim laporan PAKAI
-  T->>W: HTTPS webhook update
-  W->>W: Validasi secret dan payload
-  W->>D: Simpan update_id unik
-  W->>S: Proses pesan
-  S->>D: Validasi akun, barang, dan stok
-  alt Pesan ambigu/tidak lengkap
-    S->>T: Minta klarifikasi
-  else Stok cukup dan pengguna berizin
-    S->>D: Transaksi: kurangi stok + insert movement
-    D-->>S: Commit berhasil
-    S->>T: Konfirmasi stok terbaru
-  else Tidak valid/stok kurang
-    S->>T: Kirim alasan penolakan
-  end
+  A->>T: Kirim tugas terstruktur
+  T->>S: Validasi admin, barang, jumlah, pemasang, lokasi
+  S->>D: Simpan tugas pending dan hash token link
+  S->>T: Balas link bukti dan link berbagi WhatsApp
+  T->>A: Admin menerima link
+  A->>W: Bagikan link kepada pemasang
+  W->>P: Pemasang membuka link
+  P->>S: Kirim foto bukti
+  S->>F: Simpan foto
+  S->>D: Transaksi: kurangi stok + movement OUT + tandai selesai
+  D-->>S: Commit berhasil
+  S-->>P: Tugas selesai
 ```
 
 ## 4. Pilihan Pola Arsitektur
@@ -67,7 +70,7 @@ Gunakan **modular monolith** untuk MVP:
 - Satu aplikasi Next.js.
 - Modul domain dipisahkan berdasarkan tanggung jawab.
 - Service layer mengandung aturan bisnis.
-- Database tunggal PostgreSQL.
+- Database tunggal SQLite untuk server lokal.
 - Tidak perlu microservices pada tahap awal.
 
 Alasan:
@@ -94,6 +97,7 @@ Alasan:
 ### Application/Domain Service Layer
 Modul yang disarankan:
 - `inventory.service.ts`: stock in, stock out, adjustment, reversal.
+- `installation-task.service.ts`: pembuatan tugas, validasi token, bukti foto, dan pengurangan stok.
 - `product.service.ts`: master barang.
 - `category.service.ts`: kategori.
 - `telegram.service.ts`: parsing, linking, balasan bot.
@@ -276,17 +280,15 @@ Rekomendasi MVP: mulai dengan revalidation/polling sederhana. Hindari menambah k
 Contoh `.env.example`:
 
 ```env
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/stockflow"
+DATABASE_URL="file:./dev.db"
 AUTH_SECRET="replace-with-strong-random-secret"
-APP_URL="https://your-domain.example"
+APP_URL="https://alamat-yang-dapat-diakses-pemasang"
 
 TELEGRAM_BOT_TOKEN="replace-with-bot-token"
 TELEGRAM_WEBHOOK_SECRET="replace-with-random-secret"
 TELEGRAM_BOT_USERNAME="your_bot_username"
-
-# Opsional bila memakai Supabase
-SUPABASE_URL=""
-SUPABASE_ANON_KEY=""
+TELEGRAM_ADMIN_IDS="id_telegram_admin"
+TASK_PROOF_DIRECTORY="D:\\StockFlow\\uploads\\task-proofs"
 ```
 
 Aturan:
@@ -300,18 +302,19 @@ Aturan:
 ### Lingkungan
 - Development: lokal, database development, bot testing.
 - Staging: konfigurasi mirip production, bot staging terpisah.
-- Production: domain HTTPS, database terkelola, backup dan monitoring.
+- Production launching: server lokal, SQLite persisten, folder bukti foto persisten, backup keduanya.
+- Vercel: demo saja; database dan file di `/tmp` dapat hilang saat instance berubah.
 
 ### Komponen hosting
-- Next.js: Vercel atau VPS.
-- PostgreSQL: managed PostgreSQL atau Supabase.
+- Next.js: server lokal untuk launching; Vercel hanya untuk demo.
+- Database: SQLite pada server lokal.
 - Domain dan TLS: HTTPS wajib untuk webhook.
 - Monitoring: error tracking dan log terstruktur.
 - Backup: otomatis dan diuji pemulihannya.
 
 ### Checklist deployment
-- [ ] Database production dibuat.
-- [ ] Migration dijalankan melalui pipeline terkontrol.
+- [ ] Database lokal disinkronkan dengan `npx prisma db push`.
+- [ ] Folder bukti foto dibuat dan masuk jadwal backup.
 - [ ] Admin awal dibuat dengan aman.
 - [ ] Environment secrets diatur.
 - [ ] Domain HTTPS aktif.
@@ -342,7 +345,7 @@ Sediakan prosedur:
 ## 16. Rencana Evolusi Arsitektur
 
 ### Tahap 1 — MVP
-Modular monolith, satu PostgreSQL, satu bot, satu gudang.
+Modular monolith, satu SQLite lokal, satu bot, satu gudang, dan penyimpanan foto lokal.
 
 ### Tahap 2 — Operasional berkembang
 Tambahkan job queue/outbox, notifikasi retry, export, approval, dan monitoring lebih lengkap.
@@ -354,9 +357,9 @@ Pertimbangkan multi-gudang, event processing, service terpisah, cache, dan anali
 
 - Versi Next.js dan Prisma yang digunakan.
 - Auth.js atau provider autentikasi lain.
-- Hosting Next.js dan PostgreSQL.
+- Alamat `APP_URL` yang dapat diakses pemasang dan konfigurasi allowlist `TELEGRAM_ADMIN_IDS`.
 - Zona waktu operasional.
 - Format adjustment (delta bertanda atau tipe masuk/keluar terpisah).
-- Direct issue, approval, atau hybrid untuk tiap kelompok pengguna.
+- Pengurangan stok terjadi setelah bukti foto berhasil dikirim; tugas tidak disetujui di web.
 - Kebijakan akses `/stok` dan `/cari` di Telegram.
 - Strategi retry dan outbox untuk notifikasi.

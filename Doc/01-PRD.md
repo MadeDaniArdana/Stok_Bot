@@ -9,7 +9,7 @@
 
 ## 1. Ringkasan Produk
 
-StockFlow adalah aplikasi pengelolaan persediaan berbasis web yang terhubung dengan Telegram Bot. Website menjadi pusat pengelolaan barang dan monitoring stok oleh admin, sedangkan pengguna dapat melaporkan pengambilan barang melalui Telegram tanpa harus membuka website.
+StockFlow adalah aplikasi pengelolaan persediaan berbasis web yang terhubung dengan Telegram Bot. Admin membuat tugas pemasangan melalui Telegram, lalu membagikan link unik kepada pemasang lewat WhatsApp. Pemasang mengirim foto bukti melalui halaman web ringan; stok berkurang otomatis setelah foto berhasil diterima. Website digunakan untuk melihat stok dan mencatat barang masuk.
 
 Setiap transaksi yang valid dicatat ke database dan memperbarui stok secara otomatis. Admin dapat melihat kondisi persediaan, riwayat pergerakan barang, serta menerima peringatan ketika stok mencapai atau berada di bawah batas minimum.
 
@@ -23,12 +23,12 @@ Setiap transaksi yang valid dicatat ke database dan memperbarui stok secara otom
 
 ### Solusi
 
-1. Admin mengelola master barang, kategori, satuan, pengguna, dan stok melalui website.
-2. Pengguna terdaftar mengirim laporan pengambilan barang melalui Telegram.
-3. Sistem memvalidasi identitas, barang, jumlah, dan ketersediaan stok.
-4. Jika valid dan sesuai kebijakan pengguna, transaksi dicatat dan stok dikurangi secara atomik.
-5. Website menampilkan perubahan stok dan riwayat transaksi.
-6. Sistem mengirim konfirmasi dan notifikasi stok minimum.
+1. Admin mengelola master barang, kategori, pengguna, dan barang masuk melalui website.
+2. Admin membuat tugas berisi barang, jumlah, pemasang, dan lokasi melalui Telegram.
+3. Bot membuat link unik yang dibagikan ke pemasang melalui WhatsApp.
+4. Pemasang mengirim foto bukti; sistem menyelesaikan tugas dan mengurangi stok secara atomik.
+5. Website menampilkan stok, riwayat mutasi, dan notifikasi stok rendah.
+6. Bot menjawab status tugas dan mengirim notifikasi stok rendah kepada admin.
 
 ## 2. Visi, Tujuan, dan Prinsip Produk
 
@@ -54,10 +54,10 @@ Menyediakan satu sumber data persediaan yang mudah digunakan, transparan, dan da
 | Peran | Kebutuhan | Hak utama |
 |---|---|---|
 | Admin | Mengelola seluruh persediaan dan pengguna | Dashboard, master barang, kategori, stock in/out, laporan, pengguna, pengaturan, integrasi Telegram |
-| Pengguna terdaftar | Melaporkan pengambilan dan memeriksa informasi yang diizinkan | Telegram `/pakai`, `/cari`, `/stok` sesuai kebijakan, `/riwayat` milik sendiri |
-| Admin gudang/approver (opsional tahap lanjut) | Meninjau permintaan yang memerlukan persetujuan | Melihat dan menyetujui/menolak permintaan |
+| Admin | Membuat dan melacak tugas pemasangan | Telegram `/buat_tugas`, `/tugas`; web untuk stok dan barang masuk |
+| Pemasang | Menyelesaikan tugas dan mengirim bukti pemasangan | Membuka link WhatsApp dan mengirim foto; tidak perlu akun Telegram |
 
-**Aturan akses awal:** hanya pengguna yang telah dihubungkan dengan Telegram User ID dan diaktifkan oleh admin yang boleh membuat transaksi. Mode persetujuan dapat diaktifkan berdasarkan pengguna atau kebijakan barang.
+**Aturan akses awal:** hanya admin yang akunnya terhubung dan Telegram User ID-nya masuk allowlist yang dapat membuat tugas. Pemasang mengakses tugas melalui token link khusus.
 
 ## 4. Ruang Lingkup
 
@@ -67,13 +67,13 @@ Menyediakan satu sumber data persediaan yang mudah digunakan, transparan, dan da
 - CRUD barang dan kategori.
 - Pengaturan SKU, satuan, stok minimum, dan status aktif.
 - Pencatatan barang masuk melalui website.
-- Pencatatan barang keluar melalui website.
+- Tugas pemasangan dibuat oleh admin melalui Telegram.
+- Pengiriman foto bukti melalui link sekali-selesai; stok keluar dicatat otomatis setelah bukti diterima.
 - Dashboard ringkasan stok.
 - Riwayat pergerakan stok.
 - Integrasi Telegram Bot melalui webhook.
 - Pengaitan akun Telegram dengan pengguna sistem.
-- Laporan pengambilan melalui format terstruktur.
-- Dukungan bahasa natural secara terbatas dengan konfirmasi jika ambigu.
+- Pelacakan tugas pemasangan melalui perintah bot `/tugas`.
 - Validasi stok tidak boleh negatif.
 - Idempotensi update Telegram.
 - Notifikasi stok minimum kepada admin.
@@ -139,12 +139,13 @@ Admin memasukkan barang, kuantitas, tanggal, sumber/supplier opsional, dan catat
 - Sistem menambah stok dan membuat catatan `IN` dalam satu transaksi database.
 - Transaksi menyimpan aktor dan sumber transaksi.
 
-### FR-06 — Barang Keluar (Stock Out)
-Barang keluar dapat dicatat admin melalui website atau pengguna berizin melalui Telegram.
-- Kuantitas harus lebih besar dari nol.
-- Stok harus mencukupi.
-- Sistem mengurangi stok dan menyimpan catatan `OUT` secara atomik.
-- Jika stok tidak cukup, tidak ada perubahan stok maupun movement.
+### FR-06 — Tugas Pemasangan dan Barang Keluar
+- Hanya admin Telegram yang masuk allowlist dapat membuat tugas pemasangan.
+- Tugas memuat barang, jumlah, nama pemasang, lokasi, dan catatan opsional.
+- Bot menghasilkan link unik; halaman link menampilkan ringkasan tugas dan menyediakan pengiriman foto.
+- Stok berkurang hanya setelah foto valid berhasil diterima; pembaruan stok, movement `OUT`, dan status tugas selesai dilakukan secara atomik.
+- Link tidak dapat menyelesaikan tugas lebih dari satu kali.
+- Jika stok tidak cukup saat foto dikirim, tugas tetap menunggu dan stok tidak berubah.
 
 ### FR-07 — Integrasi Telegram
 Perintah minimum:
@@ -152,21 +153,21 @@ Perintah minimum:
 - `/bantuan` — panduan format pesan.
 - `/stok` — ringkasan stok sesuai izin.
 - `/cari nama_barang` — mencari barang.
-- `/pakai` — memulai atau menjelaskan format laporan.
-- `/riwayat` — riwayat transaksi pengguna sendiri.
+- `/buat_tugas` — petunjuk atau pembuatan tugas pemasangan oleh admin.
+- `/tugas` — status tugas terbaru untuk admin.
 
-Format terstruktur yang direkomendasikan:
+Format tugas terstruktur:
 
 ```text
-PAKAI
-Barang: Kertas A4
-Jumlah: 5
-Keperluan: Administrasi
+TUGAS
+Barang: Lampu
+Jumlah: 1
+Pemasang: Singgih
+Lokasi: GSG
+Catatan: Opsional
 ```
 
-Satuan mengikuti satuan dasar barang di sistem. Pengguna tidak perlu mengirim satuan jika sistem sudah dapat menentukannya dari master barang.
-
-Bahasa natural dapat didukung secara bertahap. Jika nama barang cocok lebih dari satu, jumlah tidak jelas, atau pesan tidak lengkap, bot wajib meminta klarifikasi dan tidak boleh mengubah stok.
+Nama barang harus cocok dengan satu barang aktif; pesan ambigu atau tidak lengkap tidak boleh membuat tugas atau mengubah stok.
 
 ### FR-08 — Pengaitan Telegram
 - Pengguna memulai bot dengan `/start`.
@@ -183,9 +184,9 @@ Menampilkan waktu, barang, jenis transaksi, kuantitas, stok sebelum/sesudah (jik
 - Koreksi dilakukan dengan movement pembalik yang merujuk transaksi awal.
 
 ### FR-10 — Peringatan Stok Minimum
-- Ketika stok berubah dari di atas batas minimum menjadi sama dengan/di bawah batas minimum, sistem membuat notifikasi.
+- Ketika stok mencapai atau berada di bawah batas minimum, sistem membuat notifikasi.
 - Notifikasi tidak dikirim berulang untuk setiap refresh.
-- Admin dapat melihat notifikasi pada website dan menerima pesan Telegram jika konfigurasi tersedia.
+- Admin dapat melihat notifikasi pada website dan menerimanya melalui Telegram jika bot dan akun admin dikonfigurasi.
 - Sistem dapat membuat notifikasi baru setelah stok pulih lalu turun kembali.
 
 ## 6. Aturan Bisnis Utama
@@ -203,14 +204,12 @@ Menampilkan waktu, barang, jenis transaksi, kuantitas, stok sebelum/sesudah (jik
 11. Semua waktu disimpan sebagai timestamp yang konsisten (disarankan UTC) dan ditampilkan dalam zona waktu operasional, misalnya Asia/Jakarta.
 12. Perubahan manual stok harus memiliki alasan dan tercatat sebagai `ADJUSTMENT`, bukan mengedit angka tanpa jejak.
 
-## 7. Mode Pengambilan: Rekomendasi
+## 7. Aturan Alokasi Tugas
 
-Gunakan **mode hybrid**:
-- Pengguna yang dipercaya dapat langsung mengurangi stok.
-- Pengguna atau jenis barang tertentu dapat diwajibkan meminta persetujuan admin.
-- Pengaturan mode harus eksplisit dan terlihat oleh admin.
-
-Untuk MVP paling sederhana, mulai dengan direct issue untuk pengguna yang telah diaktifkan admin, sambil mendesain status permintaan agar mode approval dapat ditambahkan tanpa mengubah fondasi data.
+- Saat tugas dibuat, jumlahnya dialokasikan agar tugas-tugas pending tidak melebihi stok tersedia.
+- Saldo fisik baru berkurang setelah foto bukti diterima.
+- Jika stok berubah dan tidak lagi cukup ketika bukti dikirim, tugas tetap pending dan admin perlu menanganinya.
+- Tidak ada proses persetujuan tugas di website.
 
 ## 8. Kebutuhan Non-Fungsional
 
@@ -242,18 +241,16 @@ Untuk MVP paling sederhana, mulai dengan direct issue untuk pengguna yang telah 
 2. Melihat dashboard.
 3. Membuat kategori dan barang.
 4. Mengisi saldo awal melalui transaksi penyesuaian/stock in yang terdokumentasi.
-5. Mengaktifkan pengguna dan menghubungkan Telegram.
+5. Menghubungkan akun Telegram admin dan memasukkan Telegram ID ke allowlist.
 6. Mencatat barang masuk.
-7. Memantau transaksi keluar, stok kritis, dan laporan.
+7. Membuat tugas pemasangan, membagikan link lewat WhatsApp, lalu melacak status melalui `/tugas`.
+8. Memantau stok kritis, notifikasi, dan laporan.
 
-### Pengguna Telegram
-1. Membuka bot dan menjalankan `/start`.
-2. Menyelesaikan pengaitan akun.
-3. Mengirim laporan pengambilan.
-4. Bot memvalidasi identitas dan isi pesan.
-5. Jika perlu, bot meminta klarifikasi.
-6. Jika valid, sistem memeriksa stok dan mencatat transaksi.
-7. Bot mengirim hasil transaksi.
+### Pemasang
+1. Menerima link tugas melalui WhatsApp.
+2. Membuka halaman tugas dan memeriksa barang serta lokasi.
+3. Mengambil foto bukti dan mengirimkannya.
+4. Sistem otomatis menandai tugas selesai dan mengurangi stok.
 
 ## 11. Risiko dan Mitigasi
 
@@ -269,12 +266,13 @@ Untuk MVP paling sederhana, mulai dengan direct issue untuk pengguna yang telah 
 
 ## 12. Asumsi dan Keputusan yang Perlu Dikonfirmasi
 
-Dokumen ini memakai asumsi awal berikut:
+Keputusan alur saat ini:
 - Operasional dimulai dari satu gudang.
 - Bahasa antarmuka Indonesia.
 - Admin mengelola master barang dan barang masuk.
-- Pengguna terdaftar melaporkan barang keluar lewat Telegram.
-- Format terstruktur menjadi metode utama; bahasa natural menjadi fitur bantu.
-- Pengguna tertentu dapat memakai mode langsung, sementara mode persetujuan disiapkan sebagai konfigurasi lanjutan.
+- Admin membuat tugas pemasangan lewat Telegram; pemasang mengirim foto melalui link WhatsApp.
+- Stok berkurang setelah foto bukti berhasil dikirim; website tidak meminta persetujuan tugas.
+- Notifikasi stok rendah muncul di web dan dikirim ke Telegram admin.
+- Vercel hanya digunakan untuk demo; server lokal menjadi target launching dengan SQLite dan folder foto persisten yang perlu dicadangkan.
 
-Sebelum produksi, pemilik proses perlu mengonfirmasi: siapa yang boleh mengambil langsung, apakah semua barang boleh keluar tanpa approval, siapa penerima notifikasi, dan apakah ada kebutuhan departemen/proyek sebagai dimensi laporan.
+Sebelum launching, siapkan `APP_URL`, `TELEGRAM_ADMIN_IDS`, bot Telegram, database lokal, dan lokasi backup foto.

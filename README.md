@@ -43,11 +43,11 @@ Aplikasi menggunakan palet warna **Merah Maroon / Burgundy** yang mewah, rapi, d
    - **Kalkulator Prakiraan Langsung**: Menampilkan `Stok Saat Ini + Jumlah Masuk = Stok Baru`.
    - Transaksi atomik database: pembaruan saldo dan pembuatan ledger movement terjadi bersamaan.
 
-5. **Barang Keluar / Stock Out (`/stock/out`)**
-   - Validasi ketat: mencegah stok menjadi negatif.
-   - **Kalkulator Prakiraan Langsung**: Menampilkan `Stok Tersedia - Jumlah Dikeluarkan = Sisa Stok Nanti`.
-   - Tombol simpan otomatis dinonaktifkan jika kuantitas melebihi persediaan fisik.
-   - Peringatan otomatis jika transaksi menyebabkan stok mencapai atau berada di bawah batas minimum.
+5. **Tugas Pemasangan melalui Telegram dan WhatsApp**
+   - Admin membuat tugas pemasangan lewat Telegram; bot membuat link unik untuk dibagikan ke pemasang lewat WhatsApp.
+   - Pemasang mengambil foto bukti melalui halaman web ringan; stok berkurang otomatis setelah foto berhasil diterima.
+   - Link hanya dapat menyelesaikan tugas satu kali; riwayat stok mencatat pemasang, lokasi, dan jumlah.
+   - Tugas dan aktivitas terbaru dapat ditanyakan lewat perintah `/tugas`.
 
 6. **Riwayat Mutasi & Audit Ledger (`/stock/history`)**
    - Jejak audit tidak terhapus (*immutable ledger*).
@@ -55,10 +55,9 @@ Aplikasi menggunakan palet warna **Merah Maroon / Burgundy** yang mewah, rapi, d
    - **Koreksi Transaksi (Reversal)**: Membuat transaksi pembalik dengan alasan wajib audit tanpa mengubah riwayat lama.
    - **Ekspor CSV**: Mengunduh rekap mutasi ke format spreadsheet dengan satu klik.
 
-7. **Permintaan Pengambilan / Stock Requests (`/requests`)**
-   - Alur persetujuan (*approval workflow*) untuk kebutuhan bertahap.
-   - Staff mengajukan permintaan dengan tujuan pemakaian.
-   - Admin dapat menyetujui (`APPROVE`), menolak (`REJECT`), atau memenuhi (`FULFILL`) yang langsung memotong stok fisik.
+7. **Notifikasi Stok Rendah**
+   - Notifikasi muncul di dashboard web dan dikirim ke Telegram admin yang sudah ditautkan.
+   - Admin menambah stok dari halaman Barang Masuk.
 
 8. **Laporan & Analitik (`/reports`)**
    - Pemilihan rentang periode (7 hari, 30 hari, 90 hari).
@@ -74,7 +73,7 @@ Aplikasi menggunakan palet warna **Merah Maroon / Burgundy** yang mewah, rapi, d
 10. **Integrasi Telegram Bot & Simulator (`/telegram`)**
     - Status webhook gateway aktif dengan verifikasi rahasia HTTPS.
     - Idempotensi terjamin: mencegah update ganda dengan `update_id` unik.
-    - **Live Interactive Telegram Simulator**: Pengujian perintah langsung di browser (`/start`, `/stok`, `/cari`, `/riwayat`, dan format terstruktur `PAKAI`) dengan balasan Markdown real-time.
+    - **Live Interactive Telegram Simulator**: Pengujian perintah baca stok (`/start`, `/stok`, `/cari`, `/riwayat`) di browser.
     - Log audit webhook updates.
 
 11. **Autentikasi & Halaman Login (`/login`)**
@@ -114,7 +113,26 @@ npm run dev
 ```
 Akses aplikasi melalui browser di: `http://localhost:3000`
 
-### 4. Build untuk Production
+### 4. Konfigurasi alur tugas Telegram
+
+- Atur `APP_URL` ke alamat yang dapat dibuka pemasang melalui WhatsApp (jangan gunakan `localhost` bila dibuka dari perangkat lain).
+- Isi `TELEGRAM_ADMIN_IDS` dengan ID Telegram admin yang dipisahkan koma. ID ini menjadi allowlist untuk membuat dan melacak tugas.
+- Setelah admin terhubung ke akun StockFlow, kirim format berikut ke bot:
+
+```text
+TUGAS
+Barang: Lampu
+Jumlah: 1
+Pemasang: Singgih
+Lokasi: GSG
+Catatan: Opsional
+```
+
+- Admin membagikan link yang dibuat bot. Pemasang mengirim foto dari link itu; sistem menandai tugas selesai dan mengurangi stok.
+- Pada server lokal, foto disimpan di `uploads/task-proofs` (atau folder `TASK_PROOF_DIRECTORY`). Buat backup folder ini bersama database.
+- Deploy Vercel saat ini hanya untuk demo: filesystem `/tmp` bersifat sementara. Jangan gunakan deploy tersebut sebagai penyimpanan produksi untuk foto atau database.
+
+### 5. Build untuk Production
 ```bash
 npm run build
 npm run start

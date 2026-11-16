@@ -32,6 +32,9 @@ dev.db
 *.db-journal
 !prisma/seed.db
 
+# Local task proof uploads
+/uploads/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

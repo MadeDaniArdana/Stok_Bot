@@ -13,11 +13,8 @@ export async function POST(req: NextRequest) {
     const secretHeader = req.headers.get('x-telegram-bot-api-secret-token');
     const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
-    if (expectedSecret && secretHeader && secretHeader !== expectedSecret) {
+    if (expectedSecret && secretHeader !== expectedSecret) {
       console.warn('Webhook rejected: Secret token mismatch.');
-      if (chatId) {
-        await sendTelegramMessage(chatId, '⛔ *Akses Ditolak:* Secret token webhook tidak cocok dengan server StockFlow.');
-      }
       return NextResponse.json({ error: 'Secret token tidak cocok' }, { status: 401 });
     }
 

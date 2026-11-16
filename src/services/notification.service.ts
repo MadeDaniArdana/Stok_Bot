@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { sendTelegramMessage } from '@/lib/telegram-client';
 
 export class NotificationService {
   /**
@@ -21,7 +22,7 @@ export class NotificationService {
       });
 
       if (!existing) {
-        await prisma.notification.create({
+        const notification = await prisma.notification.create({
           data: {
             productId,
             type: 'OUT_OF_STOCK',
@@ -30,6 +31,7 @@ export class NotificationService {
             isRead: false,
           },
         });
+        await this.notifyAdmins(notification.message);
       }
       return;
     }
@@ -42,7 +44,7 @@ export class NotificationService {
       });
 
       if (!existing) {
-        await prisma.notification.create({
+        const notification = await prisma.notification.create({
           data: {
             productId,
             type: 'LOW_STOCK',
@@ -51,8 +53,51 @@ export class NotificationService {
             isRead: false,
           },
         });
+        await this.notifyAdmins(notification.message);
       }
     }
+  }
+
+  private static async notifyAdmins(message: string) {
+    const admins = await prisma.telegramUser.findMany({
+      where: {
+        isActive: true,
+        user: { isActive: true, role: 'ADMIN' },
+      },
+      select: { telegramChatId: true },
+    });
+
+    for (const admin of admins) {
+      const sent = await sendTelegramMessage(admin.telegramChatId, message);
+      if (!sent) console.error(`Telegram low-stock notification failed for chat ${admin.telegramChatId}.`);
+    }
+  }
+
+  static async notifyTaskCompleted(params: {
+    creatorUserId: string;
+    productName: string;
+    quantity: number;
+    unit: string;
+    assigneeName: string;
+    location: string;
+    stockAfter: number;
+  }) {
+    const adminTelegram = await prisma.telegramUser.findUnique({
+      where: { userId: params.creatorUserId },
+      select: { telegramChatId: true, isActive: true },
+    });
+
+    if (!adminTelegram?.isActive) {
+      console.error(`Task completed, but admin Telegram link is unavailable for user ${params.creatorUserId}.`);
+      return;
+    }
+
+    const sent = await sendTelegramMessage(
+      adminTelegram.telegramChatId,
+      `Tugas pemasangan selesai.\nBarang: ${params.productName} (${params.quantity} ${params.unit})\n` +
+        `Pemasang: ${params.assigneeName}\nLokasi: ${params.location}\nStok tersisa: ${params.stockAfter} ${params.unit}.`
+    );
+    if (!sent) console.error(`Task completion notification failed for user ${params.creatorUserId}.`);
   }
 
   static async getNotifications(limit = 20) {

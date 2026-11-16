@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { InventoryService } from './inventory.service';
+import { InstallationTaskService } from './installation-task.service';
 
 export interface TelegramMessagePayload {
   update_id: number | string;
@@ -90,7 +90,6 @@ export class TelegramService {
         chatId,
         username,
         text,
-        updateId,
       });
 
       // Tandai update PROCESSED
@@ -133,21 +132,22 @@ export class TelegramService {
     chatId: string;
     username: string;
     text: string;
-    updateId: string;
   }): Promise<TelegramProcessResult> {
-    const { telegramUserId, chatId, username, text, updateId } = params;
+    const { telegramUserId, chatId, username, text } = params;
     const lower = text.toLowerCase();
 
     // /start command
     if (lower === '/start') {
       return {
         replyText: `👋 *Selamat datang di StockFlow Bot*, @${username}!\n\n` +
-          `Sistem manajemen persediaan otomatis. Anda dapat mengecek stok dan melaporkan pengambilan barang langsung dari Telegram.\n\n` +
+          `Admin dapat membuat tugas pemasangan di Telegram dan membagikan link bukti melalui WhatsApp.\n\n` +
           `📌 *Perintah Cepat:*\n` +
           `• \`/stok\` — Cek ringkasan stok gudang\n` +
           `• \`/cari <nama_barang>\` — Cari ketersediaan barang\n` +
           `• \`/riwayat\` — Cek riwayat pengambilan Anda\n` +
-          `• \`/bantuan\` — Format pelaporan barang keluar\n` +
+          `• \`/tugas\` — Lihat status tugas pemasangan (admin)\n` +
+          `• \`/buat_tugas\` — Buat tugas pemasangan (admin)\n` +
+          `• \`/bantuan\` — Panduan penggunaan bot\n` +
           `• \`/link <email_anda>\` — Tautkan akun StockFlow Anda\n\n` +
           `_ID Telegram Anda:_ \`${telegramUserId}\``,
         success: true,
@@ -158,18 +158,10 @@ export class TelegramService {
     // /bantuan command
     if (lower === '/bantuan' || lower === '/help' || lower === '/pakai') {
       return {
-        replyText: `📋 *Panduan Format Laporan Pengambilan Barang:*\n\n` +
-          `Kirim pesan terstruktur dengan format berikut:\n\n` +
-          `\`\`\`\n` +
-          `PAKAI\n` +
-          `Barang: Kertas A4\n` +
-          `Jumlah: 5\n` +
-          `Keperluan: Administrasi Kantor\n` +
-          `\`\`\`\n\n` +
-          `💡 *Catatan:*\n` +
-          `• Satuan mengikuti satuan dasar master barang di sistem.\n` +
-          `• Jumlah harus angka positif.\n` +
-          `• Akun Telegram Anda harus sudah dihubungkan ke sistem.`,
+        replyText:
+          'Admin membuat tugas dengan format:\n\n' +
+          'TUGAS\nBarang: Lampu\nJumlah: 1\nPemasang: Singgih\nLokasi: GSG\nCatatan: Opsional\n\n' +
+          'Pemasang membuka link dari WhatsApp dan mengirim foto bukti. Stok berkurang setelah foto diterima.',
         success: true,
         actionTaken: 'HELP',
       };
@@ -217,7 +209,7 @@ export class TelegramService {
       });
 
       return {
-        replyText: `✅ *Berhasil terhubung!*\n\nAkun StockFlow atas nama *${user.name}* (${user.email}) kini telah resmi terhubung dengan Telegram Anda.\n\nSekarang Anda dapat langsung melaporkan pemakaian barang dengan format \`PAKAI\`!`,
+        replyText: `✅ *Berhasil terhubung!*\n\nAkun StockFlow atas nama *${user.name}* (${user.email}) kini telah resmi terhubung dengan Telegram Anda.\n\nAdmin yang diizinkan dapat membuat tugas pemasangan melalui \`/buat_tugas\`.`,
         success: true,
         actionTaken: 'LINKED',
       };
@@ -238,6 +230,114 @@ export class TelegramService {
     }
 
     const internalUser = tgUser.user;
+
+    const allowedAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const isAllowedAdmin = internalUser.role === 'ADMIN' && allowedAdminIds.includes(telegramUserId);
+
+    if (lower === '/buat_tugas' || lower.startsWith('/buat_tugas ') || lower.startsWith('tugas')) {
+      if (!isAllowedAdmin) {
+        return {
+          replyText: 'Akses ditolak. Perintah tugas hanya tersedia untuk admin Telegram yang sudah diizinkan.',
+          success: false,
+        };
+      }
+
+      const parsed = this.parseInstallationTask(text);
+      if (!parsed) {
+        return {
+          replyText:
+            'Kirim tugas dengan format berikut:\n\n' +
+            'TUGAS\nBarang: Lampu\nJumlah: 1\nPemasang: Singgih\nLokasi: GSG\nCatatan: Pasang di aula',
+          success: false,
+          actionTaken: 'TASK_FORMAT_REQUIRED',
+        };
+      }
+
+      const matches = await prisma.product.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { sku: { equals: parsed.productQuery.toUpperCase() } },
+            { name: { contains: parsed.productQuery } },
+          ],
+        },
+        take: 10,
+      });
+
+      if (matches.length !== 1) {
+        return {
+          replyText: matches.length
+            ? `Nama barang "${parsed.productQuery}" cocok dengan beberapa barang. Kirim ulang menggunakan SKU yang tepat.`
+            : `Barang "${parsed.productQuery}" tidak ditemukan di katalog aktif.`,
+          success: false,
+          actionTaken: matches.length ? 'AMBIGUOUS_PRODUCT' : 'PRODUCT_NOT_FOUND',
+        };
+      }
+
+      try {
+        const { task, token } = await InstallationTaskService.create({
+          productId: matches[0].id,
+          quantity: parsed.quantity,
+          assigneeName: parsed.assigneeName,
+          location: parsed.location,
+          notes: parsed.notes,
+          creatorUserId: internalUser.id,
+        });
+        const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+        const proofUrl = `${appUrl}/proof/${token}`;
+        const whatsappMessage = encodeURIComponent(
+          `Halo ${task.assigneeName}, mohon selesaikan tugas pemasangan ${task.product.name} di ${task.location} dan kirim foto bukti melalui link ini: ${proofUrl}`
+        );
+
+        return {
+          replyText:
+            `Tugas pemasangan dibuat.\n` +
+            `Barang: ${task.product.name} (${task.quantity} ${task.product.unit})\n` +
+            `Pemasang: ${task.assigneeName}\nLokasi: ${task.location}\n` +
+            `Status: Menunggu bukti foto\n\n` +
+            `Link bukti: ${proofUrl}\n` +
+            `Bagikan melalui WhatsApp: https://wa.me/?text=${whatsappMessage}\n\n` +
+            `Stok akan berkurang setelah foto bukti berhasil dikirim.`,
+          success: true,
+          actionTaken: 'INSTALLATION_TASK_CREATED',
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Gagal membuat tugas.';
+        return { replyText: `Tugas tidak dibuat: ${message}`, success: false, error: message };
+      }
+    }
+
+    if (lower === '/tugas') {
+      if (!isAllowedAdmin) {
+        return {
+          replyText: 'Akses ditolak. Status tugas hanya tersedia untuk admin Telegram yang sudah diizinkan.',
+          success: false,
+        };
+      }
+
+      const tasks = await prisma.installationTask.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: { product: true },
+      });
+      if (!tasks.length) {
+        return { replyText: 'Belum ada tugas pemasangan yang tercatat.', success: true, actionTaken: 'TASK_LIST_EMPTY' };
+      }
+
+      const lines = tasks.map((task) => {
+        const state = task.status === 'COMPLETED' ? 'Selesai' : 'Menunggu bukti';
+        const date = task.createdAt.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+        return `• ${task.product.name} (${task.quantity} ${task.product.unit}) — ${task.assigneeName}, ${task.location}\n  ${state} | ${date}`;
+      });
+      return {
+        replyText: `10 tugas pemasangan terbaru:\n\n${lines.join('\n\n')}`,
+        success: true,
+        actionTaken: 'TASK_LIST',
+      };
+    }
 
     // /stok command
     if (lower === '/stok') {
@@ -339,139 +439,39 @@ export class TelegramService {
       };
     }
 
-    // Format PAKAI: Structured format
     if (lower.startsWith('pakai') || lower.includes('barang:')) {
-      const parsed = this.parsePakaiMessage(text);
-
-      if (!parsed.valid || !parsed.productQuery || !parsed.quantity) {
-        return {
-          replyText: `⚠️ *Saya belum bisa memastikan barang atau jumlahnya.*\n\n` +
-            `Silakan kirim dengan format terstruktur:\n` +
-            `\`\`\`\n` +
-            `PAKAI\n` +
-            `Barang: <nama atau kode barang>\n` +
-            `Jumlah: <angka>\n` +
-            `Keperluan: <alasan/keperluan>\n` +
-            `\`\`\``,
-          success: false,
-          actionTaken: 'CLARIFICATION_REQUIRED',
-        };
-      }
-
-      // Cari barang berdasarkan query
-      const candidateProducts = await prisma.product.findMany({
-        where: {
-          isActive: true,
-          OR: [
-            { sku: { equals: parsed.productQuery.toUpperCase() } },
-            { name: { contains: parsed.productQuery } },
-          ],
-        },
-      });
-
-      if (candidateProducts.length === 0) {
-        return {
-          replyText: `❌ Barang *${parsed.productQuery}* tidak ditemukan di katalog gudang. Gunakan \`/cari ${parsed.productQuery}\` untuk mengecek nama yang benar.`,
-          success: false,
-        };
-      }
-
-      // Ambiguitas check (PRD rule: jika lebih dari satu barang cocok, jangan ubah stok!)
-      if (candidateProducts.length > 1) {
-        const listText = candidateProducts
-          .map((p) => `• \`${p.sku}\` — ${p.name} (Stok: ${p.currentStock} ${p.unit})`)
-          .join('\n');
-
-        return {
-          replyText: `❓ Ditemukan lebih dari 1 barang yang cocok dengan "*${parsed.productQuery}*":\n\n${listText}\n\n` +
-            `Mohon ulangi laporan dengan menuliskan SKU atau nama yang lebih spesifik agar stok tidak keliru terpotong.`,
-          success: false,
-          actionTaken: 'AMBIGUOUS_PRODUCT',
-        };
-      }
-
-      const targetProduct = candidateProducts[0];
-
-      // Eksekusi transaksi stock out
-      try {
-        const txResult = await InventoryService.recordStockOut({
-          productId: targetProduct.id,
-          quantity: parsed.quantity,
-          actorUserId: internalUser.id,
-          source: 'TELEGRAM',
-          telegramUpdateId: updateId,
-          notes: parsed.notes ? `Keperluan: ${parsed.notes}` : 'Pengambilan via Telegram',
-        });
-
-        return {
-          replyText: `✅ *Pengambilan berhasil dicatat.*\n\n` +
-            `Barang: *${targetProduct.name}*\n` +
-            `Jumlah: *${parsed.quantity} ${targetProduct.unit}*\n` +
-            `Stok sebelumnya: ${txResult.movement.stockBefore} ${targetProduct.unit}\n` +
-            `Stok sekarang: *${txResult.stockAfter} ${targetProduct.unit}*\n` +
-            `Pelapor: ${internalUser.name}\n` +
-            `Keperluan: ${parsed.notes || '-'}\n\n` +
-            `_Terima kasih telah mencatat inventori secara tertib!_`,
-          success: true,
-          actionTaken: 'STOCK_OUT_SUCCESS',
-        };
-      } catch (err: any) {
-        return {
-          replyText: `⚠️ *Pengambilan belum dapat dicatat.*\n\n` +
-            `Barang: *${targetProduct.name}*\n` +
-            `Diminta: ${parsed.quantity} ${targetProduct.unit}\n` +
-            `Stok tersedia: *${targetProduct.currentStock} ${targetProduct.unit}*\n\n` +
-            `Pesan Sistem: ${err.message}\n` +
-            `Silakan hubungi admin jika data stok perlu diperiksa.`,
-          success: false,
-          error: err.message,
-        };
-      }
+      return {
+        replyText: 'Pencatatan langsung melalui Telegram sudah tidak digunakan. Admin perlu membuat TUGAS pemasangan agar pemasang dapat mengirim foto bukti.',
+        success: false,
+        actionTaken: 'LEGACY_STOCK_OUT_DISABLED',
+      };
     }
 
     // Default unknown command
     return {
-      replyText: `StockFlow Bot: Perintah tidak dikenali.\nKetik \`/bantuan\` untuk melihat format pelaporan atau \`/stok\` untuk mengecek persediaan barang.`,
+      replyText: `StockFlow Bot: Perintah tidak dikenali.\nKetik \`/bantuan\` untuk panduan atau \`/stok\` untuk mengecek persediaan barang.`,
       success: false,
     };
   }
 
-  /**
-   * Helper parser untuk format "PAKAI"
-   */
-  private static parsePakaiMessage(text: string) {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    let productQuery = '';
-    let quantity = 0;
-    let notes = '';
-
-    for (const line of lines) {
-      if (/^(?:pakai\s+)?barang\s*:/i.test(line)) {
-        productQuery = line.replace(/^(?:pakai\s+)?barang\s*:/i, '').trim();
-      } else if (/^jumlah\s*:/i.test(line)) {
-        const val = line.replace(/^jumlah\s*:/i, '').trim();
-        const num = parseInt(val, 10);
-        if (!isNaN(num)) quantity = num;
-      } else if (/^keperluan\s*:/i.test(line)) {
-        notes = line.replace(/^keperluan\s*:/i, '').trim();
-      }
+  private static parseInstallationTask(text: string) {
+    const values: Record<string, string> = {};
+    for (const line of text.split('\n').map((item) => item.trim()).filter(Boolean)) {
+      const match = line.match(/^(barang|jumlah|pemasang|lokasi|catatan)\s*:\s*(.*)$/i);
+      if (match) values[match[1].toLowerCase()] = match[2].trim();
     }
 
-    // Fallback parser jika user mengetik 1 baris seperti "PAKAI Kertas A4 5 Keperluan Administrasi"
-    if (!productQuery && lines.length === 1) {
-      const match = text.match(/pakai\s+(.+?)\s+(\d+)(?:\s+(?:keperluan|untuk)?\s*(.*))?$/i);
-      if (match) {
-        productQuery = match[1].trim();
-        quantity = parseInt(match[2], 10);
-        notes = match[3] ? match[3].trim() : '';
-      }
+    const quantity = Number(values.jumlah);
+    if (!values.barang || !Number.isInteger(quantity) || quantity <= 0 || !values.pemasang || !values.lokasi) {
+      return null;
     }
 
     return {
-      valid: Boolean(productQuery && quantity > 0),
-      productQuery,
+      productQuery: values.barang,
       quantity,
-      notes,
+      assigneeName: values.pemasang,
+      location: values.lokasi,
+      notes: values.catatan,
     };
   }
 }

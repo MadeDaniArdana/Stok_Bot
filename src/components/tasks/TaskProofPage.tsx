@@ -1,0 +1,168 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Camera, CheckCircle2, LoaderCircle, Package, MapPin, AlertCircle } from 'lucide-react';
+
+interface TaskDetails {
+  productName: string;
+  quantity: number;
+  unit: string;
+  assigneeName: string;
+  location: string;
+  notes: string | null;
+  status: string;
+  completedAt: string | null;
+  photoUrl: string | null;
+}
+
+export function TaskProofPage({ token }: { token: string }) {
+  const [task, setTask] = useState<TaskDetails | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/tasks/proof/${encodeURIComponent(token)}`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Tugas tidak dapat dimuat.');
+        setTask(data);
+      })
+      .catch((requestError: Error) => setError(requestError.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    if (!photo) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(photo);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+
+  const submitProof = async () => {
+    if (!photo) {
+      setError('Ambil foto pemasangan terlebih dahulu.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      const body = new FormData();
+      body.append('photo', photo);
+      const response = await fetch(`/api/tasks/proof/${encodeURIComponent(token)}`, {
+        method: 'POST',
+        body,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Foto gagal dikirim.');
+      setTask((current) => current ? {
+        ...current,
+        status: data.status,
+        completedAt: data.completedAt,
+        photoUrl: `/api/tasks/proof/${encodeURIComponent(token)}/photo`,
+      } : current);
+      setPhoto(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Foto gagal dikirim.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-4 py-10">
+      <section className="mx-auto max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="bg-maroon-900 px-6 py-5 text-white">
+          <p className="text-xs font-semibold uppercase tracking-widest text-maroon-100">StockFlow</p>
+          <h1 className="mt-1 text-xl font-bold">Bukti Pemasangan Barang</h1>
+        </div>
+
+        <div className="space-y-5 p-6">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
+              <LoaderCircle className="h-4 w-4 animate-spin" /> Memuat tugas...
+            </div>
+          ) : error && !task ? (
+            <div className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{error}</div>
+          ) : task ? (
+            <>
+              <div className="space-y-3 rounded-xl bg-slate-50 p-4">
+                <div className="flex items-start gap-3">
+                  <Package className="mt-0.5 h-5 w-5 text-maroon-800" />
+                  <div>
+                    <p className="text-xs text-slate-500">Barang dan jumlah</p>
+                    <p className="font-semibold text-slate-900">{task.productName} — {task.quantity} {task.unit}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 h-5 w-5 text-maroon-800" />
+                  <div>
+                    <p className="text-xs text-slate-500">Pemasang dan lokasi</p>
+                    <p className="font-semibold text-slate-900">{task.assigneeName} — {task.location}</p>
+                  </div>
+                </div>
+                {task.notes && <p className="border-t border-slate-200 pt-3 text-sm text-slate-600">{task.notes}</p>}
+              </div>
+
+              {task.status === 'COMPLETED' ? (
+                <div className="space-y-3 text-center">
+                  <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+                  <p className="font-semibold text-emerald-800">Bukti berhasil diterima. Tugas selesai.</p>
+                  {task.photoUrl && (
+                    <img src={task.photoUrl} alt="Bukti pemasangan" className="mx-auto max-h-80 rounded-xl object-contain" />
+                  )}
+                  {task.completedAt && (
+                    <p className="text-xs text-slate-500">
+                      {new Date(task.completedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="proof-photo">
+                      Ambil foto bukti pemasangan
+                    </label>
+                    <input
+                      id="proof-photo"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
+                      onChange={(event) => {
+                        setPhoto(event.target.files?.[0] || null);
+                        setError('');
+                      }}
+                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-maroon-50 file:px-4 file:py-2 file:font-semibold file:text-maroon-900"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">Kamera akan terbuka setelah Anda memilih tombol ambil foto. Maksimal 4 MB.</p>
+                  </div>
+                  {previewUrl && <img src={previewUrl} alt="Pratinjau bukti" className="max-h-80 w-full rounded-xl object-contain" />}
+                  {error && (
+                    <p className="flex items-start gap-2 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={submitProof}
+                    disabled={!photo || submitting}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-maroon-800 px-4 py-3 text-sm font-semibold text-white hover:bg-maroon-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    {submitting ? 'Mengirim bukti...' : 'Kirim Bukti Pemasangan'}
+                  </button>
+                </>
+              )}
+            </>
+          ) : null}
+        </div>
+      </section>
+    </main>
+  );
+}

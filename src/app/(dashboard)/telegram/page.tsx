@@ -59,7 +59,7 @@ export default function TelegramPage() {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Konfigurasi webhook, pemantauan idempotensi update, serta simulator interaktif
+            Admin membuat tugas pemasangan; bot mengirim link bukti yang dapat dibagikan melalui WhatsApp
           </p>
         </div>
 
@@ -154,19 +154,20 @@ export default function TelegramPage() {
               Format Standar Telegram (PRD)
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Staff gudang dapat melaporkan barang keluar secara instan menggunakan template berikut:
+              Admin membuat tugas pemasangan menggunakan format berikut:
             </p>
 
             <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl text-xs font-mono space-y-1 relative group">
-              <p className="text-emerald-400 font-bold">PAKAI</p>
-              <p>Barang: Kertas A4</p>
-              <p>Jumlah: 5</p>
-              <p>Keperluan: Administrasi</p>
+              <p className="text-emerald-400 font-bold">TUGAS</p>
+              <p>Barang: Lampu</p>
+              <p>Jumlah: 1</p>
+              <p>Pemasang: Singgih</p>
+              <p>Lokasi: GSG</p>
               <button
                 onClick={() =>
                   copyToClipboard(
-                    'PAKAI\nBarang: Kertas A4\nJumlah: 5\nKeperluan: Administrasi',
-                    'Template PAKAI'
+                    'TUGAS\nBarang: Lampu\nJumlah: 1\nPemasang: Singgih\nLokasi: GSG',
+                    'Template tugas pemasangan'
                   )
                 }
                 className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -192,7 +193,7 @@ export default function TelegramPage() {
               <div className="flex items-start gap-2">
                 <span className="font-bold text-maroon-800">•</span>
                 <p>
-                  <strong>Perlindungan Stok Negatif:</strong> Jika kuantitas melebihi stok yang ada, bot segera menolak dengan pesan ramah.
+                  <strong>Pengurangan stok:</strong> Stok berkurang setelah pemasang mengirim foto bukti. Tugas yang menunggu bukti ditampilkan dengan perintah <code>/tugas</code>.
                 </p>
               </div>
             </div>
@@ -219,7 +220,7 @@ export default function TelegramPage() {
                 Sistem akan memverifikasi email dan menautkan Telegram User ID Anda secara otomatis.
               </li>
               <li>
-                Setelah terhubung, Anda dapat langsung mengirim laporan <code>PAKAI</code> kapan pun.
+                Setelah admin terhubung dan ID Telegram admin ditambahkan ke <code>TELEGRAM_ADMIN_IDS</code>, admin dapat membuat tugas pemasangan. Pemasang tidak perlu akun Telegram.
               </li>
             </ol>
           </div>

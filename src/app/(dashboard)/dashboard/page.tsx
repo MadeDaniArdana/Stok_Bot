@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   PackageX,
   ArrowDownToLine,
-  ArrowUpFromLine,
   Plus,
   RefreshCw,
   Send,
@@ -71,14 +70,6 @@ export default function DashboardPage() {
           >
             <ArrowDownToLine className="w-3.5 h-3.5" />
             <span>Barang Masuk</span>
-          </Link>
-
-          <Link
-            href="/stock/out"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-maroon-800 hover:bg-maroon-900 text-white text-xs font-semibold shadow-sm transition-all hover:shadow"
-          >
-            <ArrowUpFromLine className="w-3.5 h-3.5" />
-            <span>Barang Keluar</span>
           </Link>
 
           <Link
@@ -148,7 +139,7 @@ export default function DashboardPage() {
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             </h4>
             <p className="text-xs text-maroon-200 mt-0.5">
-              Staff gudang & karyawan dapat melaporkan pengambilan barang langsung lewat chat Telegram tanpa buka web.
+              Admin membuat tugas pemasangan di Telegram; pemasang mengirim foto bukti melalui link WhatsApp.
             </p>
           </div>
         </div>

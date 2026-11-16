@@ -11,7 +11,6 @@ import {
   Edit2,
   Power,
   ArrowDownToLine,
-  ArrowUpFromLine,
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
@@ -850,13 +849,6 @@ export default function ProductsPage() {
                   className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
                 >
                   Barang Masuk
-                </Link>
-                <Link
-                  href={`/stock/out?productId=${detailProduct.id}`}
-                  onClick={() => setDetailProduct(null)}
-                  className="px-3 py-1.5 rounded-lg bg-maroon-800 hover:bg-maroon-900 text-white text-xs font-semibold"
-                >
-                  Barang Keluar
                 </Link>
               </div>
             </div>

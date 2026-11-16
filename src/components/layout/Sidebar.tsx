@@ -8,9 +8,7 @@ import {
   Package,
   Tags,
   ArrowDownToLine,
-  ArrowUpFromLine,
   History,
-  FileCheck2,
   BarChart3,
   Users,
   Send,
@@ -60,9 +58,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       title: 'Inventori & Mutasi',
       items: [
         { name: 'Barang Masuk', href: '/stock/in', icon: ArrowDownToLine, badge: 'IN' },
-        { name: 'Barang Keluar', href: '/stock/out', icon: ArrowUpFromLine, badge: 'OUT' },
         { name: 'Riwayat Transaksi', href: '/stock/history', icon: History },
-        { name: 'Permintaan Stok', href: '/requests', icon: FileCheck2 },
       ],
     },
     {
