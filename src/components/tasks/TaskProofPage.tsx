@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, CheckCircle2, LoaderCircle, Package, MapPin, AlertCircle } from 'lucide-react';
 import { BrowserErrorReporter } from '@/components/BrowserErrorReporter';
 
@@ -56,6 +56,61 @@ export function TaskProofPage({ token }: { token: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [sizeInfo, setSizeInfo] = useState('');
+
+  const [cameraOn, setCameraOn] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraOn(false);
+  };
+  useEffect(() => stopCamera, []);
+
+  // Minta izin kamera lalu tampilkan pratinjau langsung (HTTPS wajib). Jika ditolak/tidak didukung, pakai input file.
+  const openCamera = async () => {
+    setError('');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      document.getElementById('proof-photo')?.click();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOn(true);
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      });
+    } catch (cameraError) {
+      const denied = cameraError instanceof DOMException && cameraError.name === 'NotAllowedError';
+      setError(
+        denied
+          ? 'Izin kamera ditolak. Aktifkan izin kamera di pengaturan browser, atau pakai tombol "Pilih dari galeri".'
+          : 'Kamera tidak bisa dibuka di perangkat ini. Gunakan tombol "Pilih dari galeri".'
+      );
+    }
+  };
+
+  const takeSnapshot = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      stopCamera();
+      handlePhotoSelected(new File([blob], 'bukti.jpg', { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.92);
+  };
 
   const handlePhotoSelected = async (file: File | null) => {
     setError('');
@@ -179,21 +234,40 @@ export function TaskProofPage({ token }: { token: string }) {
               ) : (
                 <>
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700" htmlFor="proof-photo">
-                      Ambil foto bukti pemasangan
-                    </label>
+                    <p className="mb-2 text-sm font-semibold text-slate-700">Foto bukti pemasangan</p>
+                    {cameraOn ? (
+                      <div className="space-y-2">
+                        <video ref={videoRef} playsInline muted autoPlay className="w-full rounded-xl bg-black" />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={takeSnapshot} className="flex-1 rounded-xl bg-maroon-800 px-4 py-3 text-sm font-semibold text-white hover:bg-maroon-900">
+                            Ambil Foto
+                          </button>
+                          <button type="button" onClick={stopCamera} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700">
+                            Batal
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button type="button" onClick={openCamera} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-maroon-50 px-4 py-3 text-sm font-semibold text-maroon-900">
+                          <Camera className="h-4 w-4" /> {photo ? 'Foto Ulang' : 'Buka Kamera'}
+                        </button>
+                        <label htmlFor="proof-photo" className="cursor-pointer rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700">
+                          Pilih dari galeri
+                        </label>
+                      </div>
+                    )}
                     <input
                       id="proof-photo"
                       type="file"
                       accept="image/*"
-                      capture="environment"
                       onChange={(event) => handlePhotoSelected(event.target.files?.[0] || null)}
-                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-maroon-50 file:px-4 file:py-2 file:font-semibold file:text-maroon-900"
+                      className="hidden"
                     />
                     <p className="mt-1 text-xs text-slate-500">
                       {compressing
                         ? 'Mengecilkan ukuran foto...'
-                        : sizeInfo || 'Kamera akan terbuka setelah Anda memilih tombol ambil foto. Foto otomatis dikecilkan.'}
+                        : sizeInfo || 'Browser akan meminta izin kamera. Foto otomatis dikecilkan.'}
                     </p>
                   </div>
                   {previewUrl && <img src={previewUrl} alt="Pratinjau bukti" className="max-h-80 w-full rounded-xl object-contain" />}

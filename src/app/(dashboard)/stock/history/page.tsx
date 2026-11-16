@@ -139,7 +139,7 @@ export default function StockHistoryPage() {
       `"${m.product?.unit || ''}"`,
       m.stockBefore,
       m.stockAfter,
-      `"${m.actor?.name || 'Sistem'}"`,
+      `"${m.source === 'TELEGRAM' && m.actor?.telegram?.username ? '@' + m.actor.telegram.username : m.actor?.name || 'Sistem'}"`,
       `"${m.source}"`,
       `"${(m.notes || '').replace(/"/g, '""')}"`,
     ]);
@@ -343,8 +343,8 @@ export default function StockHistoryPage() {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <p className="font-medium text-slate-800">{m.actor?.name || 'Sistem'}</p>
-                        {m.actor?.email && (
+                        <p className="font-medium text-slate-800">{isTelegram && m.actor?.telegram?.username ? `@${m.actor.telegram.username}` : m.actor?.name || 'Sistem'}</p>
+                        {!isTelegram && m.actor?.email && (
                           <span className="text-[10px] text-slate-400">{m.actor.email}</span>
                         )}
                       </td>

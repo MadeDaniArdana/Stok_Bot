@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
             select: { id: true, name: true, sku: true, unit: true },
           },
           actor: {
-            select: { id: true, name: true, role: true, email: true },
+            select: { id: true, name: true, role: true, email: true, telegram: { select: { username: true } } },
           },
         },
       }),

@@ -109,6 +109,8 @@ export async function DELETE(req: NextRequest) {
     const removed = await prisma.telegramAdmin.deleteMany({ where: { telegramUserId } });
     if (!removed.count) return NextResponse.json({ error: 'ID tidak ditemukan.' }, { status: 404 });
 
+    // Putuskan juga tautan akunnya, kalau tidak ia tetap bisa memakai bot sebagai pengguna biasa.
+    await prisma.telegramUser.deleteMany({ where: { telegramUserId } });
     // Hentikan percakapan yang sedang berjalan agar akses admin langsung tertutup.
     await prisma.telegramConversation.deleteMany({ where: { telegramUserId } });
     return NextResponse.json({ success: true });

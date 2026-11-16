@@ -20,6 +20,7 @@ import {
   UserCheck,
   Camera,
   Bug,
+  Bot,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -67,6 +68,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     {
       title: 'Analitik & Sistem',
       items: [
+        { name: 'Asisten AI', href: '/assistant', icon: Bot, badge: 'BETA' },
         { name: 'Laporan', href: '/reports', icon: BarChart3 },
         { name: 'Pengguna', href: '/users', icon: Users, adminOnly: true },
         { name: 'Integrasi Telegram', href: '/telegram', icon: Send, highlight: true },

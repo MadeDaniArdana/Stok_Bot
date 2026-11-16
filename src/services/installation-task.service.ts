@@ -116,7 +116,7 @@ export class InstallationTaskService {
             quantity: task.quantity,
             stockBefore,
             stockAfter,
-            source: 'WEB',
+            source: 'TELEGRAM',
             referenceId: task.id,
             notes: `Pemasangan oleh ${task.assigneeName} di ${task.location}${task.notes ? `. ${task.notes}` : ''}`,
           },

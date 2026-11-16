@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Bot, MessageCircle, Send, X, LoaderCircle, RotateCcw } from 'lucide-react';
+import { Bot, Send, LoaderCircle, RotateCcw } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -22,8 +22,7 @@ const GREETING: Message = {
     'Halo! Saya asisten StockFlow (versi uji coba, masih dalam pengembangan). Tanyakan soal stok, tugas pemasangan, atau riwayat barang masuk dan keluar. Jawaban bisa saja belum akurat.',
 };
 
-export function AssistantFab() {
-  const [open, setOpen] = useState(false);
+export function AssistantChat() {
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -35,8 +34,8 @@ export function AssistantFab() {
   }, [messages, sending]);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
+    inputRef.current?.focus();
+  }, []);
 
   const send = async (text: string) => {
     const question = text.trim();
@@ -70,13 +69,7 @@ export function AssistantFab() {
   };
 
   return (
-    <>
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Asisten StockFlow"
-          className="fixed z-50 bottom-20 right-4 left-4 sm:left-auto sm:w-[380px] h-[min(560px,calc(100vh-7rem))] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
-        >
+    <div className="h-[calc(100vh-9rem)] min-h-[420px] bg-white rounded-2xl border border-slate-200 shadow-soft flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-maroon-800 to-maroon-950 text-white">
             <div className="flex items-center gap-2">
@@ -102,9 +95,6 @@ export function AssistantFab() {
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
-              <button onClick={() => setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/15" aria-label="Tutup asisten">
-                <X className="w-4 h-4" />
-              </button>
             </div>
           </div>
 
@@ -113,7 +103,7 @@ export function AssistantFab() {
             {messages.map((message, index) => (
               <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
+                  className={`max-w-[85%] sm:max-w-[70%] px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
                     message.role === 'user'
                       ? 'bg-maroon-800 text-white rounded-br-sm'
                       : message.isError
@@ -182,18 +172,6 @@ export function AssistantFab() {
               <Send className="w-4 h-4" />
             </button>
           </form>
-        </div>
-      )}
-
-      {/* Tombol melayang */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="fixed z-50 bottom-4 right-4 w-14 h-14 rounded-full bg-gradient-to-br from-maroon-700 to-maroon-950 text-white shadow-lg shadow-maroon-900/30 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
-        aria-label={open ? 'Tutup asisten' : 'Buka asisten AI'}
-        title="Asisten AI"
-      >
-        {open ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
-      </button>
-    </>
+    </div>
   );
 }

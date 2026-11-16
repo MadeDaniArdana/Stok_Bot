@@ -5,7 +5,6 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { AuthProvider } from './AuthContext';
 import { ToastProvider } from '../ui/Toast';
-import { AssistantFab } from '../assistant/AssistantFab';
 import { BrowserErrorReporter } from '../BrowserErrorReporter';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +24,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {children}
             </main>
           </div>
-          <AssistantFab />
           <BrowserErrorReporter />
         </div>
       </ToastProvider>

@@ -338,6 +338,18 @@ export class TelegramService {
         };
       }
 
+      // Sudah tertaut: cukup sekali, tidak perlu menautkan ulang.
+      const already = await prisma.telegramUser.findUnique({ where: { telegramUserId }, include: { user: true } });
+      if (already?.isActive && already.user.isActive) {
+        const allowed = await getAllowedAdminIds();
+        return {
+          replyText: `✅ Akun Telegram ini sudah terhubung sebagai ${already.user.name}. Tidak perlu login lagi.`,
+          success: true,
+          actionTaken: 'ALREADY_LINKED',
+          replyMarkup: buildMainMenuKeyboard(already.user.role === 'ADMIN' && allowed.includes(telegramUserId)),
+        };
+      }
+
       const inputEmail = parts[1].trim().toLowerCase();
       const allUsers = await prisma.user.findMany({
         include: { telegram: true },
