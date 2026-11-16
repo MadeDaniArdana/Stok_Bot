@@ -152,6 +152,8 @@ export class InstallationTaskService {
           assigneeName: result.task.assigneeName,
           location: result.task.location,
           stockAfter: result.stockAfter,
+          proofReference: result.task.proofFileName,
+          proofMimeType: result.task.proofMimeType,
         });
       } catch (error) {
         console.error('Task completed but Telegram completion message failed:', error);

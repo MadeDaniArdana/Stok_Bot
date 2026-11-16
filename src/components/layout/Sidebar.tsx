@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ShieldCheck,
   UserCheck,
+  Camera,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -59,6 +60,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       items: [
         { name: 'Barang Masuk', href: '/stock/in', icon: ArrowDownToLine, badge: 'IN' },
         { name: 'Riwayat Transaksi', href: '/stock/history', icon: History },
+        { name: 'Laporan Pemasangan', href: '/tasks', icon: Camera },
       ],
     },
     {

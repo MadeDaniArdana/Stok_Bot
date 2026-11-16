@@ -124,3 +124,31 @@ export async function answerTelegramCallbackQuery(callbackQueryId: string): Prom
     return false;
   }
 }
+
+/** Mengirim foto (bytes) beserta keterangan. Mengembalikan false jika gagal. */
+export async function sendTelegramPhoto(
+  chatId: string | number,
+  photo: Buffer,
+  mimeType: string,
+  caption: string
+): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    console.warn('TELEGRAM_BOT_TOKEN belum diset.');
+    return false;
+  }
+
+  try {
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('caption', caption.slice(0, 1024));
+    form.append('photo', new Blob([new Uint8Array(photo)], { type: mimeType }), 'bukti.jpg');
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: form });
+    if (!res.ok) console.error(`Telegram sendPhoto gagal (${res.status}): ${await res.text()}`);
+    return res.ok;
+  } catch (error) {
+    console.error('Gagal mengirim foto ke Telegram:', error);
+    return false;
+  }
+}

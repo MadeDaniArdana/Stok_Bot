@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
-import { sendTelegramMessage } from '@/lib/telegram-client';
+import { sendTelegramMessage, sendTelegramPhoto } from '@/lib/telegram-client';
+import { readTaskProof } from '@/lib/task-proof-storage';
 
 export class NotificationService {
   /**
@@ -81,6 +82,8 @@ export class NotificationService {
     assigneeName: string;
     location: string;
     stockAfter: number;
+    proofReference?: string | null;
+    proofMimeType?: string | null;
   }) {
     const adminTelegram = await prisma.telegramUser.findUnique({
       where: { userId: params.creatorUserId },
@@ -92,11 +95,17 @@ export class NotificationService {
       return;
     }
 
-    const sent = await sendTelegramMessage(
-      adminTelegram.telegramChatId,
-      `Tugas pemasangan selesai.\nBarang: ${params.productName} (${params.quantity} ${params.unit})\n` +
-        `Pemasang: ${params.assigneeName}\nLokasi: ${params.location}\nStok tersisa: ${params.stockAfter} ${params.unit}.`
-    );
+    const message =
+      `✅ Tugas pemasangan selesai.\nBarang: ${params.productName} (${params.quantity} ${params.unit})\n` +
+      `Pemasang: ${params.assigneeName}\nLokasi: ${params.location}\nStok tersisa: ${params.stockAfter} ${params.unit}.`;
+
+    // Kirim foto bukti beserta keterangan; jika gagal, tetap kirim pesan teks.
+    let sent = false;
+    if (params.proofReference && params.proofMimeType) {
+      const photo = await readTaskProof(params.proofReference).catch(() => null);
+      if (photo) sent = await sendTelegramPhoto(adminTelegram.telegramChatId, photo, params.proofMimeType, message);
+    }
+    if (!sent) sent = await sendTelegramMessage(adminTelegram.telegramChatId, message);
     if (!sent) console.error(`Task completion notification failed for user ${params.creatorUserId}.`);
   }
 
