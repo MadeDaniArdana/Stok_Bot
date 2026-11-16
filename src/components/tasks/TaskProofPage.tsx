@@ -58,17 +58,49 @@ export function TaskProofPage({ token }: { token: string }) {
   const [sizeInfo, setSizeInfo] = useState('');
 
   const [cameraOn, setCameraOn] = useState(false);
+  const [facing, setFacing] = useState<'environment' | 'user'>('environment');
+  const [canSwitch, setCanSwitch] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const stopCamera = () => {
+  const stopStream = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+  };
+  const stopCamera = () => {
+    stopStream();
     setCameraOn(false);
   };
-  useEffect(() => stopCamera, []);
+  useEffect(() => stopStream, []);
 
-  // Minta izin kamera lalu tampilkan pratinjau langsung (HTTPS wajib). Jika ditolak/tidak didukung, pakai input file.
+  // Minta izin kamera (HTTPS wajib). Gagal/ditolak -> pakai input file.
+  const startStream = async (mode: 'environment' | 'user') => {
+    stopStream();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: mode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    });
+    streamRef.current = stream;
+    setFacing(mode);
+    setCameraOn(true);
+    navigator.mediaDevices.enumerateDevices()
+      .then((devices) => setCanSwitch(devices.filter((d) => d.kind === 'videoinput').length > 1))
+      .catch(() => {});
+  };
+
+  // Pasang stream setelah <video> tampil. iOS Safari butuh atribut muted & playsinline di DOM,
+  // kalau tidak videonya tetap hitam.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!cameraOn || !video || !streamRef.current) return;
+    video.muted = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.srcObject = streamRef.current;
+    video.play().catch(() => {});
+  }, [cameraOn, facing]);
+
   const openCamera = async () => {
     setError('');
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -76,18 +108,7 @@ export function TaskProofPage({ token }: { token: string }) {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      setCameraOn(true);
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-        }
-      });
+      await startStream(facing);
     } catch (cameraError) {
       const denied = cameraError instanceof DOMException && cameraError.name === 'NotAllowedError';
       setError(
@@ -95,6 +116,14 @@ export function TaskProofPage({ token }: { token: string }) {
           ? 'Izin kamera ditolak. Aktifkan izin kamera di pengaturan browser, atau pakai tombol "Pilih dari galeri".'
           : 'Kamera tidak bisa dibuka di perangkat ini. Gunakan tombol "Pilih dari galeri".'
       );
+    }
+  };
+
+  const switchCamera = async () => {
+    try {
+      await startStream(facing === 'environment' ? 'user' : 'environment');
+    } catch {
+      setError('Kamera lain tidak bisa dibuka.');
     }
   };
 
@@ -237,11 +266,16 @@ export function TaskProofPage({ token }: { token: string }) {
                     <p className="mb-2 text-sm font-semibold text-slate-700">Foto bukti pemasangan</p>
                     {cameraOn ? (
                       <div className="space-y-2">
-                        <video ref={videoRef} playsInline muted autoPlay className="w-full rounded-xl bg-black" />
+                        <video ref={videoRef} playsInline muted autoPlay className={`w-full rounded-xl bg-black ${facing === 'user' ? '-scale-x-100' : ''}`} />
                         <div className="flex gap-2">
                           <button type="button" onClick={takeSnapshot} className="flex-1 rounded-xl bg-maroon-800 px-4 py-3 text-sm font-semibold text-white hover:bg-maroon-900">
                             Ambil Foto
                           </button>
+                          {canSwitch && (
+                            <button type="button" onClick={switchCamera} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700">
+                              {facing === 'environment' ? 'Kamera Depan' : 'Kamera Belakang'}
+                            </button>
+                          )}
                           <button type="button" onClick={stopCamera} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700">
                             Batal
                           </button>

@@ -149,7 +149,7 @@ export default function DashboardPage() {
             href="/telegram"
             className="px-3.5 py-1.5 rounded-lg bg-white text-maroon-900 hover:bg-maroon-50 text-xs font-bold transition-all shadow-sm"
           >
-            Buka Simulator & Pengaturan
+            Buka Pengaturan Telegram
           </Link>
         </div>
       </div>

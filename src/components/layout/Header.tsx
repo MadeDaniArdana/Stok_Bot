@@ -19,10 +19,9 @@ import { useToast } from '../ui/Toast';
 
 interface HeaderProps {
   onToggleMobile: () => void;
-  onOpenTelegramSimulator?: () => void;
 }
 
-export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps) {
+export function Header({ onToggleMobile }: HeaderProps) {
   const { currentUser, logout } = useAuth();
   const { showToast } = useToast();
 
@@ -111,7 +110,7 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
         <Link
           href="/telegram"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-maroon-50 text-maroon-800 hover:bg-maroon-100 border border-maroon-200 transition-colors shadow-sm"
-          title="Buka Telegram Bot Simulator & Webhook Manager"
+          title="Buka Integrasi Telegram"
         >
           <Send className="w-3.5 h-3.5 text-maroon-700" />
           <span className="hidden md:inline">Telegram Bot</span>
