@@ -51,34 +51,36 @@ export class ProductService {
       ];
     }
 
-    const allProducts = await prisma.product.findMany({
-      where,
-      include: {
-        category: true,
-      },
-      orderBy: { name: 'asc' },
-    });
-
-    // Filter by stockStatus in memory for precision
-    let filtered = allProducts;
+    // Filter status stok dibandingkan langsung dengan kolom minimumStock di database.
+    const minimumStock = prisma.product.fields.minimumStock;
     if (stockStatus === 'empty') {
-      filtered = allProducts.filter((p) => p.currentStock === 0);
+      where.currentStock = 0;
     } else if (stockStatus === 'low') {
-      filtered = allProducts.filter((p) => p.currentStock > 0 && p.currentStock <= p.minimumStock);
+      where.AND = [{ currentStock: { gt: 0 } }, { currentStock: { lte: minimumStock } }];
     } else if (stockStatus === 'safe') {
-      filtered = allProducts.filter((p) => p.currentStock > p.minimumStock);
+      where.currentStock = { gt: minimumStock };
     }
 
-    const total = filtered.length;
-    const startIndex = (page - 1) * limit;
-    const items = filtered.slice(startIndex, startIndex + limit);
+    const safePage = Math.max(1, page || 1);
+    const safeLimit = Math.min(Math.max(1, limit || 50), 500);
+
+    const [total, items] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        include: { category: true },
+        orderBy: { name: 'asc' },
+        skip: (safePage - 1) * safeLimit,
+        take: safeLimit,
+      }),
+    ]);
 
     return {
       items,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 

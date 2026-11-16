@@ -70,6 +70,7 @@ model StockMovement {
 
   @@index([productId, createdAt])
   @@index([actorUserId, createdAt])
+  @@index([createdAt])
 }
 
 model TelegramUser {
@@ -117,6 +118,9 @@ model TelegramUpdate {
   errorMessage     String?
   receivedAt       DateTime  @default(now())
   processedAt      DateTime?
+
+  @@index([receivedAt])
+  @@index([status])
 }
 
 model TelegramConversation {
@@ -162,4 +166,6 @@ model Notification {
   createdAt       DateTime @default(now())
 
   @@index([recipientUserId, isRead, createdAt])
+  @@index([createdAt])
+  @@index([isRead])
 }

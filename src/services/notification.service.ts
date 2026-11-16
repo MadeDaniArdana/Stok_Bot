@@ -69,18 +69,21 @@ export class NotificationService {
       select: { telegramChatId: true },
     });
 
-    for (const admin of admins) {
-      const sent = await sendTelegramMessage(admin.telegramChatId, message);
-      if (!sent) {
-        await logError({
-          source: 'NOTIFICATION',
-          level: 'WARNING',
-          error: 'Notifikasi stok menipis gagal terkirim ke Telegram admin',
-          location: 'checkStockLevelAndAlert',
-          context: { chatId: admin.telegramChatId, pesan: message },
-        });
-      }
-    }
+    // Kirim ke semua admin sekaligus (paralel), bukan satu per satu.
+    await Promise.all(
+      admins.map(async (admin) => {
+        const sent = await sendTelegramMessage(admin.telegramChatId, message);
+        if (!sent) {
+          await logError({
+            source: 'NOTIFICATION',
+            level: 'WARNING',
+            error: 'Notifikasi stok menipis gagal terkirim ke Telegram admin',
+            location: 'checkStockLevelAndAlert',
+            context: { chatId: admin.telegramChatId, pesan: message },
+          });
+        }
+      })
+    );
   }
 
   static async notifyTaskCompleted(params: {

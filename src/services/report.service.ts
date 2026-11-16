@@ -5,55 +5,78 @@ export class ReportService {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    // 1. Master product aggregates
-    const products = await prisma.product.findMany({
-      include: { category: true },
-    });
+    // Tren harian hanya butuh 7 hari terakhir (dan tidak melewati awal periode).
+    const trendStart = new Date();
+    trendStart.setDate(trendStart.getDate() - 7);
+    const trendFrom = trendStart > cutoffDate ? trendStart : cutoffDate;
 
-    const activeProducts = products.filter((p) => p.isActive);
+    const periodWhere = { createdAt: { gte: cutoffDate } };
+
+    // Semua query berjalan paralel; agregasi dilakukan di database, bukan di memori.
+    const [activeProducts, totalsByType, topOutGroups, trendMovements, recentActivities] = await Promise.all([
+      prisma.product.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          unit: true,
+          currentStock: true,
+          minimumStock: true,
+          category: { select: { name: true } },
+        },
+      }),
+      prisma.stockMovement.groupBy({
+        by: ['type'],
+        where: { ...periodWhere, type: { in: ['IN', 'OUT'] } },
+        _sum: { quantity: true },
+      }),
+      prisma.stockMovement.groupBy({
+        by: ['productId'],
+        where: { ...periodWhere, type: 'OUT' },
+        _sum: { quantity: true },
+        _count: { _all: true },
+        orderBy: { _sum: { quantity: 'desc' } },
+        take: 5,
+      }),
+      prisma.stockMovement.findMany({
+        where: { createdAt: { gte: trendFrom }, type: { in: ['IN', 'OUT'] } },
+        select: { type: true, quantity: true, createdAt: true },
+      }),
+      prisma.stockMovement.findMany({
+        where: periodWhere,
+        include: {
+          product: { select: { name: true, sku: true, unit: true } },
+          actor: { select: { name: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      }),
+    ]);
+
+    // 1. KPI stok
     const totalActiveSku = activeProducts.length;
     const totalAggregateStock = activeProducts.reduce((sum, p) => sum + p.currentStock, 0);
-
     const lowStockItems = activeProducts.filter((p) => p.currentStock > 0 && p.currentStock <= p.minimumStock);
     const outOfStockItems = activeProducts.filter((p) => p.currentStock === 0);
 
-    // 2. Movements in the period
-    const movements = await prisma.stockMovement.findMany({
-      where: {
-        createdAt: { gte: cutoffDate },
-      },
-      include: {
-        product: { select: { name: true, sku: true, unit: true } },
-        actor: { select: { name: true, role: true } },
-      },
-      orderBy: { createdAt: 'desc' },
+    const totalInQuantity = totalsByType.find((t) => t.type === 'IN')?._sum.quantity ?? 0;
+    const totalOutQuantity = totalsByType.find((t) => t.type === 'OUT')?._sum.quantity ?? 0;
+
+    // 2. Barang paling banyak keluar
+    const topProducts = topOutGroups.length
+      ? await prisma.product.findMany({
+          where: { id: { in: topOutGroups.map((g) => g.productId) } },
+          select: { id: true, name: true, sku: true, unit: true },
+        })
+      : [];
+    const productById = new Map(topProducts.map((p) => [p.id, p]));
+    const topConsumed = topOutGroups.map((g) => {
+      const { id: _id, ...product } = productById.get(g.productId) ?? { id: '', name: '-', sku: '-', unit: '' };
+      return { product, totalOut: g._sum.quantity ?? 0, txCount: g._count._all };
     });
 
-    const totalInQuantity = movements
-      .filter((m) => m.type === 'IN')
-      .reduce((sum, m) => sum + m.quantity, 0);
-
-    const totalOutQuantity = movements
-      .filter((m) => m.type === 'OUT')
-      .reduce((sum, m) => sum + m.quantity, 0);
-
-    // 3. Top Consumed Products
-    const consumptionMap: Record<string, { product: any; totalOut: number; txCount: number }> = {};
-    for (const m of movements) {
-      if (m.type === 'OUT') {
-        if (!consumptionMap[m.productId]) {
-          consumptionMap[m.productId] = { product: m.product, totalOut: 0, txCount: 0 };
-        }
-        consumptionMap[m.productId].totalOut += m.quantity;
-        consumptionMap[m.productId].txCount += 1;
-      }
-    }
-
-    const topConsumed = Object.values(consumptionMap)
-      .sort((a, b) => b.totalOut - a.totalOut)
-      .slice(0, 5);
-
-    // 4. Daily movement trends (last 7 days)
+    // 3. Tren pergerakan harian (7 hari terakhir)
     const trendDays: Record<string, { date: string; inQty: number; outQty: number }> = {};
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -62,24 +85,18 @@ export class ReportService {
       const label = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
       trendDays[key] = { date: label, inQty: 0, outQty: 0 };
     }
-
-    for (const m of movements) {
-      const dayKey = new Date(m.createdAt).toISOString().split('T')[0];
-      if (trendDays[dayKey]) {
-        if (m.type === 'IN') trendDays[dayKey].inQty += m.quantity;
-        if (m.type === 'OUT') trendDays[dayKey].outQty += m.quantity;
-      }
+    for (const m of trendMovements) {
+      const day = trendDays[m.createdAt.toISOString().split('T')[0]];
+      if (!day) continue;
+      if (m.type === 'IN') day.inQty += m.quantity;
+      if (m.type === 'OUT') day.outQty += m.quantity;
     }
 
-    const dailyTrends = Object.values(trendDays);
-
-    // 5. Category distribution
+    // 4. Sebaran per kategori
     const categoryStats: Record<string, { name: string; itemCount: number; totalStock: number }> = {};
     for (const p of activeProducts) {
       const catName = p.category?.name || 'Tanpa Kategori';
-      if (!categoryStats[catName]) {
-        categoryStats[catName] = { name: catName, itemCount: 0, totalStock: 0 };
-      }
+      categoryStats[catName] ??= { name: catName, itemCount: 0, totalStock: 0 };
       categoryStats[catName].itemCount += 1;
       categoryStats[catName].totalStock += p.currentStock;
     }
@@ -104,9 +121,9 @@ export class ReportService {
         unit: p.unit,
         isZero: p.currentStock === 0,
       })),
-      recentActivities: movements.slice(0, 8),
+      recentActivities,
       topConsumed,
-      dailyTrends,
+      dailyTrends: Object.values(trendDays),
       categoryStats: Object.values(categoryStats),
     };
   }

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
 
+// Tanpa ini Next.js menjadikan route statis: datanya dibekukan saat build.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const [recentUpdates, totalUpdates, failedUpdates, linkedCount] = await Promise.all([

@@ -17,6 +17,28 @@ import {
 import { useAuth } from './AuthContext';
 import { useToast } from '../ui/Toast';
 
+/** Jam WIB; dipisah agar detak tiap detik tidak menggambar ulang seluruh header. */
+function HeaderClock() {
+  const [timeStr, setTimeStr] = useState('');
+
+  useEffect(() => {
+    const updateTime = () =>
+      setTimeStr(
+        new Date().toLocaleTimeString('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }) + ' WIB'
+      );
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return <span className="font-mono font-medium">{timeStr}</span>;
+}
+
 interface HeaderProps {
   onToggleMobile: () => void;
 }
@@ -25,29 +47,10 @@ export function Header({ onToggleMobile }: HeaderProps) {
   const { currentUser, logout } = useAuth();
   const { showToast } = useToast();
 
-  const [timeStr, setTimeStr] = useState<string>('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // Update clock every minute
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTimeStr(
-        now.toLocaleTimeString('id-ID', {
-          timeZone: 'Asia/Jakarta',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }) + ' WIB'
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Fetch notifications
   const loadNotifications = async () => {
@@ -65,8 +68,18 @@ export function Header({ onToggleMobile }: HeaderProps) {
 
   useEffect(() => {
     loadNotifications();
-    const interval = setInterval(loadNotifications, 15000); // Polling every 15s
-    return () => clearInterval(interval);
+    // Cek notifikasi tiap 30 detik, hanya saat tab sedang dilihat; langsung cek saat tab dibuka lagi.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadNotifications();
+    }, 30000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadNotifications();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   const handleMarkAllRead = async () => {
@@ -98,7 +111,7 @@ export function Header({ onToggleMobile }: HeaderProps) {
 
         <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
           <Clock className="w-3.5 h-3.5 text-maroon-700" />
-          <span className="font-mono font-medium">{timeStr}</span>
+          <HeaderClock />
           <span className="text-slate-300">|</span>
           <span className="text-slate-600 font-medium">Gudang Utama (StockFlow)</span>
         </div>
