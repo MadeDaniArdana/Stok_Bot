@@ -113,6 +113,14 @@ async function main() {
     },
   });
 
+  await prisma.category.create({
+    data: {
+      id: 'cat-elektronik',
+      name: 'Elektronik',
+      description: 'Lampu, kabel listrik, stop kontak, saklar, dan perangkat elektronik lainnya.',
+    },
+  });
+
   // 4. Products
   const prodA4 = await prisma.product.create({
     data: {
