@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { MovementSource, MovementType } from '@/types';
 import { NotificationService } from './notification.service';
+import { randomUUID } from 'crypto';
+import { sendTelegramMessage } from '@/lib/telegram-client';
 
 export interface StockInParams {
   productId: string;
@@ -144,6 +146,8 @@ export class InventoryService {
         },
       });
 
+      const proofToken = randomUUID();
+
       const movement = await tx.stockMovement.create({
         data: {
           productId,
@@ -154,18 +158,60 @@ export class InventoryService {
           stockAfter,
           source,
           telegramUpdateId: telegramUpdateId || null,
+          proofToken,
           notes: notes?.trim() || 'Barang Keluar',
           referenceId: referenceId || null,
         },
       });
 
-      return { product: updatedProduct, movement, stockAfter };
+      return { product: updatedProduct, movement, stockAfter, proofToken };
     });
+
+    // Generate link kamera bukti foto
+    const baseUrl = process.env.APP_URL || 'https://stok-bot.vercel.app';
+    const proofUrl = `${baseUrl}/proof/${result.proofToken}`;
+    let telegramSent = false;
+    let recipientUser: any = null;
+
+    if (actorUserId) {
+      try {
+        const tgUser = await prisma.telegramUser.findUnique({
+          where: { userId: actorUserId },
+          include: { user: true },
+        });
+
+        if (tgUser) {
+          recipientUser = tgUser.user;
+          if (tgUser.isActive && tgUser.telegramChatId) {
+            const message = `📸 *Konfirmasi Pengambilan Barang*\n\n` +
+              `Halo *${tgUser.user.name}*,\n` +
+              `Pengambilan barang telah dicatat di sistem StockFlow:\n` +
+              `• *Barang:* ${result.product.name} (${result.product.sku})\n` +
+              `• *Jumlah:* ${quantity} ${result.product.unit}\n` +
+              (notes ? `• *${notes}*\n\n` : '\n') +
+              `👉 *Silakan ambil foto barang yang dipakai melalui link kamera ini:*\n` +
+              `${proofUrl}\n\n` +
+              `_(Link ini langsung membuka kamera tanpa perlu login. Cukup jepret foto fisik barang & tekan simpan)_`;
+
+            telegramSent = await sendTelegramMessage(tgUser.telegramChatId, message);
+          }
+        } else {
+          recipientUser = await prisma.user.findUnique({ where: { id: actorUserId } });
+        }
+      } catch (err) {
+        console.error('Failed to notify Telegram for stock out proof:', err);
+      }
+    }
 
     // Check low stock alert post-commit
     await NotificationService.checkStockLevelAndAlert(productId, result.stockAfter, actorUserId);
 
-    return result;
+    return {
+      ...result,
+      proofUrl,
+      telegramSent,
+      recipientUser,
+    };
   }
 
   /**

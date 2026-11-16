@@ -67,10 +67,14 @@ model StockMovement {
   referenceId      String?
   notes            String?
   telegramUpdateId String?        @unique
+  proofToken       String?        @unique
+  proofPhoto       String?
+  proofUploadedAt  DateTime?
   createdAt        DateTime       @default(now())
 
   @@index([productId, createdAt])
   @@index([actorUserId, createdAt])
+  @@index([proofToken])
 }
 
 model TelegramUser {

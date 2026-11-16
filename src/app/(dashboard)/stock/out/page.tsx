@@ -11,6 +11,12 @@ import {
   HelpCircle,
   CheckCircle2,
   Send,
+  Camera,
+  Copy,
+  Check,
+  ExternalLink,
+  X,
+  Sparkles,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
@@ -32,6 +38,17 @@ function StockOutContent() {
 
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal Link Kamera Bukti
+  const [proofModalData, setProofModalData] = useState<{
+    proofUrl: string;
+    telegramSent: boolean;
+    recipientName: string;
+    productName: string;
+    quantity: number;
+    unit: string;
+  } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     if (currentUser?.id && !recipientUserId) {
@@ -115,6 +132,18 @@ function StockOutContent() {
         'Barang Keluar Berhasil!',
         `Pengambilan ${parsedQty} ${selectedProduct?.unit} berhasil dicatat. Sisa stok: ${projectedStock} ${selectedProduct?.unit}.`
       );
+
+      // Tampilkan popup link kamera & status pengiriman Telegram
+      if (data.data?.proofUrl) {
+        setProofModalData({
+          proofUrl: data.data.proofUrl,
+          telegramSent: Boolean(data.data.telegramSent),
+          recipientName: data.data.recipientUser?.name || 'Pegawai',
+          productName: selectedProduct?.name || 'Barang',
+          quantity: parsedQty,
+          unit: selectedProduct?.unit || 'unit',
+        });
+      }
 
       // Reset form
       setQuantity('');
@@ -356,6 +385,119 @@ function StockOutContent() {
           </div>
         </div>
       </div>
+
+      {/* Modal Popup: Link Kamera & QR Code Bukti Fisik */}
+      {proofModalData && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-maroon-50 text-maroon-800 flex items-center justify-center border border-maroon-200">
+                  <Camera className="w-5 h-5 text-maroon-800" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    Link Kamera Bukti Fisik
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {proofModalData.productName} ({proofModalData.quantity} {proofModalData.unit})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setProofModalData(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Telegram delivery status */}
+            {proofModalData.telegramSent ? (
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>
+                  Link telah <strong>otomatis terkirim</strong> ke Telegram{' '}
+                  <strong>{proofModalData.recipientName}</strong>.
+                </span>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  Pegawai belum menghubungkan Telegram. Mintalah pegawai memindai QR Code di bawah atau salin link ini.
+                </span>
+              </div>
+            )}
+
+            {/* QR Code for in-person desk scan */}
+            <div className="text-center py-2 space-y-1">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                  proofModalData.proofUrl
+                )}`}
+                alt="QR Code Kamera"
+                className="w-36 h-36 mx-auto rounded-xl border border-slate-200 p-1.5 bg-white shadow-sm"
+              />
+              <p className="text-[11px] text-slate-400">
+                Scan langsung menggunakan kamera HP pegawai
+              </p>
+            </div>
+
+            {/* Link & Copy Box */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Link Kamera Tanpa Login:</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  readOnly
+                  value={proofModalData.proofUrl}
+                  className="flex-1 text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 font-mono select-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(proofModalData.proofUrl);
+                    setCopiedLink(true);
+                    showToast('Link Disalin!', 'Link kamera bukti telah disalin ke clipboard.');
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    copiedLink
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-maroon-800 hover:bg-maroon-900 text-white'
+                  }`}
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedLink ? 'Disalin' : 'Salin'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <a
+                href={proofModalData.proofUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-maroon-800 hover:underline font-semibold flex items-center gap-1"
+              >
+                <span>Buka Kamera Sendiri</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setProofModalData(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
+              >
+                Tutup Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -403,6 +403,10 @@ export class TelegramService {
           notes: parsed.notes ? `Keperluan: ${parsed.notes}` : 'Pengambilan via Telegram',
         });
 
+        const proofSection = (txResult as any).proofUrl
+          ? `\n\n📸 *Ambil Foto Bukti Pemakaian:*\nSilakan foto barang yang telah diambil lewat link kamera ini (tanpa login):\n👉 ${(txResult as any).proofUrl}`
+          : '';
+
         return {
           replyText: `✅ *Pengambilan berhasil dicatat.*\n\n` +
             `Barang: *${targetProduct.name}*\n` +
@@ -410,8 +414,9 @@ export class TelegramService {
             `Stok sebelumnya: ${txResult.movement.stockBefore} ${targetProduct.unit}\n` +
             `Stok sekarang: *${txResult.stockAfter} ${targetProduct.unit}*\n` +
             `Pelapor: ${internalUser.name}\n` +
-            `Keperluan: ${parsed.notes || '-'}\n\n` +
-            `_Terima kasih telah mencatat inventori secara tertib!_`,
+            `Keperluan: ${parsed.notes || '-'}` +
+            proofSection +
+            `\n\n_Terima kasih telah mencatat inventori secara tertib!_`,
           success: true,
           actionTaken: 'STOCK_OUT_SUCCESS',
         };

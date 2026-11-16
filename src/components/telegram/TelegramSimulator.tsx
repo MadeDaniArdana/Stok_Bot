@@ -156,7 +156,23 @@ export function TelegramSimulator() {
                   : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
               }`}
             >
-              <div className="whitespace-pre-wrap leading-relaxed font-sans">{m.text}</div>
+              <div className="whitespace-pre-wrap leading-relaxed font-sans">
+                {m.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                  part.match(/^https?:\/\//) ? (
+                    <a
+                      key={i}
+                      href={part}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sky-600 underline font-semibold break-all hover:text-sky-800"
+                    >
+                      {part}
+                    </a>
+                  ) : (
+                    part
+                  )
+                )}
+              </div>
               <div
                 className={`text-[9px] mt-1 text-right ${
                   m.sender === 'user' ? 'text-maroon-200' : 'text-slate-400'
