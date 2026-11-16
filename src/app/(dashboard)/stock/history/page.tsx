@@ -161,10 +161,10 @@ export default function StockHistoryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-            Riwayat Mutasi & Audit Ledger
+            Riwayat Stok
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Jejak audit lengkap perubahan persediaan, mencatat aktor, sumber, dan saldo sesudah
+            Catatan setiap barang masuk dan keluar: kapan, oleh siapa, dan sisa stok sesudahnya
           </p>
         </div>
 
@@ -269,7 +269,7 @@ export default function StockHistoryPage() {
               {loading ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
-                    Memuat riwayat transaksi...
+                    Memuat riwayat stok...
                   </td>
                 </tr>
               ) : movements.length === 0 ? (

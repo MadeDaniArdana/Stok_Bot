@@ -59,7 +59,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       title: 'Inventori & Mutasi',
       items: [
         { name: 'Barang Masuk', href: '/stock/in', icon: ArrowDownToLine, badge: 'IN' },
-        { name: 'Riwayat Transaksi', href: '/stock/history', icon: History },
+        { name: 'Riwayat Stok', href: '/stock/history', icon: History },
         { name: 'Laporan Pemasangan', href: '/tasks', icon: Camera },
       ],
     },
