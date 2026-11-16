@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma';
+import { buildMainMenuKeyboard } from '@/lib/telegram-keyboards';
+import type { TelegramInlineKeyboardMarkup } from '@/lib/telegram-client';
 import { InstallationTaskService } from './installation-task.service';
+import { TelegramTaskWizardService } from './telegram-task-wizard.service';
 
 export interface TelegramMessagePayload {
   update_id: number | string;
@@ -20,6 +23,22 @@ export interface TelegramMessagePayload {
     text?: string;
     date: number;
   };
+  callback_query?: {
+    id: string;
+    from: {
+      id: number | string;
+      first_name?: string;
+      username?: string;
+    };
+    message?: {
+      message_id: number;
+      chat: {
+        id: number | string;
+        type: string;
+      };
+    };
+    data?: string;
+  };
 }
 
 export interface TelegramProcessResult {
@@ -27,6 +46,7 @@ export interface TelegramProcessResult {
   success: boolean;
   actionTaken?: string;
   error?: string;
+  replyMarkup?: TelegramInlineKeyboardMarkup;
 }
 
 export class TelegramService {
@@ -36,18 +56,23 @@ export class TelegramService {
   static async handleWebhookUpdate(payload: TelegramMessagePayload): Promise<TelegramProcessResult> {
     const updateId = String(payload.update_id);
     const msg = payload.message;
+    const callback = payload.callback_query;
 
-    if (!msg || !msg.text) {
+    if ((!msg || !msg.text) && !callback) {
       return {
         replyText: 'StockFlow Bot: Pesan kosong atau jenis pesan tidak didukung.',
         success: false,
       };
     }
 
-    const telegramUserId = String(msg.from.id);
-    const chatId = String(msg.chat.id);
-    const username = msg.from.username || msg.from.first_name || 'pengguna';
-    const text = msg.text.trim();
+    const telegramUserId = String(msg?.from.id ?? callback?.from.id);
+    const callbackChatId = callback?.message?.chat.id;
+    const chatId = String(msg?.chat.id ?? callbackChatId ?? '');
+    const username = msg?.from.username || callback?.from.username || msg?.from.first_name || callback?.from.first_name || 'pengguna';
+    const text = msg?.text?.trim() || '';
+    if (!chatId) {
+      return { replyText: 'Pesan Telegram tidak memiliki chat yang dapat digunakan.', success: false };
+    }
 
     // 1. Cek Idempotensi Webhook Update (Resilient)
     let existingUpdate = null;
@@ -85,12 +110,14 @@ export class TelegramService {
     }
 
     try {
-      const result = await this.processMessageText({
-        telegramUserId,
-        chatId,
-        username,
-        text,
-      });
+      const result = callback
+        ? await this.processCallbackQuery({
+          telegramUserId,
+          chatId,
+          username,
+          callbackData: callback.data || '',
+        })
+        : await this.processMessageText({ telegramUserId, chatId, username, text });
 
       // Tandai update PROCESSED
       try {
@@ -124,6 +151,71 @@ export class TelegramService {
     }
   }
 
+  static async processCallbackQuery(params: {
+    telegramUserId: string;
+    chatId: string;
+    username: string;
+    callbackData: string;
+  }): Promise<TelegramProcessResult> {
+    const { telegramUserId, chatId, username, callbackData } = params;
+    const tgUser = await prisma.telegramUser.findUnique({
+      where: { telegramUserId },
+      include: { user: true },
+    });
+
+    if (!tgUser || !tgUser.isActive || !tgUser.user.isActive) {
+      return {
+        replyText: 'Akun Telegram belum terhubung. Hubungkan akun dengan mengirim /link email-anda.',
+        success: false,
+        actionTaken: 'UNLINKED_USER',
+      };
+    }
+
+    const allowedAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const isAllowedAdmin = tgUser.user.role === 'ADMIN' && allowedAdminIds.includes(telegramUserId);
+
+    if (
+      callbackData === 'menu:create_task' ||
+      callbackData === 'menu:search' ||
+      callbackData === 'menu:home' ||
+      callbackData.startsWith('task:')
+    ) {
+      return TelegramTaskWizardService.handleCallback(
+        telegramUserId,
+        chatId,
+        tgUser.user.id,
+        isAllowedAdmin,
+        callbackData
+      );
+    }
+
+    const menuCommands: Record<string, string> = {
+      'menu:stock': '/stok',
+      'menu:tasks': '/tugas',
+      'menu:history': '/riwayat',
+      'menu:help': '/bantuan',
+    };
+    const command = menuCommands[callbackData];
+    if (!command) {
+      return {
+        replyText: 'Tombol tidak dikenali. Kirim /start untuk membuka menu.',
+        success: false,
+        actionTaken: 'INVALID_BUTTON',
+        replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
+      };
+    }
+
+    return this.processMessageText({
+      telegramUserId,
+      chatId,
+      username,
+      text: command,
+    });
+  }
+
   /**
    * Parser & handler pesan Telegram
    */
@@ -138,32 +230,53 @@ export class TelegramService {
 
     // /start command
     if (lower === '/start') {
+      const linkedUser = await prisma.telegramUser.findUnique({
+        where: { telegramUserId },
+        include: { user: true },
+      });
+      const adminIds = (process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((id) => id.trim());
+      const isAllowedAdmin = Boolean(
+        linkedUser?.isActive &&
+        linkedUser.user.isActive &&
+        linkedUser.user.role === 'ADMIN' &&
+        adminIds.includes(telegramUserId)
+      );
+
       return {
-        replyText: `👋 *Selamat datang di StockFlow Bot*, @${username}!\n\n` +
-          `Admin dapat membuat tugas pemasangan di Telegram dan membagikan link bukti melalui WhatsApp.\n\n` +
-          `📌 *Perintah Cepat:*\n` +
-          `• \`/stok\` — Cek ringkasan stok gudang\n` +
-          `• \`/cari <nama_barang>\` — Cari ketersediaan barang\n` +
-          `• \`/riwayat\` — Cek riwayat pengambilan Anda\n` +
-          `• \`/tugas\` — Lihat status tugas pemasangan (admin)\n` +
-          `• \`/buat_tugas\` — Buat tugas pemasangan (admin)\n` +
-          `• \`/bantuan\` — Panduan penggunaan bot\n` +
-          `• \`/link <email_anda>\` — Tautkan akun StockFlow Anda\n\n` +
-          `_ID Telegram Anda:_ \`${telegramUserId}\``,
+        replyText: linkedUser?.isActive && linkedUser.user.isActive
+          ? `👋 Selamat datang di StockFlow Bot, ${linkedUser.user.name}!\nPilih menu dengan menekan tombol di bawah.`
+          : `👋 Selamat datang di StockFlow Bot, @${username}!\n\nHubungkan akun sekali dengan mengirim:\n/link email-akun-anda`,
         success: true,
         actionTaken: 'START',
+        replyMarkup: linkedUser?.isActive && linkedUser.user.isActive
+          ? buildMainMenuKeyboard(isAllowedAdmin)
+          : undefined,
       };
     }
 
     // /bantuan command
     if (lower === '/bantuan' || lower === '/help' || lower === '/pakai') {
+      const linkedUser = await prisma.telegramUser.findUnique({
+        where: { telegramUserId },
+        include: { user: true },
+      });
+      const adminIds = (process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((id) => id.trim());
+      const isAllowedAdmin = Boolean(
+        linkedUser?.isActive &&
+        linkedUser.user.isActive &&
+        linkedUser.user.role === 'ADMIN' &&
+        adminIds.includes(telegramUserId)
+      );
+
       return {
         replyText:
-          'Admin membuat tugas dengan format:\n\n' +
-          'TUGAS\nBarang: Lampu\nJumlah: 1\nPemasang: Singgih\nLokasi: GSG\nCatatan: Opsional\n\n' +
-          'Pemasang membuka link dari WhatsApp dan mengirim foto bukti. Stok berkurang setelah foto diterima.',
+          'Pilih tombol menu untuk melihat stok, mencari barang, atau melihat riwayat. Admin dapat membuat tugas pemasangan dengan memilih barang dan jumlah, lalu mengisi nama pemasang dan lokasi.\n\n' +
+          'Pemasang menerima link melalui WhatsApp lalu mengirim foto bukti. Stok berkurang setelah foto diterima. Perintah /link hanya diperlukan saat menghubungkan akun.',
         success: true,
         actionTaken: 'HELP',
+        replyMarkup: linkedUser?.isActive && linkedUser.user.isActive
+          ? buildMainMenuKeyboard(isAllowedAdmin)
+          : undefined,
       };
     }
 
@@ -208,10 +321,17 @@ export class TelegramService {
         },
       });
 
+      const allowedAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      const isAllowedAdmin = user.role === 'ADMIN' && allowedAdminIds.includes(telegramUserId);
+
       return {
-        replyText: `✅ *Berhasil terhubung!*\n\nAkun StockFlow atas nama *${user.name}* (${user.email}) kini telah resmi terhubung dengan Telegram Anda.\n\nAdmin yang diizinkan dapat membuat tugas pemasangan melalui \`/buat_tugas\`.`,
+        replyText: `✅ Akun ${user.name} berhasil terhubung. Pilih menu berikutnya dengan tombol di bawah.`,
         success: true,
         actionTaken: 'LINKED',
+        replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
       };
     }
 
@@ -237,7 +357,55 @@ export class TelegramService {
       .filter(Boolean);
     const isAllowedAdmin = internalUser.role === 'ADMIN' && allowedAdminIds.includes(telegramUserId);
 
-    if (lower === '/buat_tugas' || lower.startsWith('/buat_tugas ') || lower.startsWith('tugas')) {
+    if (lower === '🔎 cari barang') {
+      return TelegramTaskWizardService.handleCallback(
+        telegramUserId,
+        chatId,
+        internalUser.id,
+        isAllowedAdmin,
+        'menu:search'
+      );
+    }
+
+    if (lower === '/batal' || lower === 'batal' || lower === '✖️ batal') {
+      return TelegramTaskWizardService.handleCallback(
+        telegramUserId,
+        chatId,
+        internalUser.id,
+        isAllowedAdmin,
+        'task:cancel'
+      );
+    }
+
+    if (!lower.startsWith('/')) {
+      const wizardResult = await TelegramTaskWizardService.handleText(
+        telegramUserId,
+        chatId,
+        isAllowedAdmin,
+        text
+      );
+      if (wizardResult) return wizardResult;
+    }
+
+    if (
+      lower === '/buat_tugas' ||
+      lower === 'buat tugas' ||
+      lower === '➕ buat tugas pemasangan'
+    ) {
+      if (!isAllowedAdmin) {
+        return {
+          replyText: 'Akses ditolak. Fitur tugas hanya tersedia untuk admin Telegram yang sudah diizinkan.',
+          success: false,
+        };
+      }
+
+      return TelegramTaskWizardService.start(telegramUserId, chatId);
+    }
+
+    if (
+      (lower.startsWith('/buat_tugas ') || lower.startsWith('tugas')) &&
+      lower.includes('barang:')
+    ) {
       if (!isAllowedAdmin) {
         return {
           replyText: 'Akses ditolak. Perintah tugas hanya tersedia untuk admin Telegram yang sudah diizinkan.',
@@ -261,7 +429,7 @@ export class TelegramService {
           isActive: true,
           OR: [
             { sku: { equals: parsed.productQuery.toUpperCase() } },
-            { name: { contains: parsed.productQuery } },
+            { name: { contains: parsed.productQuery, mode: 'insensitive' } },
           ],
         },
         take: 10,
@@ -310,7 +478,7 @@ export class TelegramService {
       }
     }
 
-    if (lower === '/tugas') {
+    if (lower === '/tugas' || lower === '📋 tugas terbaru') {
       if (!isAllowedAdmin) {
         return {
           replyText: 'Akses ditolak. Status tugas hanya tersedia untuk admin Telegram yang sudah diizinkan.',
@@ -324,7 +492,12 @@ export class TelegramService {
         include: { product: true },
       });
       if (!tasks.length) {
-        return { replyText: 'Belum ada tugas pemasangan yang tercatat.', success: true, actionTaken: 'TASK_LIST_EMPTY' };
+        return {
+          replyText: 'Belum ada tugas pemasangan yang tercatat.',
+          success: true,
+          actionTaken: 'TASK_LIST_EMPTY',
+          replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
+        };
       }
 
       const lines = tasks.map((task) => {
@@ -336,11 +509,12 @@ export class TelegramService {
         replyText: `10 tugas pemasangan terbaru:\n\n${lines.join('\n\n')}`,
         success: true,
         actionTaken: 'TASK_LIST',
+        replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
       };
     }
 
     // /stok command
-    if (lower === '/stok') {
+    if (lower === '/stok' || lower === '📦 cek stok') {
       const products = await prisma.product.findMany({
         where: { isActive: true },
         orderBy: { currentStock: 'asc' },
@@ -356,11 +530,12 @@ export class TelegramService {
         response += `${statusIcon} *${p.name}*\n   Stok: \`${p.currentStock} ${p.unit}\` (Min: ${p.minimumStock})\n`;
       });
 
-      response += `\nGunakan \`/cari <nama>\` untuk mencari barang spesifik.`;
+      response += '\nTekan "Cari barang" untuk mencari nama atau SKU.';
       return {
         replyText: response,
         success: true,
         actionTaken: 'STOCK_SUMMARY',
+        replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
       };
     }
 
@@ -369,8 +544,9 @@ export class TelegramService {
       const query = text.replace(/^\/cari/i, '').trim();
       if (!query) {
         return {
-          replyText: `⚠️ Masukkan nama atau SKU barang yang ingin dicari.\nContoh: \`/cari Kertas\``,
+          replyText: 'Kirim nama barang atau SKU yang ingin dicari.',
           success: false,
+          replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
         };
       }
 
@@ -378,8 +554,8 @@ export class TelegramService {
         where: {
           isActive: true,
           OR: [
-            { name: { contains: query } },
-            { sku: { contains: query } },
+            { name: { contains: query, mode: 'insensitive' } },
+            { sku: { contains: query, mode: 'insensitive' } },
           ],
         },
         take: 10,
@@ -390,6 +566,7 @@ export class TelegramService {
           replyText: `🔍 Tidak ditemukan barang dengan kata kunci: *${query}*. Periksa kembali penulisan nama atau SKU.`,
           success: true,
           actionTaken: 'SEARCH_EMPTY',
+          replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
         };
       }
 
@@ -403,11 +580,12 @@ export class TelegramService {
         replyText: response,
         success: true,
         actionTaken: 'SEARCH_RESULTS',
+        replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
       };
     }
 
     // /riwayat command
-    if (lower === '/riwayat') {
+    if (lower === '/riwayat' || lower === '📜 riwayat saya') {
       const movements = await prisma.stockMovement.findMany({
         where: {
           actorUserId: internalUser.id,
@@ -423,6 +601,7 @@ export class TelegramService {
           replyText: `📜 Anda belum memiliki riwayat pengambilan barang di sistem.`,
           success: true,
           actionTaken: 'HISTORY_EMPTY',
+          replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
         };
       }
 
@@ -436,6 +615,7 @@ export class TelegramService {
         replyText: response,
         success: true,
         actionTaken: 'HISTORY_LIST',
+        replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
       };
     }
 
@@ -449,8 +629,9 @@ export class TelegramService {
 
     // Default unknown command
     return {
-      replyText: `StockFlow Bot: Perintah tidak dikenali.\nKetik \`/bantuan\` untuk panduan atau \`/stok\` untuk mengecek persediaan barang.`,
+      replyText: 'Pilih salah satu menu di bawah. Untuk membatalkan proses yang sedang berjalan, tekan Batal.',
       success: false,
+      replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
     };
   }
 

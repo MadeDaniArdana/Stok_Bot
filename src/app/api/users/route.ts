@@ -8,7 +8,7 @@ export async function GET() {
       include: {
         telegram: true,
         _count: {
-          select: { movements: true, requests: true },
+          select: { movements: true },
         },
       },
     });

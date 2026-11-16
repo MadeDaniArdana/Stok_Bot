@@ -25,15 +25,15 @@ Untuk StockFlow, MVP dianggap berhasil jika:
 | Fitur | Hasil yang diharapkan | Pengguna |
 |---|---|---|
 | Login admin | Area admin terlindungi | Admin |
-| Master barang | Barang, SKU, kategori, satuan, minimum stok | Admin |
+| Master barang | Barang, SKU otomatis dari kategori, kategori, satuan, stok, minimum stok | Admin |
 | Master kategori | Kategori dapat dikelola | Admin |
 | Stock in | Stok bertambah dan movement tercatat | Admin |
 | Stock out website | Stok berkurang dan movement tercatat | Admin |
 | Dashboard | Ringkasan dan daftar stok kritis | Admin |
 | Riwayat | Semua transaksi dapat ditelusuri | Admin |
 | Pengguna & linking Telegram | Hanya akun berizin dapat memakai bot | Admin/pengguna |
-| Telegram webhook | Pesan bot diterima dan diproses | Pengguna |
-| Telegram stock out | Pengambilan valid mengurangi stok | Pengguna |
+| Telegram webhook | Pesan dan tombol bot diterima dan diproses | Pengguna |
+| Tugas pemasangan Telegram | Panduan tombol membuat link foto bukti dan melacak status | Admin |
 | Idempotensi | Update yang sama tidak membuat transaksi ganda | Sistem |
 | Validasi stok | Stok tidak menjadi negatif | Sistem |
 | Log error | Admin/developer dapat menelusuri kegagalan | Sistem |
@@ -61,7 +61,7 @@ Untuk StockFlow, MVP dianggap berhasil jika:
 - Satu satuan dasar per barang.
 - Admin mengelola barang dan barang masuk.
 - Pengguna Telegram harus terdaftar dan diaktifkan admin.
-- Format Telegram terstruktur menjadi jalur utama.
+- Menu tombol dan panduan bertahap menjadi jalur utama Telegram.
 - Direct issue hanya untuk pengguna yang diberi izin.
 - Approval workflow boleh ditunda, tetapi model data sebaiknya sudah menyediakan `StockRequest`.
 - Tidak ada penghapusan transaksi permanen.
@@ -72,8 +72,8 @@ Untuk StockFlow, MVP dianggap berhasil jika:
 ### 4.1 Setup awal oleh admin
 1. Admin login.
 2. Admin membuat kategori.
-3. Admin membuat master barang beserta SKU, satuan, dan stok minimum.
-4. Admin memasukkan saldo awal melalui transaksi yang tercatat.
+3. Admin memilih kategori dan membuat master barang; SKU otomatis dibuat berdasarkan kategori.
+4. Admin wajib mengisi stok saat membuat barang; stok positif dicatat sebagai movement.
 5. Admin membuat akun pengguna.
 6. Pengguna menghubungkan akun Telegram.
 
@@ -86,61 +86,18 @@ Untuk StockFlow, MVP dianggap berhasil jika:
 6. Database memperbarui saldo dan membuat movement dalam satu transaksi.
 7. UI menampilkan saldo terbaru.
 
-### 4.3 Barang keluar melalui Telegram
-1. Pengguna mengirim format `PAKAI`.
-2. Webhook memvalidasi secret dan identitas pengirim.
-3. Sistem memeriksa apakah update sudah pernah diproses.
-4. Parser membaca nama barang, jumlah, dan keperluan.
-5. Jika data tidak lengkap/ambigu, bot meminta klarifikasi.
-6. Jika valid, sistem memeriksa stok.
-7. Sistem mengurangi stok dan menyimpan movement secara atomik.
-8. Bot mengirim konfirmasi atau alasan penolakan.
-9. Dashboard dan riwayat menampilkan transaksi.
+### 4.3 Tugas pemasangan melalui Telegram
+1. Admin menekan tombol **Buat tugas pemasangan**.
+2. Admin memilih barang dan jumlah melalui tombol.
+3. Admin mengetik nama pemasang dan lokasi; catatan dapat dilewati.
+4. Bot menampilkan ringkasan untuk dikonfirmasi.
+5. Setelah dikonfirmasi, bot membuat link foto bukti dan tombol berbagi WhatsApp.
+6. Stok berkurang dan movement `OUT` tercatat setelah foto valid diterima.
+7. Admin melihat status melalui tombol **Tugas terbaru**.
 
-## 5. Format Pesan Bot
+## 5. Interaksi Bot
 
-### Format utama
-```text
-PAKAI
-Barang: Kertas A4
-Jumlah: 5
-Keperluan: Administrasi
-```
-
-### Respons sukses
-```text
-Pengambilan berhasil dicatat.
-
-Barang: Kertas A4
-Jumlah: 5 rim
-Stok sebelumnya: 50 rim
-Stok sekarang: 45 rim
-Keperluan: Administrasi
-```
-
-### Respons stok tidak cukup
-```text
-Pengambilan belum dapat dicatat.
-
-Barang: Kertas A4
-Diminta: 5 rim
-Stok tersedia: 3 rim
-
-Silakan hubungi admin jika data stok perlu diperiksa.
-```
-
-### Respons butuh klarifikasi
-```text
-Saya belum bisa memastikan barang atau jumlahnya.
-
-Silakan kirim dengan format:
-PAKAI
-Barang: Nama barang
-Jumlah: 2
-Keperluan: ...
-```
-
-Tidak boleh mengurangi stok ketika respons klarifikasi dikirim.
+Aktivitas rutin menggunakan tombol menu Telegram. `/start` membuka menu dan `/link <email>` hanya diperlukan saat pertama kali menghubungkan akun. Pesan teks lama tetap dapat diproses sebagai jalur kompatibilitas.
 
 ## 6. Rencana Sprint
 
@@ -152,7 +109,7 @@ Estimasi berikut adalah rencana awal, bukan janji durasi. Sesuaikan dengan jumla
 | 1 | Autentikasi dan master data | Login, role, kategori, produk |
 | 2 | Inventori inti | Stock in/out, ledger, validasi stok |
 | 3 | Dashboard dan riwayat | KPI, tabel, filter, stok kritis |
-| 4 | Telegram | Bot, linking, webhook, format terstruktur |
+| 4 | Telegram | Bot, linking, webhook, menu tombol dan tugas foto |
 | 5 | Hardening | Idempotensi, konkurensi, notifikasi, audit, pengujian |
 | 6 | Pilot | Data contoh/riil terbatas, UAT, perbaikan, rilis |
 
@@ -162,9 +119,9 @@ Estimasi berikut adalah rencana awal, bukan janji durasi. Sesuaikan dengan jumla
 Sebagai admin, saya ingin menambahkan barang agar barang dapat dikelola sistem.
 
 **Acceptance criteria**
-- SKU wajib dan unik.
-- Nama, kategori (jika dipakai), satuan, dan stok minimum tervalidasi.
-- Barang baru tidak dapat memiliki stok negatif.
+- SKU otomatis dan unik berdasarkan kategori.
+- Nama, kategori, satuan, stok wajib, dan stok minimum tervalidasi.
+- Stok barang baru harus bilangan bulat nol atau lebih.
 - Barang tersimpan dan muncul pada daftar.
 
 ### US-02 — Admin mencatat barang masuk
@@ -176,18 +133,18 @@ Sebagai admin, saya ingin menambahkan stok saat barang diterima.
 - Movement `IN` tercatat.
 - Jika penyimpanan movement gagal, saldo tidak berubah.
 
-### US-03 — Pengguna melaporkan pengambilan
-Sebagai pengguna terdaftar, saya ingin melaporkan pengambilan melalui Telegram.
+### US-03 — Admin membuat tugas pemasangan
+Sebagai admin terdaftar, saya ingin membuat tugas pemasangan melalui tombol Telegram dan membagikan link foto bukti.
 
 **Acceptance criteria**
-- Akun Telegram harus terhubung dan aktif.
-- Nama barang harus cocok secara pasti atau diminta klarifikasi.
-- Jumlah wajib bilangan bulat positif.
-- Stok cukup sebelum transaksi diproses.
-- Bot mengirim hasil yang sesuai dengan hasil database.
+- Hanya admin Telegram yang terhubung dan masuk allowlist dapat membuat tugas.
+- Barang dan jumlah dapat dipilih melalui tombol; nama pemasang dan lokasi diminta bertahap.
+- Catatan dapat dilewati dan ringkasan harus dikonfirmasi sebelum tugas dibuat.
+- Stok belum berkurang saat tugas menunggu bukti.
+- Bukti foto valid menyelesaikan tugas dan mengurangi stok tepat satu kali.
 
 ### US-04 — Update Telegram duplikat
-Sebagai sistem, saya tidak ingin update yang sama mengurangi stok dua kali.
+Sebagai sistem, saya tidak ingin tombol konfirmasi yang terkirim ulang membuat tugas ganda.
 
 **Acceptance criteria**
 - `telegramUpdateId` unik.
@@ -208,12 +165,14 @@ Sebagai admin, saya ingin mengetahui barang yang mencapai batas minimum.
 - Tambah/edit/nonaktifkan barang.
 - Buat kategori.
 - Stock in.
-- Stock out dengan stok cukup.
-- Stock out melebihi stok.
+- SKU otomatis berubah sesuai kategori dan tidak duplikat.
+- Stok pada form barang wajib diisi; kosong dan angka negatif ditolak.
+- Selesaikan panduan tugas Telegram dengan tombol.
+- Foto bukti tugas menyelesaikan tugas dan mengurangi stok tepat satu kali.
 - Barang nonaktif.
 - Filter riwayat.
 - Linking Telegram dan akun yang tidak dikenal.
-- Pesan lengkap, tidak lengkap, dan ambigu.
+- Pengguna Telegram tanpa izin menekan tombol pembuatan tugas.
 
 ### Pengujian integritas
 - Insert movement gagal → saldo rollback.
@@ -245,14 +204,14 @@ Fitur dianggap selesai jika:
 ## 10. UAT — User Acceptance Test
 
 Minta admin dan beberapa pengguna mencoba skenario berikut:
-1. Buat barang Kertas A4 dengan stok awal 50 rim dan minimum 10.
+1. Buat kategori Kertas, lalu barang Kertas A4 dengan stok 50 rim dan minimum 10.
 2. Tambahkan 20 rim melalui website; pastikan stok 70.
-3. Hubungkan akun Telegram pengguna.
-4. Ambil 5 rim melalui bot; pastikan stok 65.
-5. Kirim ulang update yang sama; pastikan stok tetap 65.
-6. Coba mengambil 100 rim; pastikan ditolak dan stok tetap 65.
-7. Turunkan stok hingga di bawah minimum; pastikan indikator kritis tampil.
-8. Periksa riwayat dan pastikan pelaku, sumber, waktu, dan jumlah benar.
+3. Hubungkan akun Telegram admin dan pastikan ID admin ada di allowlist.
+4. Buat tugas lewat tombol, pilih barang/jumlah, isi pemasang/lokasi, lalu bagikan link.
+5. Pastikan stok belum berubah saat tugas menunggu foto.
+6. Kirim bukti foto valid; pastikan stok berkurang sekali dan tugas selesai.
+7. Kirim ulang bukti pada link yang sama; pastikan stok tidak berubah lagi.
+8. Turunkan stok hingga di bawah minimum; pastikan indikator kritis tampil dan riwayat tetap benar.
 
 ## 11. Kriteria Go-Live
 
@@ -268,7 +227,7 @@ Minta admin dan beberapa pengguna mencoba skenario berikut:
 ## 12. Risiko MVP
 
 - **Kualitas data awal:** lakukan pembersihan SKU, nama, dan satuan sebelum impor.
-- **Kebiasaan pengguna:** sediakan format pesan yang mudah disalin.
+- **Kebiasaan pengguna:** sediakan menu tombol dan pertanyaan bertahap, bukan format pesan yang harus dihafal.
 - **Nama barang mirip:** gunakan SKU atau pilihan konfirmasi.
 - **Jaringan Telegram:** catat status webhook dan sediakan retry yang aman.
 - **Salah pencatatan:** koreksi dengan reversal/adjustment, bukan edit histori.

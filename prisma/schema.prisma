@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,8 +15,6 @@ model User {
   role              String          @default("USER") // ADMIN, USER
   isActive          Boolean         @default(true)
   movements         StockMovement[]
-  requests          StockRequest[]  @relation("Requester")
-  reviews           StockRequest[]  @relation("Reviewer")
   installationTasks InstallationTask[] @relation("TaskCreator")
   telegram          TelegramUser?
   notifications     Notification[]
@@ -45,7 +43,6 @@ model Product {
   minimumStock      Int             @default(0)
   isActive          Boolean         @default(true)
   movements         StockMovement[]
-  requests          StockRequest[]
   installationTasks InstallationTask[]
   notifications     Notification[]
   createdAt         DateTime        @default(now())
@@ -98,25 +95,14 @@ model TelegramUpdate {
   processedAt      DateTime?
 }
 
-model StockRequest {
-  id                  String    @id @default(uuid())
-  productId           String
-  product             Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
-  requesterId         String
-  requester           User      @relation("Requester", fields: [requesterId], references: [id], onDelete: Restrict)
-  quantity            Int
-  notes               String?
-  status              String    @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED, FULFILLED
-  reviewedById        String?
-  reviewedBy          User?     @relation("Reviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt          DateTime?
-  fulfilledMovementId String?   @unique
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  @@index([status, createdAt])
-  @@index([requesterId, createdAt])
+model TelegramConversation {
+  telegramUserId String   @id
+  chatId         String
+  state          String
+  data           String   @default("{}")
+  updatedAt      DateTime @updatedAt
 }
+
 
 model InstallationTask {
   id            String    @id @default(uuid())

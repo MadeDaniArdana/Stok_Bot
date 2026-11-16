@@ -30,7 +30,6 @@ yarn-error.log*
 dev.db
 *.db
 *.db-journal
-!prisma/seed.db
 
 # Local task proof uploads
 /uploads/

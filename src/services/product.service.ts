@@ -1,21 +1,20 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export interface CreateProductInput {
-  sku: string;
   name: string;
   description?: string;
-  categoryId?: string;
+  categoryId: string;
   unit: string;
   minimumStock: number;
-  initialStock?: number;
+  initialStock: number;
   actorUserId?: string;
 }
 
 export interface UpdateProductInput {
-  sku?: string;
   name?: string;
   description?: string;
-  categoryId?: string;
+  categoryId?: string | null;
   unit?: string;
   minimumStock?: number;
 }
@@ -47,8 +46,8 @@ export class ProductService {
 
     if (search && search.trim()) {
       where.OR = [
-        { name: { contains: search.trim() } },
-        { sku: { contains: search.trim() } },
+        { name: { contains: search.trim(), mode: 'insensitive' } },
+        { sku: { contains: search.trim(), mode: 'insensitive' } },
       ];
     }
 
@@ -102,38 +101,32 @@ export class ProductService {
   }
 
   static async createProduct(input: CreateProductInput) {
-    const { sku, name, description, categoryId, unit, minimumStock, initialStock = 0, actorUserId } = input;
+    const { name, description, categoryId, unit, minimumStock, initialStock, actorUserId } = input;
 
-    if (!sku || !sku.trim()) throw new Error('Kode SKU wajib diisi.');
     if (!name || !name.trim()) throw new Error('Nama barang wajib diisi.');
+    if (!categoryId || !categoryId.trim()) throw new Error('Kategori barang wajib dipilih.');
     if (!unit || !unit.trim()) throw new Error('Satuan dasar barang wajib diisi.');
-    if (minimumStock < 0) throw new Error('Stok minimum tidak boleh negatif.');
-    if (initialStock < 0) throw new Error('Stok awal tidak boleh negatif.');
-
-    // Cek SKU unik
-    const existingSku = await prisma.product.findUnique({
-      where: { sku: sku.trim().toUpperCase() },
-    });
-
-    if (existingSku) {
-      throw new Error(`Barang dengan kode SKU "${sku.trim().toUpperCase()}" sudah terdaftar.`);
-    }
+    if (!Number.isSafeInteger(minimumStock) || minimumStock < 0) throw new Error('Stok minimum harus bilangan bulat yang tidak negatif.');
+    if (!Number.isSafeInteger(initialStock) || initialStock < 0) throw new Error('Stok wajib diisi dengan bilangan bulat yang tidak negatif.');
 
     const product = await prisma.$transaction(async (tx) => {
+      const category = await tx.category.findUnique({ where: { id: categoryId } });
+      if (!category) throw new Error('Kategori barang tidak ditemukan.');
+
+      const sku = await this.generateSku(tx, category.name);
       const newProduct = await tx.product.create({
         data: {
-          sku: sku.trim().toUpperCase(),
+          sku,
           name: name.trim(),
           description: description?.trim() || null,
-          categoryId: categoryId || null,
+          categoryId: category.id,
           unit: unit.trim().toLowerCase(),
           currentStock: initialStock,
-          minimumStock: minimumStock || 0,
+          minimumStock,
           isActive: true,
         },
       });
 
-      // Jika ada saldo awal, catat sebagai stock movement
       if (initialStock > 0) {
         await tx.stockMovement.create({
           data: {
@@ -156,29 +149,63 @@ export class ProductService {
   }
 
   static async updateProduct(id: string, input: UpdateProductInput) {
-    const existing = await prisma.product.findUnique({ where: { id } });
-    if (!existing) throw new Error('Barang tidak ditemukan.');
-
-    if (input.sku && input.sku.trim().toUpperCase() !== existing.sku) {
-      const duplicate = await prisma.product.findUnique({
-        where: { sku: input.sku.trim().toUpperCase() },
-      });
-      if (duplicate) {
-        throw new Error(`Kode SKU "${input.sku.trim().toUpperCase()}" sudah digunakan oleh barang lain.`);
-      }
+    if (
+      input.minimumStock !== undefined &&
+      (!Number.isSafeInteger(input.minimumStock) || input.minimumStock < 0)
+    ) {
+      throw new Error('Stok minimum harus bilangan bulat yang tidak negatif.');
     }
 
-    return prisma.product.update({
-      where: { id },
-      data: {
-        sku: input.sku ? input.sku.trim().toUpperCase() : undefined,
-        name: input.name ? input.name.trim() : undefined,
-        description: input.description !== undefined ? input.description?.trim() || null : undefined,
-        categoryId: input.categoryId !== undefined ? input.categoryId || null : undefined,
-        unit: input.unit ? input.unit.trim().toLowerCase() : undefined,
-        minimumStock: input.minimumStock !== undefined ? input.minimumStock : undefined,
-      },
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.product.findUnique({ where: { id } });
+      if (!existing) throw new Error('Barang tidak ditemukan.');
+
+      let sku: string | undefined;
+      if (input.categoryId !== undefined && input.categoryId !== existing.categoryId) {
+        if (!input.categoryId) {
+          if (existing.categoryId) throw new Error('Kategori barang tidak boleh dikosongkan.');
+        } else {
+          const category = await tx.category.findUnique({ where: { id: input.categoryId } });
+          if (!category) throw new Error('Kategori barang tidak ditemukan.');
+          sku = await this.generateSku(tx, category.name);
+        }
+      }
+
+      return tx.product.update({
+        where: { id },
+        data: {
+          sku,
+          name: input.name ? input.name.trim() : undefined,
+          description: input.description !== undefined ? input.description?.trim() || null : undefined,
+          categoryId: input.categoryId !== undefined ? input.categoryId : undefined,
+          unit: input.unit ? input.unit.trim().toLowerCase() : undefined,
+          minimumStock: input.minimumStock !== undefined ? input.minimumStock : undefined,
+        },
+      });
     });
+  }
+
+  private static async generateSku(
+    client: Prisma.TransactionClient | typeof prisma,
+    categoryName: string
+  ): Promise<string> {
+    const prefix =
+      categoryName
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'KATEGORI';
+    const existingProducts = await client.product.findMany({
+      where: { sku: { startsWith: `${prefix}-` } },
+      select: { sku: true },
+    });
+    const lastNumber = existingProducts.reduce((maximum, product) => {
+      const match = product.sku.match(/-(\d+)$/);
+      return match ? Math.max(maximum, Number(match[1])) : maximum;
+    }, 0);
+
+    return `${prefix}-${String(lastNumber + 1).padStart(3, '0')}`;
   }
 
   static async toggleStatus(id: string) {

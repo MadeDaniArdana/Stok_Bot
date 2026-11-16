@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TelegramService } from '@/services/telegram.service';
-import { sendTelegramMessage } from '@/lib/telegram-client';
+import {
+  answerTelegramCallbackQuery,
+  editTelegramMessage,
+  sendTelegramMessage,
+} from '@/lib/telegram-client';
 
 export async function POST(req: NextRequest) {
   let chatId: string | number | undefined;
+  let callbackQueryId: string | undefined;
 
   try {
     const payload = await req.json();
-    chatId = payload?.message?.chat?.id;
+    const callback = payload?.callback_query;
+    chatId = payload?.message?.chat?.id ?? callback?.message?.chat?.id;
+    callbackQueryId = callback?.id;
 
     // 1. Verifikasi secret token jika diset
     const secretHeader = req.headers.get('x-telegram-bot-api-secret-token');
@@ -25,14 +32,29 @@ export async function POST(req: NextRequest) {
     // 2. Proses pesan bisnis
     const result = await TelegramService.handleWebhookUpdate(payload);
 
-    // 3. Kirim balasan ke chat Telegram
+    if (callbackQueryId) await answerTelegramCallbackQuery(callbackQueryId);
+
+    // 3. Update pesan tombol atau kirim balasan baru
     if (chatId && result.replyText) {
-      await sendTelegramMessage(chatId, result.replyText);
+      if (callback?.message?.message_id) {
+        const edited = await editTelegramMessage(
+          chatId,
+          callback.message.message_id,
+          result.replyText,
+          result.replyMarkup
+        );
+        if (!edited) {
+          await sendTelegramMessage(chatId, result.replyText, result.replyMarkup);
+        }
+      } else {
+        await sendTelegramMessage(chatId, result.replyText, result.replyMarkup);
+      }
     }
 
     return NextResponse.json({ ok: true, result });
   } catch (error: any) {
     console.error('Webhook execution error:', error);
+    if (callbackQueryId) await answerTelegramCallbackQuery(callbackQueryId);
 
     // Beritahu pengguna di Telegram jika terjadi error server daripada diam tanpa balasan
     if (chatId) {

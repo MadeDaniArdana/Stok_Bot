@@ -41,12 +41,11 @@ export default function ProductsPage() {
   const [detailProduct, setDetailProduct] = useState<any | null>(null);
 
   // Form State
-  const [formSku, setFormSku] = useState('');
   const [formName, setFormName] = useState('');
   const [formCategoryId, setFormCategoryId] = useState('');
   const [formUnit, setFormUnit] = useState('pcs');
   const [formMinStock, setFormMinStock] = useState('5');
-  const [formInitialStock, setFormInitialStock] = useState('0');
+  const [formInitialStock, setFormInitialStock] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -97,7 +96,6 @@ export default function ProductsPage() {
   // Open Edit Modal
   const openEdit = (p: any) => {
     setEditingProduct(p);
-    setFormSku(p.sku);
     setFormName(p.name);
     setFormCategoryId(p.categoryId || '');
     setFormUnit(p.unit);
@@ -123,8 +121,22 @@ export default function ProductsPage() {
   // Handle Create Product
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formSku.trim() || !formName.trim()) {
-      showToast('Gagal', 'SKU dan Nama barang wajib diisi', 'error');
+    const initialStock = Number(formInitialStock);
+    const minimumStock = Number(formMinStock);
+    if (!formCategoryId) {
+      showToast('Gagal', 'Kategori barang wajib dipilih', 'error');
+      return;
+    }
+    if (!formName.trim()) {
+      showToast('Gagal', 'Nama barang wajib diisi', 'error');
+      return;
+    }
+    if (!formInitialStock.trim() || !Number.isSafeInteger(initialStock) || initialStock < 0) {
+      showToast('Gagal', 'Stok wajib diisi dengan bilangan bulat 0 atau lebih', 'error');
+      return;
+    }
+    if (!Number.isSafeInteger(minimumStock) || minimumStock < 0) {
+      showToast('Gagal', 'Stok minimum harus bilangan bulat 0 atau lebih', 'error');
       return;
     }
 
@@ -134,13 +146,12 @@ export default function ProductsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sku: formSku.trim(),
           name: formName.trim(),
           description: formDesc.trim(),
-          categoryId: formCategoryId || null,
+          categoryId: formCategoryId,
           unit: formUnit.trim().toLowerCase(),
-          minimumStock: parseInt(formMinStock, 10) || 0,
-          initialStock: parseInt(formInitialStock, 10) || 0,
+          minimumStock,
+          initialStock,
           actorUserId: currentUser?.id,
         }),
       });
@@ -150,7 +161,7 @@ export default function ProductsPage() {
         throw new Error(data.error || 'Gagal menyimpan barang');
       }
 
-      showToast('Berhasil!', `Barang "${formName}" berhasil ditambahkan ke katalog.`);
+      showToast('Berhasil!', `Barang "${formName}" ditambahkan dengan SKU ${data.product.sku}.`);
       setIsAddOpen(false);
       resetForm();
       fetchProducts();
@@ -172,19 +183,18 @@ export default function ProductsPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sku: formSku.trim(),
           name: formName.trim(),
           description: formDesc.trim(),
           categoryId: formCategoryId || null,
           unit: formUnit.trim().toLowerCase(),
-          minimumStock: parseInt(formMinStock, 10) || 0,
+          minimumStock: Number(formMinStock),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal memperbarui data');
 
-      showToast('Berhasil Diperbarui', `Informasi barang "${formName}" telah disimpan.`);
+      showToast('Berhasil Diperbarui', `Informasi barang "${formName}" telah disimpan. SKU: ${data.product.sku}.`);
       setEditingProduct(null);
       resetForm();
       fetchProducts();
@@ -220,12 +230,11 @@ export default function ProductsPage() {
   };
 
   const resetForm = () => {
-    setFormSku('');
     setFormName('');
     setFormCategoryId('');
     setFormUnit('pcs');
     setFormMinStock('5');
-    setFormInitialStock('0');
+    setFormInitialStock('');
     setFormDesc('');
   };
 
@@ -481,38 +490,26 @@ export default function ProductsPage() {
             </div>
 
             <form onSubmit={handleCreate} className="space-y-4 pt-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Kode SKU <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formSku}
-                    onChange={(e) => setFormSku(e.target.value.toUpperCase())}
-                    placeholder="Contoh: PAP-A4-01"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg uppercase font-mono focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Kategori
-                  </label>
-                  <select
-                    value={formCategoryId}
-                    onChange={(e) => setFormCategoryId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
-                  >
-                    <option value="">Pilih Kategori...</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Kategori <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  required
+                  value={formCategoryId}
+                  onChange={(e) => setFormCategoryId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
+                >
+                  <option value="">Pilih Kategori...</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  SKU akan dibuat otomatis berdasarkan kategori yang dipilih.
+                </p>
               </div>
 
               <div>
@@ -557,6 +554,7 @@ export default function ProductsPage() {
                   <input
                     type="number"
                     min="0"
+                    step="1"
                     value={formMinStock}
                     onChange={(e) => setFormMinStock(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
@@ -565,11 +563,13 @@ export default function ProductsPage() {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Saldo Awal (Opt)
+                    Stok <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
                     min="0"
+                    step="1"
+                    required
                     value={formInitialStock}
                     onChange={(e) => setFormInitialStock(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
@@ -630,21 +630,17 @@ export default function ProductsPage() {
 
             <form onSubmit={handleUpdate} className="space-y-4 pt-4 text-xs">
               <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
-                ℹ️ <strong>Aturan PRD:</strong> Nilai saldo stok ({editingProduct.currentStock} {editingProduct.unit}) tidak dapat diubah langsung di formulir ini untuk menjaga jejak audit. Perubahan stok harus dilakukan melalui menu <strong>Barang Masuk</strong> atau <strong>Barang Keluar</strong>.
+                ℹ️ <strong>Aturan PRD:</strong> Stok ({editingProduct.currentStock} {editingProduct.unit}) tidak dapat diubah langsung di formulir ini untuk menjaga jejak audit. Perubahan stok harus dilakukan melalui menu <strong>Barang Masuk</strong> atau <strong>Barang Keluar</strong>.
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Kode SKU <span className="text-rose-500">*</span>
+                    Kode SKU (otomatis)
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={formSku}
-                    onChange={(e) => setFormSku(e.target.value.toUpperCase())}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg uppercase font-mono focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
-                  />
+                  <div className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 font-mono text-slate-600">
+                    {editingProduct.sku}
+                  </div>
                 </div>
 
                 <div>
@@ -652,17 +648,21 @@ export default function ProductsPage() {
                     Kategori
                   </label>
                   <select
+                    required={Boolean(editingProduct.categoryId)}
                     value={formCategoryId}
                     onChange={(e) => setFormCategoryId(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
                   >
-                    <option value="">Pilih Kategori...</option>
+                    {!editingProduct.categoryId && <option value="">Pilih Kategori...</option>}
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
                     ))}
                   </select>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    SKU otomatis mengikuti kategori jika kategori barang diubah.
+                  </p>
                 </div>
               </div>
 
@@ -699,6 +699,7 @@ export default function ProductsPage() {
                   <input
                     type="number"
                     min="0"
+                    step="1"
                     value={formMinStock}
                     onChange={(e) => setFormMinStock(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"

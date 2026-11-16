@@ -126,10 +126,10 @@ Master barang dan saldo saat ini.
 | Kolom | Tipe | Aturan | Keterangan |
 |---|---|---|---|
 | id | UUID | PK | ID barang |
-| sku | varchar | unique, wajib | Kode barang |
+| sku | varchar | unique, wajib | Dibuat otomatis dari kategori dengan nomor urut |
 | name | varchar | wajib | Nama barang |
 | description | text | nullable | Deskripsi |
-| categoryId | UUID | FK, nullable | Kategori |
+| categoryId | UUID | FK, nullable untuk data lama | Kategori; wajib saat membuat barang baru |
 | unit | varchar | wajib | Satuan dasar |
 | currentStock | integer | default 0, >= 0 | Saldo terkini |
 | minimumStock | integer | default 0, >= 0 | Ambang minimum |
@@ -138,6 +138,7 @@ Master barang dan saldo saat ini.
 | updatedAt | timestamptz | otomatis | Waktu diubah |
 
 Indeks yang disarankan: `sku` unique, `name`, `categoryId`, `isActive`.
+SKU barang baru dibentuk otomatis dari nama kategori yang dinormalisasi dan nomor urut tiga digit. Formulir mewajibkan pengguna mengisi stok, termasuk nilai nol; stok positif dicatat sebagai movement `IN`.
 
 ### 3.4 `StockMovement`
 Ledger pergerakan stok. Satu baris mewakili satu perubahan kuantitas.
@@ -193,6 +194,17 @@ Mencegah update Telegram diproses berulang dan menyediakan jejak pemrosesan.
 
 Jangan menyimpan data pribadi yang tidak diperlukan. Terapkan retensi log dan pembatasan akses.
 
+### 3.6.1 `TelegramConversation`
+Menyimpan langkah sementara pada panduan interaktif bot agar pengguna dapat melanjutkan setelah menekan tombol atau mengirim jawaban teks.
+
+| Kolom | Tipe | Aturan | Keterangan |
+|---|---|---|---|
+| telegramUserId | varchar | PK | Identitas Telegram |
+| chatId | varchar | wajib | Chat untuk percakapan |
+| state | varchar | wajib | Langkah aktif pada panduan |
+| data | text | wajib | Pilihan barang, jumlah, dan jawaban sementara terserialisasi |
+| updatedAt | timestamptz | otomatis | Waktu langkah terakhir |
+
 ### 3.7 `StockRequest`
 Permintaan pengambilan yang belum tentu langsung mengurangi stok.
 
@@ -236,11 +248,12 @@ Notifikasi dalam aplikasi.
 - Satu produk dapat memiliki banyak stock request.
 - Satu produk dapat memicu banyak notifikasi sepanjang waktu.
 - Satu Telegram update hanya boleh diproses sekali.
+- Satu Telegram user memiliki maksimal satu percakapan bot yang sedang berlangsung.
 
 ## 5. Indeks dan Constraint
 
 Wajib:
-- Unique: `User.email`, `Category.name`, `Product.sku`, `TelegramUser.telegramUserId`, `TelegramUser.userId`, `TelegramUpdate.telegramUpdateId`.
+- Unique: `User.email`, `Category.name`, `Product.sku`, `TelegramUser.telegramUserId`, `TelegramUser.userId`, `TelegramUpdate.telegramUpdateId`, `TelegramConversation.telegramUserId`.
 - Check: `Product.currentStock >= 0`, `Product.minimumStock >= 0`, `StockRequest.quantity > 0`, `StockMovement.quantity > 0` (jika quantity positif).
 - Index: `StockMovement(productId, createdAt)`, `StockMovement(actorUserId, createdAt)`, `StockRequest(status, createdAt)`, `Product(isActive, name)`, `Notification(recipientUserId, isRead, createdAt)`.
 - Foreign key memakai kebijakan `Restrict`/soft deactivate untuk data historis penting; hindari cascade delete pada ledger.

@@ -10,6 +10,12 @@ interface ChatMessage {
   text: string;
   time: string;
   actionTaken?: string;
+  telegramMessageId?: number;
+  inlineKeyboard?: Array<Array<{
+    text: string;
+    callback_data?: string;
+    url?: string;
+  }>>;
 }
 
 export function TelegramSimulator() {
@@ -18,8 +24,17 @@ export function TelegramSimulator() {
     {
       id: '1',
       sender: 'bot',
-      text: '👋 *Selamat datang di StockFlow Bot!*\n\nKetik `/bantuan` untuk melihat panduan bot, atau gunakan tombol cepat di bawah.',
+      text: '👋 Selamat datang di StockFlow Bot!\nPilih menu dengan menekan tombol di bawah.',
       time: '19:00',
+      telegramMessageId: 1,
+      inlineKeyboard: [
+        [
+          { text: '📦 Cek stok', callback_data: 'menu:stock' },
+          { text: '🔎 Cari barang', callback_data: 'menu:search' },
+        ],
+        [{ text: '📜 Riwayat saya', callback_data: 'menu:history' }],
+        [{ text: '❔ Bantuan', callback_data: 'menu:help' }],
+      ],
     },
   ]);
   const [inputText, setInputText] = useState('');
@@ -32,22 +47,26 @@ export function TelegramSimulator() {
     unlinked: { id: '99999999', username: 'orang_asing', name: 'User Belum Terhubung (Testing Error)' },
   };
 
-  const handleSend = async (customText?: string) => {
+  const handleSend = async (
+    customText?: string,
+    callbackData?: string,
+    callbackMessageId?: number
+  ) => {
     const textToSend = customText || inputText;
-    if (!textToSend.trim() || isSending) return;
+    if ((!textToSend.trim() && !callbackData) || isSending) return;
 
     const userObj = usersMap[selectedUser];
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-    // Append user message
-    const userMsg: ChatMessage = {
-      id: Math.random().toString(),
-      sender: 'user',
-      text: textToSend.trim(),
-      time: nowTime,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    if (!customText) setInputText('');
+    if (!callbackData) {
+      setMessages((prev) => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user',
+        text: textToSend.trim(),
+        time: nowTime,
+      }]);
+      if (!customText) setInputText('');
+    }
     setIsSending(true);
 
     try {
@@ -55,22 +74,35 @@ export function TelegramSimulator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: textToSend.trim(),
+          text: callbackData ? undefined : textToSend.trim(),
+          callbackData,
+          messageId: callbackMessageId,
           telegramUserId: userObj.id,
           username: userObj.username,
         }),
       });
 
       const data = await res.json();
+      const currentBotMessage = messages.find((message) => message.telegramMessageId === callbackMessageId);
       const botMsg: ChatMessage = {
-        id: Math.random().toString(),
+        id: callbackData && currentBotMessage ? currentBotMessage.id : Math.random().toString(),
         sender: 'bot',
         text: data.result?.replyText || 'Tidak ada balasan dari bot.',
         time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
         actionTaken: data.result?.actionTaken,
+        telegramMessageId: callbackData && currentBotMessage
+          ? currentBotMessage.telegramMessageId
+          : Math.floor(Math.random() * 1000000000),
+        inlineKeyboard: data.result?.replyMarkup?.inline_keyboard,
       };
 
-      setMessages((prev) => [...prev, botMsg]);
+      if (callbackData && currentBotMessage) {
+        setMessages((prev) => prev.map((message) =>
+          message.telegramMessageId === callbackMessageId ? botMsg : message
+        ));
+      } else {
+        setMessages((prev) => [...prev, botMsg]);
+      }
 
       if (data.result?.actionTaken === 'STOCK_OUT_SUCCESS') {
         showToast('Stok Berhasil Terpotong!', 'Transaksi pengambilan via Telegram telah dicatat di database.');
@@ -91,10 +123,10 @@ export function TelegramSimulator() {
   };
 
   const quickPills = [
-    { label: '📦 Cek Stok (/stok)', cmd: '/stok' },
-    { label: '🔍 Cari Kertas (/cari Kertas)', cmd: '/cari Kertas' },
-    { label: '📜 Riwayat Saya (/riwayat)', cmd: '/riwayat' },
-    { label: '❔ Panduan Bot (/bantuan)', cmd: '/bantuan' },
+    { label: '📦 Cek stok', cmd: '/stok' },
+    { label: '🔎 Cari barang', cmd: '🔎 Cari barang' },
+    { label: '📜 Riwayat saya', cmd: '/riwayat' },
+    { label: '❔ Bantuan', cmd: '/bantuan' },
   ];
 
   return (
@@ -110,7 +142,7 @@ export function TelegramSimulator() {
               <h4 className="font-bold text-sm text-white">StockFlow Bot Simulator</h4>
               <span className="flex h-2 w-2 rounded-full bg-emerald-400"></span>
             </div>
-            <p className="text-[11px] text-maroon-200">Uji webhook & pemrosesan perintah langsung</p>
+            <p className="text-[11px] text-maroon-200">Simulasi menu tombol dan alur Telegram</p>
           </div>
         </div>
 
@@ -150,6 +182,30 @@ export function TelegramSimulator() {
               }`}
             >
               <div className="whitespace-pre-wrap leading-relaxed font-sans">{m.text}</div>
+              {m.inlineKeyboard?.map((row, rowIndex) => (
+                <div key={`${m.id}-row-${rowIndex}`} className="flex flex-wrap gap-1.5 mt-2">
+                  {row.map((button, buttonIndex) => button.url ? (
+                    <a
+                      key={`${m.id}-button-${buttonIndex}`}
+                      href={button.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1.5 rounded-lg bg-maroon-50 text-maroon-800 border border-maroon-200 font-semibold"
+                    >
+                      {button.text}
+                    </a>
+                  ) : (
+                    <button
+                      key={`${m.id}-button-${buttonIndex}`}
+                      onClick={() => handleSend(button.text, button.callback_data, m.telegramMessageId)}
+                      disabled={isSending}
+                      className="px-2.5 py-1.5 rounded-lg bg-maroon-50 text-maroon-800 border border-maroon-200 font-semibold disabled:opacity-50"
+                    >
+                      {button.text}
+                    </button>
+                  ))}
+                </div>
+              ))}
               <div
                 className={`text-[9px] mt-1 text-right ${
                   m.sender === 'user' ? 'text-maroon-200' : 'text-slate-400'
@@ -177,7 +233,7 @@ export function TelegramSimulator() {
 
       {/* Quick Pills */}
       <div className="px-4 py-2 border-t border-slate-100 bg-white flex items-center gap-2 overflow-x-auto">
-        <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">Template:</span>
+        <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">Menu cepat:</span>
         {quickPills.map((pill, idx) => (
           <button
             key={idx}
@@ -202,7 +258,7 @@ export function TelegramSimulator() {
           rows={2}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Ketik perintah bot (Enter untuk kirim)..."
+          placeholder="Ketik nama pemasang, lokasi, atau catatan..."
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();

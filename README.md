@@ -30,7 +30,8 @@ Aplikasi menggunakan palet warna **Merah Maroon / Burgundy** yang mewah, rapi, d
 2. **Master Katalog Barang (`/products`)**
    - Pencarian real-time (Nama atau SKU).
    - Filter Kategori, Status Aktif/Nonaktif, dan Kondisi Stok (Aman, Rendah, Habis).
-   - Tambah & Edit Master Barang dengan validasi SKU unik.
+   - SKU dibuat otomatis dari kategori dan berurutan agar tetap unik.
+   - Stok wajib diisi saat barang baru dibuat; stok minimum tetap dapat diatur.
    - Pengarsipan aman (*Soft Deactivation*): barang yang memiliki riwayat transaksi tidak dihapus permanen.
    - Modal Detail Barang dilengkapi riwayat lengkap mutasi khusus barang tersebut.
 
@@ -44,10 +45,11 @@ Aplikasi menggunakan palet warna **Merah Maroon / Burgundy** yang mewah, rapi, d
    - Transaksi atomik database: pembaruan saldo dan pembuatan ledger movement terjadi bersamaan.
 
 5. **Tugas Pemasangan melalui Telegram dan WhatsApp**
-   - Admin membuat tugas pemasangan lewat Telegram; bot membuat link unik untuk dibagikan ke pemasang lewat WhatsApp.
+   - Admin membuat tugas lewat menu tombol Telegram: pilih barang dan jumlah, isi pemasang dan lokasi, lalu konfirmasi.
+   - Bot membuat link unik dan tombol berbagi WhatsApp; pemasang mengirim foto bukti melalui halaman web.
    - Pemasang mengambil foto bukti melalui halaman web ringan; stok berkurang otomatis setelah foto berhasil diterima.
    - Link hanya dapat menyelesaikan tugas satu kali; riwayat stok mencatat pemasang, lokasi, dan jumlah.
-   - Tugas dan aktivitas terbaru dapat ditanyakan lewat perintah `/tugas`.
+   - Status tugas terbaru dapat dilihat lewat tombol Telegram.
 
 6. **Riwayat Mutasi & Audit Ledger (`/stock/history`)**
    - Jejak audit tidak terhapus (*immutable ledger*).
@@ -73,7 +75,7 @@ Aplikasi menggunakan palet warna **Merah Maroon / Burgundy** yang mewah, rapi, d
 10. **Integrasi Telegram Bot & Simulator (`/telegram`)**
     - Status webhook gateway aktif dengan verifikasi rahasia HTTPS.
     - Idempotensi terjamin: mencegah update ganda dengan `update_id` unik.
-    - **Live Interactive Telegram Simulator**: Pengujian perintah baca stok (`/start`, `/stok`, `/cari`, `/riwayat`) di browser.
+    - **Live Interactive Telegram Simulator**: Pengujian menu tombol dan alur Telegram di browser.
     - Log audit webhook updates.
 
 11. **Autentikasi & Halaman Login (`/login`)**
@@ -87,7 +89,7 @@ Aplikasi menggunakan palet warna **Merah Maroon / Burgundy** yang mewah, rapi, d
 - **Framework:** Next.js 14 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS (Custom Maroon Palette)
-- **Database & ORM:** Prisma ORM dengan SQLite (zero-config, plug-and-play) & PostgreSQL ready
+- **Database & ORM:** Prisma ORM dengan PostgreSQL (Neon/Supabase); foto bukti disimpan di Vercel Blob
 - **Icons:** Lucide React
 - **Charts:** Recharts
 - **Form & Validation:** Validasi server & client terintegrasi
@@ -117,18 +119,9 @@ Akses aplikasi melalui browser di: `http://localhost:3000`
 
 - Atur `APP_URL` ke alamat yang dapat dibuka pemasang melalui WhatsApp (jangan gunakan `localhost` bila dibuka dari perangkat lain).
 - Isi `TELEGRAM_ADMIN_IDS` dengan ID Telegram admin yang dipisahkan koma. ID ini menjadi allowlist untuk membuat dan melacak tugas.
-- Setelah admin terhubung ke akun StockFlow, kirim format berikut ke bot:
-
-```text
-TUGAS
-Barang: Lampu
-Jumlah: 1
-Pemasang: Singgih
-Lokasi: GSG
-Catatan: Opsional
-```
-
-- Admin membagikan link yang dibuat bot. Pemasang mengirim foto dari link itu; sistem menandai tugas selesai dan mengurangi stok.
+- Hubungkan akun admin satu kali menggunakan `/link <email>`, lalu buka menu bot dan tekan **Buat tugas pemasangan**.
+- Pilih barang dan jumlah dari tombol, isi nama pemasang dan lokasi, lalu konfirmasi. Catatan dapat dilewati.
+- Admin membagikan link yang dibuat bot melalui tombol WhatsApp. Pemasang mengirim foto dari link itu; sistem menandai tugas selesai dan mengurangi stok.
 - Pada server lokal, foto disimpan di `uploads/task-proofs` (atau folder `TASK_PROOF_DIRECTORY`). Buat backup folder ini bersama database.
 - Deploy Vercel saat ini hanya untuk demo: filesystem `/tmp` bersifat sementara. Jangan gunakan deploy tersebut sebagai penyimpanan produksi untuk foto atau database.
 

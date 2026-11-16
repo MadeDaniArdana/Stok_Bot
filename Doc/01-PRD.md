@@ -54,7 +54,7 @@ Menyediakan satu sumber data persediaan yang mudah digunakan, transparan, dan da
 | Peran | Kebutuhan | Hak utama |
 |---|---|---|
 | Admin | Mengelola seluruh persediaan dan pengguna | Dashboard, master barang, kategori, stock in/out, laporan, pengguna, pengaturan, integrasi Telegram |
-| Admin | Membuat dan melacak tugas pemasangan | Telegram `/buat_tugas`, `/tugas`; web untuk stok dan barang masuk |
+| Admin | Membuat dan melacak tugas pemasangan | Menu tombol Telegram; web untuk stok dan barang masuk |
 | Pemasang | Menyelesaikan tugas dan mengirim bukti pemasangan | Membuka link WhatsApp dan mengirim foto; tidak perlu akun Telegram |
 
 **Aturan akses awal:** hanya admin yang akunnya terhubung dan Telegram User ID-nya masuk allowlist yang dapat membuat tugas. Pemasang mengakses tugas melalui token link khusus.
@@ -65,7 +65,8 @@ Menyediakan satu sumber data persediaan yang mudah digunakan, transparan, dan da
 - Login admin dan pengelolaan sesi.
 - Role admin dan pengguna.
 - CRUD barang dan kategori.
-- Pengaturan SKU, satuan, stok minimum, dan status aktif.
+- SKU otomatis berdasarkan kategori, satuan, stok minimum, dan status aktif.
+- Stok wajib diisi saat barang baru dibuat.
 - Pencatatan barang masuk melalui website.
 - Tugas pemasangan dibuat oleh admin melalui Telegram.
 - Pengiriman foto bukti melalui link sekali-selesai; stok keluar dicatat otomatis setelah bukti diterima.
@@ -116,14 +117,15 @@ Menampilkan:
 ### FR-03 — Manajemen Barang
 Admin dapat:
 - Membuat, melihat, mengubah, mencari, memfilter, dan menonaktifkan barang.
-- Mengatur SKU unik, nama, kategori, satuan, stok minimum, dan deskripsi.
+- Mengatur nama, kategori, satuan, stok minimum, dan deskripsi; stok awal wajib diisi saat barang dibuat dan SKU otomatis dibuat dari kategori.
 - Melihat stok saat ini dan histori pergerakan.
 - Tidak menghapus permanen barang yang sudah memiliki transaksi.
 
 **Validasi**
-- SKU unik.
+- Kategori wajib dipilih untuk barang baru; SKU unik dibuat otomatis dari nama kategori dengan nomor urut.
 - Nama wajib diisi.
 - Satuan wajib dipilih.
+- Stok wajib diisi dengan bilangan bulat nol atau lebih.
 - Stok minimum tidak boleh negatif.
 - Barang yang sudah memiliki transaksi hanya dapat diarsipkan/nonaktifkan.
 
@@ -148,26 +150,12 @@ Admin memasukkan barang, kuantitas, tanggal, sumber/supplier opsional, dan catat
 - Jika stok tidak cukup saat foto dikirim, tugas tetap menunggu dan stok tidak berubah.
 
 ### FR-07 — Integrasi Telegram
-Perintah minimum:
-- `/start` — petunjuk awal dan proses pengaitan akun.
-- `/bantuan` — panduan format pesan.
-- `/stok` — ringkasan stok sesuai izin.
-- `/cari nama_barang` — mencari barang.
-- `/buat_tugas` — petunjuk atau pembuatan tugas pemasangan oleh admin.
-- `/tugas` — status tugas terbaru untuk admin.
+Bot menyediakan menu tombol untuk melihat stok, mencari barang, melihat riwayat, dan melacak tugas. Admin membuat tugas melalui panduan bertahap:
+1. Memilih barang dan jumlah melalui tombol.
+2. Mengisi nama pemasang dan lokasi; catatan bersifat opsional.
+3. Memeriksa ringkasan dan mengonfirmasi sebelum link dibuat.
 
-Format tugas terstruktur:
-
-```text
-TUGAS
-Barang: Lampu
-Jumlah: 1
-Pemasang: Singgih
-Lokasi: GSG
-Catatan: Opsional
-```
-
-Nama barang harus cocok dengan satu barang aktif; pesan ambigu atau tidak lengkap tidak boleh membuat tugas atau mengubah stok.
+Bot mengirim link bukti dan tombol berbagi WhatsApp. Perintah `/link` hanya diperlukan saat pertama kali menghubungkan akun. Perintah teks lama tetap dapat digunakan sebagai jalur kompatibilitas, tetapi bukan alur utama.
 
 ### FR-08 — Pengaitan Telegram
 - Pengguna memulai bot dengan `/start`.
@@ -203,6 +191,8 @@ Menampilkan waktu, barang, jenis transaksi, kuantitas, stok sebelum/sesudah (jik
 10. Transaksi yang sudah tercatat tidak dihapus; gunakan pembalik/koreksi.
 11. Semua waktu disimpan sebagai timestamp yang konsisten (disarankan UTC) dan ditampilkan dalam zona waktu operasional, misalnya Asia/Jakarta.
 12. Perubahan manual stok harus memiliki alasan dan tercatat sebagai `ADJUSTMENT`, bukan mengedit angka tanpa jejak.
+13. SKU barang baru dibuat dari nama kategori dengan nomor urut; SKU tidak diinput manual.
+14. Stok wajib diisi saat barang baru dibuat, termasuk nilai nol; stok positif dicatat sebagai movement `IN`.
 
 ## 7. Aturan Alokasi Tugas
 
@@ -240,10 +230,10 @@ Menampilkan waktu, barang, jenis transaksi, kuantitas, stok sebelum/sesudah (jik
 1. Login.
 2. Melihat dashboard.
 3. Membuat kategori dan barang.
-4. Mengisi saldo awal melalui transaksi penyesuaian/stock in yang terdokumentasi.
+4. Wajib mengisi stok saat membuat barang; stok positif dicatat sebagai movement `IN`.
 5. Menghubungkan akun Telegram admin dan memasukkan Telegram ID ke allowlist.
 6. Mencatat barang masuk.
-7. Membuat tugas pemasangan, membagikan link lewat WhatsApp, lalu melacak status melalui `/tugas`.
+7. Membuat tugas pemasangan melalui tombol Telegram, membagikan link lewat WhatsApp, lalu melacak status melalui menu tugas.
 8. Memantau stok kritis, notifikasi, dan laporan.
 
 ### Pemasang
@@ -273,6 +263,6 @@ Keputusan alur saat ini:
 - Admin membuat tugas pemasangan lewat Telegram; pemasang mengirim foto melalui link WhatsApp.
 - Stok berkurang setelah foto bukti berhasil dikirim; website tidak meminta persetujuan tugas.
 - Notifikasi stok rendah muncul di web dan dikirim ke Telegram admin.
-- Vercel hanya digunakan untuk demo; server lokal menjadi target launching dengan SQLite dan folder foto persisten yang perlu dicadangkan.
+- Aplikasi di-deploy ke Vercel dengan database PostgreSQL (Neon) dan foto bukti di Vercel Blob.
 
 Sebelum launching, siapkan `APP_URL`, `TELEGRAM_ADMIN_IDS`, bot Telegram, database lokal, dan lokasi backup foto.

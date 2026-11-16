@@ -2,20 +2,20 @@
 ## Arsitektur Aplikasi Web dan Integrasi Telegram
 
 **Versi:** 1.0  
-**Stack utama:** Next.js, TypeScript, Prisma ORM, SQLite, Telegram Bot API
+**Stack utama:** Next.js, TypeScript, Prisma ORM, PostgreSQL, Vercel Blob, Telegram Bot API
 
 ---
 
 ## 1. Gambaran Arsitektur
 
-StockFlow menggunakan pendekatan aplikasi full-stack modular. Next.js menangani antarmuka web dan endpoint backend. Prisma menjadi lapisan akses data ke SQLite pada server lokal. Telegram Bot API menerima tugas admin melalui webhook. Vercel hanya digunakan untuk demo karena database SQLite dan file foto di filesystem instance tidak persisten.
+StockFlow menggunakan pendekatan aplikasi full-stack modular. Next.js menangani antarmuka web dan endpoint backend. Prisma menjadi lapisan akses data ke PostgreSQL (Neon). Telegram Bot API menerima tugas admin melalui webhook. Aplikasi di-deploy ke Vercel; foto bukti disimpan di Vercel Blob karena filesystem Vercel tidak persisten.
 
 ### Komponen utama
 1. **Admin Web:** dashboard dan halaman pengelolaan inventori.
 2. **Next.js Application:** UI, autentikasi, API/Route Handler, dan business logic.
 3. **Application Services:** aturan stok, pengguna, notifikasi, dan Telegram.
 4. **Prisma ORM:** komunikasi terstruktur dengan database.
-5. **SQLite:** penyimpanan master data, saldo, ledger, tugas, update Telegram, dan notifikasi.
+5. **PostgreSQL:** penyimpanan master data, saldo, ledger, tugas, update Telegram, dan notifikasi.
 6. **Penyimpanan lokal:** foto bukti disimpan di folder persisten pada server dan dicadangkan bersama database.
 7. **Telegram Bot API:** menerima tugas admin, mengirim link, balasan, dan notifikasi.
 8. **Hosting/Operations:** HTTPS, environment secrets, backup, logging, dan monitoring.
@@ -32,7 +32,7 @@ flowchart LR
   Web --> App
   App --> Services[Application Services]
   Services --> ORM[Prisma ORM]
-  ORM --> DB[(SQLite)]
+  ORM --> DB[(PostgreSQL)]
   App --> Files[(Folder foto lokal)]
   Services -->|Balasan dan notifikasi| TG
   DB -->|Data dashboard| App
@@ -47,7 +47,7 @@ sequenceDiagram
   participant W as WhatsApp
   participant P as Halaman bukti
   participant S as Task/Inventory Service
-  participant D as SQLite
+  participant D as PostgreSQL
   participant F as Penyimpanan foto
 
   A->>T: Kirim tugas terstruktur
@@ -70,7 +70,7 @@ Gunakan **modular monolith** untuk MVP:
 - Satu aplikasi Next.js.
 - Modul domain dipisahkan berdasarkan tanggung jawab.
 - Service layer mengandung aturan bisnis.
-- Database tunggal SQLite untuk server lokal.
+- Database tunggal PostgreSQL (Neon).
 - Tidak perlu microservices pada tahap awal.
 
 Alasan:
@@ -280,7 +280,7 @@ Rekomendasi MVP: mulai dengan revalidation/polling sederhana. Hindari menambah k
 Contoh `.env.example`:
 
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require"
 AUTH_SECRET="replace-with-strong-random-secret"
 APP_URL="https://alamat-yang-dapat-diakses-pemasang"
 
@@ -302,12 +302,12 @@ Aturan:
 ### Lingkungan
 - Development: lokal, database development, bot testing.
 - Staging: konfigurasi mirip production, bot staging terpisah.
-- Production launching: server lokal, SQLite persisten, folder bukti foto persisten, backup keduanya.
+- Production: Vercel + PostgreSQL (Neon) + Vercel Blob untuk foto bukti.
 - Vercel: demo saja; database dan file di `/tmp` dapat hilang saat instance berubah.
 
 ### Komponen hosting
 - Next.js: server lokal untuk launching; Vercel hanya untuk demo.
-- Database: SQLite pada server lokal.
+- Database: PostgreSQL (Neon).
 - Domain dan TLS: HTTPS wajib untuk webhook.
 - Monitoring: error tracking dan log terstruktur.
 - Backup: otomatis dan diuji pemulihannya.
@@ -345,7 +345,7 @@ Sediakan prosedur:
 ## 16. Rencana Evolusi Arsitektur
 
 ### Tahap 1 — MVP
-Modular monolith, satu SQLite lokal, satu bot, satu gudang, dan penyimpanan foto lokal.
+Modular monolith, satu database PostgreSQL, satu bot, satu gudang, dan penyimpanan foto di Vercel Blob.
 
 ### Tahap 2 — Operasional berkembang
 Tambahkan job queue/outbox, notifikasi retry, export, approval, dan monitoring lebih lengkap.

@@ -6,8 +6,9 @@ async function main() {
 
   // 1. Clean up existing data
   await prisma.notification.deleteMany();
-  await prisma.stockRequest.deleteMany();
+  await prisma.installationTask.deleteMany();
   await prisma.stockMovement.deleteMany();
+  await prisma.telegramConversation.deleteMany();
   await prisma.telegramUpdate.deleteMany();
   await prisma.telegramUser.deleteMany();
   await prisma.product.deleteMany();
@@ -413,29 +414,6 @@ async function main() {
       dedupeKey: `low-stock-${prodLan.id}-${d2Ago.toISOString().split('T')[0]}`,
       isRead: true,
       createdAt: d2Ago,
-    },
-  });
-
-  // 7. Stock Request (Approval flow sample)
-  await prisma.stockRequest.create({
-    data: {
-      productId: prodA4.id,
-      requesterId: userSiti.id,
-      quantity: 5,
-      notes: 'Keperluan: Penggandaan modul training pegawai baru gelombang 4',
-      status: 'PENDING',
-    },
-  });
-
-  await prisma.stockRequest.create({
-    data: {
-      productId: prodStapler.id,
-      requesterId: userDewi.id,
-      quantity: 2,
-      notes: 'Keperluan: Penambahan fasilitas meja kerja customer service',
-      status: 'APPROVED',
-      reviewedById: admin.id,
-      reviewedAt: h4Ago,
     },
   });
 

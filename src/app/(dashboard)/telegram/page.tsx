@@ -3,21 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Send,
-  CheckCircle2,
-  AlertCircle,
   HelpCircle,
-  Terminal,
-  ShieldAlert,
   ShieldCheck,
   RefreshCw,
-  Copy,
-  ExternalLink,
 } from 'lucide-react';
 import { TelegramSimulator } from '@/components/telegram/TelegramSimulator';
-import { useToast } from '@/components/ui/Toast';
 
 export default function TelegramPage() {
-  const { showToast } = useToast();
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,11 +31,6 @@ export default function TelegramPage() {
   useEffect(() => {
     fetchStatus();
   }, []);
-
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    showToast('Tersalin!', `${label} berhasil disalin ke clipboard.`);
-  };
 
   return (
     <div className="space-y-6">
@@ -147,56 +134,22 @@ export default function TelegramPage() {
 
         {/* Right: Technical Guide & Cheatsheet (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
-          {/* Format Cheatsheet */}
+          {/* Button-based guide */}
           <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-soft space-y-3">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 text-maroon-800">
-              <Terminal className="w-4 h-4" />
-              Format Standar Telegram (PRD)
+              <HelpCircle className="w-4 h-4" />
+              Cara Pakai Bot (Tap Tombol)
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Admin membuat tugas pemasangan menggunakan format berikut:
+              Untuk aktivitas harian, gunakan tombol menu—tidak perlu menghafal format atau perintah.
             </p>
 
-            <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl text-xs font-mono space-y-1 relative group">
-              <p className="text-emerald-400 font-bold">TUGAS</p>
-              <p>Barang: Lampu</p>
-              <p>Jumlah: 1</p>
-              <p>Pemasang: Singgih</p>
-              <p>Lokasi: GSG</p>
-              <button
-                onClick={() =>
-                  copyToClipboard(
-                    'TUGAS\nBarang: Lampu\nJumlah: 1\nPemasang: Singgih\nLokasi: GSG',
-                    'Template tugas pemasangan'
-                  )
-                }
-                className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Salin Template"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="space-y-1.5 text-xs text-slate-600">
-              <div className="flex items-start gap-2">
-                <span className="font-bold text-maroon-800">•</span>
-                <p>
-                  <strong>Perintah Langsung:</strong> <code>/stok</code> untuk ringkasan cepat, <code>/cari &lt;nama&gt;</code> untuk cek persediaan, <code>/riwayat</code> untuk histori pribadi.
-                </p>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-bold text-maroon-800">•</span>
-                <p>
-                  <strong>Ambiguitas Terproteksi:</strong> Jika nama barang cocok lebih dari 1 barang di katalog, bot akan meminta klarifikasi dan stok <em>tidak akan berkurang</em>.
-                </p>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="font-bold text-maroon-800">•</span>
-                <p>
-                  <strong>Pengurangan stok:</strong> Stok berkurang setelah pemasang mengirim foto bukti. Tugas yang menunggu bukti ditampilkan dengan perintah <code>/tugas</code>.
-                </p>
-              </div>
-            </div>
+            <ol className="list-decimal list-inside text-xs text-slate-600 space-y-2">
+              <li>Tekan <strong>Buat tugas pemasangan</strong>, lalu pilih barang dan jumlah.</li>
+              <li>Ketik nama pemasang dan lokasi; catatan bisa dilewati.</li>
+              <li>Periksa ringkasan, tekan <strong>Buat tugas</strong>, lalu bagikan link melalui WhatsApp.</li>
+              <li>Stok berkurang setelah pemasang mengirim foto bukti. Status dapat dilihat lewat tombol <strong>Tugas terbaru</strong>.</li>
+            </ol>
           </div>
 
           {/* Linking Account Guide */}
