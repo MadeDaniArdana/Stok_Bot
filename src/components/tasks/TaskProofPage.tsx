@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Camera, CheckCircle2, LoaderCircle, Package, MapPin, AlertCircle } from 'lucide-react';
+import { BrowserErrorReporter } from '@/components/BrowserErrorReporter';
 
 interface TaskDetails {
   productName: string;
@@ -128,6 +129,7 @@ export function TaskProofPage({ token }: { token: string }) {
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10">
+      <BrowserErrorReporter />
       <section className="mx-auto max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="bg-maroon-900 px-6 py-5 text-white">
           <p className="text-xs font-semibold uppercase tracking-widest text-maroon-100">StockFlow</p>

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { NotificationService } from './notification.service';
+import { logError } from '@/lib/error-log';
 import { saveTaskProof, deleteTaskProof } from '@/lib/task-proof-storage';
 
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
@@ -140,7 +141,12 @@ export class InstallationTaskService {
           result.task.creatorUserId
         );
       } catch (error) {
-        console.error('Task completed but stock notification failed:', error);
+        await logError({
+          source: 'NOTIFICATION',
+          error,
+          location: 'Notifikasi stok menipis setelah tugas selesai',
+          context: { tugasId: result.task.id, barang: result.task.product.name, stokSesudah: result.stockAfter },
+        });
       }
 
       try {
@@ -156,7 +162,12 @@ export class InstallationTaskService {
           proofMimeType: result.task.proofMimeType,
         });
       } catch (error) {
-        console.error('Task completed but Telegram completion message failed:', error);
+        await logError({
+          source: 'NOTIFICATION',
+          error,
+          location: 'Pesan "tugas selesai" ke admin Telegram',
+          context: { tugasId: result.task.id, barang: result.task.product.name, pemasang: result.task.assigneeName },
+        });
       }
 
       return result.task;

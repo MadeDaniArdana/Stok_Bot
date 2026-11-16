@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { InstallationTaskService } from '@/services/installation-task.service';
+import { logError } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +25,7 @@ export async function GET(
       photoUrl: task.proofFileName ? `/api/tasks/proof/${params.token}/photo` : null,
     });
   } catch (error) {
-    console.error('Failed to load installation task:', error);
+    await logError({ source: 'UPLOAD', error, location: 'Buka link bukti (GET /api/tasks/proof)' });
     return NextResponse.json({ error: 'Tugas tidak dapat dimuat saat ini.' }, { status: 500 });
   }
 }
@@ -33,8 +34,18 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { token: string } }
 ) {
+  let logContext: Record<string, unknown> = {};
   try {
     const task = await InstallationTaskService.getByToken(params.token);
+    if (task) {
+      logContext = {
+        tugasId: task.id,
+        barang: task.product.name,
+        jumlah: task.quantity,
+        pemasang: task.assigneeName,
+        lokasi: task.location,
+      };
+    }
     if (!task) return NextResponse.json({ error: 'Tugas tidak ditemukan.' }, { status: 404 });
     if (task.status === 'COMPLETED') {
       return NextResponse.json({ error: 'Bukti untuk tugas ini sudah pernah dikirim.' }, { status: 409 });
@@ -46,6 +57,7 @@ export async function POST(
       return NextResponse.json({ error: 'Foto bukti wajib dipilih.' }, { status: 400 });
     }
 
+    logContext = { ...logContext, foto: { jenis: photo.type, ukuranKB: Math.round(photo.size / 1024) } };
     const completedTask = await InstallationTaskService.completeWithProof(params.token, photo);
     return NextResponse.json({
       success: true,
@@ -54,7 +66,7 @@ export async function POST(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Gagal menyimpan bukti.';
-    console.error('Failed to submit installation proof:', error);
+    await logError({ source: 'UPLOAD', error, location: 'Upload foto bukti (POST /api/tasks/proof)', context: logContext });
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

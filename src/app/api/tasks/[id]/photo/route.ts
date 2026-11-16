@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { readTaskProof } from '@/lib/task-proof-storage';
+import { logError } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 
@@ -25,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
       },
     });
   } catch (error) {
-    console.error('Failed to load task photo:', error);
+    await logError({ source: 'UPLOAD', error, location: 'GET /api/tasks/[id]/photo', context: { tugasId: params.id } });
     return NextResponse.json({ error: 'Foto bukti tidak dapat dimuat.' }, { status: 500 });
   }
 }

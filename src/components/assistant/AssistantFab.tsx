@@ -18,7 +18,8 @@ const SUGGESTIONS = [
 
 const GREETING: Message = {
   role: 'assistant',
-  content: 'Halo! Saya asisten StockFlow. Tanyakan soal stok, tugas pemasangan, atau riwayat barang masuk dan keluar.',
+  content:
+    'Halo! Saya asisten StockFlow (versi uji coba, masih dalam pengembangan). Tanyakan soal stok, tugas pemasangan, atau riwayat barang masuk dan keluar. Jawaban bisa saja belum akurat.',
 };
 
 export function AssistantFab() {
@@ -83,8 +84,13 @@ export function AssistantFab() {
                 <Bot className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-sm font-bold leading-tight">Asisten StockFlow</p>
-                <p className="text-[10px] text-white/70">Menjawab dari data stok & tugas</p>
+                <p className="text-sm font-bold leading-tight flex items-center gap-1.5">
+                  Asisten StockFlow
+                  <span className="text-[9px] font-bold uppercase tracking-wide bg-amber-300 text-amber-950 px-1.5 py-0.5 rounded">
+                    Beta
+                  </span>
+                </p>
+                <p className="text-[10px] text-white/70">Masih dalam pengembangan</p>
               </div>
             </div>
             <div className="flex items-center gap-1">

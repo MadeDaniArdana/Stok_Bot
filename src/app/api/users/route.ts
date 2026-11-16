@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
 
 export async function GET() {
@@ -14,7 +15,7 @@ export async function GET() {
     });
     return NextResponse.json(users);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'GET /api/users');
   }
 }
 

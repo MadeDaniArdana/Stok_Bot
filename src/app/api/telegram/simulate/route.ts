@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
 import { TelegramService } from '@/services/telegram.service';
 
 export async function POST(req: NextRequest) {
@@ -67,6 +68,6 @@ export async function POST(req: NextRequest) {
       result,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'POST /api/telegram/simulate');
   }
 }

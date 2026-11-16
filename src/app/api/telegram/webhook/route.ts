@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TelegramService } from '@/services/telegram.service';
+import { logError } from '@/lib/error-log';
 import {
   answerTelegramCallbackQuery,
   editTelegramMessage,
@@ -21,7 +22,13 @@ export async function POST(req: NextRequest) {
     const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
     if (expectedSecret && secretHeader !== expectedSecret) {
-      console.warn('Webhook rejected: Secret token mismatch.');
+      await logError({
+        source: 'TELEGRAM',
+        level: 'WARNING',
+        error: 'Webhook ditolak: secret token tidak cocok',
+        location: 'POST /api/telegram/webhook',
+        context: { chatId },
+      });
       return NextResponse.json({ error: 'Secret token tidak cocok' }, { status: 401 });
     }
 
@@ -53,14 +60,19 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, result });
   } catch (error: any) {
-    console.error('Webhook execution error:', error);
+    await logError({
+      source: 'TELEGRAM',
+      error,
+      location: 'POST /api/telegram/webhook',
+      context: { chatId, callbackQueryId },
+    });
     if (callbackQueryId) await answerTelegramCallbackQuery(callbackQueryId);
 
     // Beritahu pengguna di Telegram jika terjadi error server daripada diam tanpa balasan
     if (chatId) {
       await sendTelegramMessage(
         chatId,
-        `⚠️ *Kendala Server:* ${error.message || 'Terjadi kesalahan sistem di server StockFlow.'}\n\nPeriksa koneksi database atau log Vercel.`
+        `⚠️ Terjadi kendala di server StockFlow. Error sudah tercatat di menu Log Error web.`
       );
     }
 

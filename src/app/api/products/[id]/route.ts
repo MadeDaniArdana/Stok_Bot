@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
 import { ProductService } from '@/services/product.service';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
     return NextResponse.json(product);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'GET /api/products/[id]');
   }
 }
 

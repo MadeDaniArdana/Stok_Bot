@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage, sendTelegramPhoto } from '@/lib/telegram-client';
 import { readTaskProof } from '@/lib/task-proof-storage';
+import { logError } from '@/lib/error-log';
 
 export class NotificationService {
   /**
@@ -70,7 +71,15 @@ export class NotificationService {
 
     for (const admin of admins) {
       const sent = await sendTelegramMessage(admin.telegramChatId, message);
-      if (!sent) console.error(`Telegram low-stock notification failed for chat ${admin.telegramChatId}.`);
+      if (!sent) {
+        await logError({
+          source: 'NOTIFICATION',
+          level: 'WARNING',
+          error: 'Notifikasi stok menipis gagal terkirim ke Telegram admin',
+          location: 'checkStockLevelAndAlert',
+          context: { chatId: admin.telegramChatId, pesan: message },
+        });
+      }
     }
   }
 
@@ -91,7 +100,13 @@ export class NotificationService {
     });
 
     if (!adminTelegram?.isActive) {
-      console.error(`Task completed, but admin Telegram link is unavailable for user ${params.creatorUserId}.`);
+      await logError({
+        source: 'NOTIFICATION',
+        level: 'WARNING',
+        error: 'Tugas selesai, tetapi admin pembuat tugas tidak terhubung ke Telegram',
+        location: 'notifyTaskCompleted',
+        context: { adminUserId: params.creatorUserId, barang: params.productName, pemasang: params.assigneeName },
+      });
       return;
     }
 
@@ -106,7 +121,14 @@ export class NotificationService {
       if (photo) sent = await sendTelegramPhoto(adminTelegram.telegramChatId, photo, params.proofMimeType, message);
     }
     if (!sent) sent = await sendTelegramMessage(adminTelegram.telegramChatId, message);
-    if (!sent) console.error(`Task completion notification failed for user ${params.creatorUserId}.`);
+    if (!sent) {
+      await logError({
+        source: 'NOTIFICATION',
+        error: 'Pesan "tugas selesai" gagal terkirim ke Telegram admin',
+        location: 'notifyTaskCompleted',
+        context: { adminUserId: params.creatorUserId, barang: params.productName, pemasang: params.assigneeName },
+      });
+    }
   }
 
   static async getNotifications(limit = 20) {

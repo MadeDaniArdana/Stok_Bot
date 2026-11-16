@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { apiError } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,7 +50,6 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error('Failed to list installation tasks:', error);
-    return NextResponse.json({ error: 'Daftar tugas tidak dapat dimuat.' }, { status: 500 });
+    return apiError(error, 'GET /api/tasks', req, 'Daftar tugas tidak dapat dimuat.');
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
 import { InventoryService } from '@/services/inventory.service';
 
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, '/api/stock/movements');
   }
 }
 

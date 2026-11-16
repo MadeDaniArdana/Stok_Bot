@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getAllowedAdminIds } from '@/lib/telegram-admins';
+import { logError } from '@/lib/error-log';
 import { buildMainMenuKeyboard } from '@/lib/telegram-keyboards';
 import type { TelegramInlineKeyboardMarkup } from '@/lib/telegram-client';
 import { InstallationTaskService } from './installation-task.service';
@@ -143,6 +144,13 @@ export class TelegramService {
           },
         });
       } catch (e) {}
+
+      await logError({
+        source: 'TELEGRAM',
+        error: err,
+        location: callback ? `Tombol bot: ${callback.data || '-'}` : `Pesan bot: ${text.slice(0, 60) || '-'}`,
+        context: { updateId, telegramUserId, username, chatId, pesan: text || null, tombol: callback?.data || null },
+      });
 
       return {
         replyText: `Terjadi kendala saat memproses: ${err.message}`,

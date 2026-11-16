@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AssistantService, MAX_HISTORY, MAX_MESSAGE_LENGTH } from '@/services/assistant.service';
 import type { ChatTurn } from '@/lib/ai';
+import { logError } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,8 +28,18 @@ export async function POST(req: NextRequest) {
     const reply = await AssistantService.ask(history);
     return NextResponse.json({ reply });
   } catch (error) {
-    console.error('Assistant failed:', error);
-    const message = error instanceof Error ? error.message : 'Asisten sedang tidak dapat menjawab.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    await logError({
+      source: 'AI',
+      error,
+      location: `Asisten AI (${process.env.AI_PROVIDER || 'default'})`,
+      context: { model: process.env.OPENAI_MODEL || process.env.GEMINI_MODEL || null },
+    });
+    return NextResponse.json(
+      {
+        error:
+          'Asisten AI masih dalam pengembangan dan belum bisa menjawab saat ini. Detail kendala sudah tercatat di menu Log Error.',
+      },
+      { status: 503 }
+    );
   }
 }

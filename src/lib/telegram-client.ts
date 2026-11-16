@@ -2,6 +2,8 @@
  * Telegram Bot API Client
  * Mengirim pesan balasan ke pengguna Telegram
  */
+import { logError } from './error-log';
+
 export interface TelegramInlineKeyboardMarkup {
   inline_keyboard: Array<Array<{
     text: string;
@@ -45,14 +47,19 @@ export async function sendTelegramMessage(
         }),
       });
       if (!plainRes.ok) {
-        console.error(`Telegram sendMessage fallback gagal (${plainRes.status}): ${await plainRes.text()}`);
+        await logError({
+          source: 'TELEGRAM',
+          error: `Bot gagal mengirim pesan (${plainRes.status}): ${await plainRes.text()}`,
+          location: 'sendTelegramMessage',
+          context: { chatId, pesan: text.slice(0, 200) },
+        });
       }
       return plainRes.ok;
     }
 
     return true;
   } catch (error) {
-    console.error('Gagal mengirim pesan ke Telegram:', error);
+    await logError({ source: 'TELEGRAM', error, location: 'sendTelegramMessage', context: { chatId } });
     return false;
   }
 }
@@ -145,7 +152,15 @@ export async function sendTelegramPhoto(
     form.append('photo', new Blob([new Uint8Array(photo)], { type: mimeType }), 'bukti.jpg');
 
     const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: form });
-    if (!res.ok) console.error(`Telegram sendPhoto gagal (${res.status}): ${await res.text()}`);
+    if (!res.ok) {
+      await logError({
+        source: 'TELEGRAM',
+        level: 'WARNING',
+        error: `Bot gagal mengirim foto bukti (${res.status}): ${await res.text()}`,
+        location: 'sendTelegramPhoto',
+        context: { chatId },
+      });
+    }
     return res.ok;
   } catch (error) {
     console.error('Gagal mengirim foto ke Telegram:', error);

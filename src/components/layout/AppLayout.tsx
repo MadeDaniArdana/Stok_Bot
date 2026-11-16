@@ -6,6 +6,7 @@ import { Header } from './Header';
 import { AuthProvider } from './AuthContext';
 import { ToastProvider } from '../ui/Toast';
 import { AssistantFab } from '../assistant/AssistantFab';
+import { BrowserErrorReporter } from '../BrowserErrorReporter';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -25,6 +26,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </main>
           </div>
           <AssistantFab />
+          <BrowserErrorReporter />
         </div>
       </ToastProvider>
     </AuthProvider>

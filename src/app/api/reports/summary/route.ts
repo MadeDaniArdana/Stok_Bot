@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
+
+export const dynamic = 'force-dynamic';
 import { ReportService } from '@/services/report.service';
 
 export async function GET(req: NextRequest) {
@@ -8,6 +11,6 @@ export async function GET(req: NextRequest) {
     const summary = await ReportService.getDashboardSummary(days);
     return NextResponse.json(summary);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'GET /api/reports/summary');
   }
 }

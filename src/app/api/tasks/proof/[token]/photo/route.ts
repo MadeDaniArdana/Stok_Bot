@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readTaskProof } from '@/lib/task-proof-storage';
+import { logError } from '@/lib/error-log';
 import { InstallationTaskService } from '@/services/installation-task.service';
 
 export const runtime = 'nodejs';
@@ -25,7 +26,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Failed to load task proof photo:', error);
+    await logError({ source: 'UPLOAD', error, location: 'GET /api/tasks/proof/[token]/photo' });
     return NextResponse.json({ error: 'Foto bukti tidak dapat dimuat.' }, { status: 500 });
   }
 }

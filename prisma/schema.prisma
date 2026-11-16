@@ -83,6 +83,22 @@ model TelegramUser {
   linkedAt        DateTime @default(now())
 }
 
+// Catatan error dari web, Telegram, AI, upload foto, dan browser untuk ditelusuri admin.
+model ErrorLog {
+  id        String   @id @default(uuid())
+  source    String   // WEB, TELEGRAM, AI, UPLOAD, NOTIFICATION, BROWSER
+  level     String   @default("ERROR") // ERROR, WARNING
+  message   String
+  location  String?  // route API, fungsi, atau halaman tempat error terjadi
+  stack     String?
+  context   String?  // JSON: request, ID Telegram, isi pesan, dsb.
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([resolved, createdAt])
+  @@index([source, createdAt])
+}
+
 // ID Telegram yang diizinkan sebagai admin bot (ditambah dari web), selain TELEGRAM_ADMIN_IDS di env.
 model TelegramAdmin {
   id             String   @id @default(uuid())

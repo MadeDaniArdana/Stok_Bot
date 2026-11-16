@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   UserCheck,
   Camera,
+  Bug,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -69,6 +70,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
         { name: 'Laporan', href: '/reports', icon: BarChart3 },
         { name: 'Pengguna', href: '/users', icon: Users, adminOnly: true },
         { name: 'Integrasi Telegram', href: '/telegram', icon: Send, highlight: true },
+        { name: 'Log Error', href: '/logs', icon: Bug },
         { name: 'Pengaturan', href: '/settings', icon: Settings },
       ],
     },

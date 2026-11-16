@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
 import { NotificationService } from '@/services/notification.service';
 
 export async function GET() {
@@ -10,7 +11,7 @@ export async function GET() {
 
     return NextResponse.json({ notifications, unreadCount });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'GET /api/notifications');
   }
 }
 
@@ -27,6 +28,6 @@ export async function PATCH(req: NextRequest) {
     }
     return NextResponse.json({ error: 'Parameter tidak valid' }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'PATCH /api/notifications', req);
   }
 }

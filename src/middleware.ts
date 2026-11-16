@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   '/api/auth/login',
   '/api/tasks/proof/', // data tugas & upload foto lewat link bukti
   '/api/telegram/webhook', // dilindungi TELEGRAM_WEBHOOK_SECRET
+  '/api/logs/client', // laporan error browser (juga dari halaman bukti foto), dibatasi frekuensinya
 ];
 
 function isPublic(pathname: string) {

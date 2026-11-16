@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
 
 export async function GET() {
@@ -13,7 +14,7 @@ export async function GET() {
     });
     return NextResponse.json(categories);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'GET /api/categories');
   }
 }
 
@@ -41,6 +42,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, category }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error, 'POST /api/categories', req);
   }
 }
