@@ -303,6 +303,20 @@ export class TelegramService {
         };
       }
 
+      // Akun admin hanya boleh dihubungkan dari ID Telegram yang terdaftar di TELEGRAM_ADMIN_IDS,
+      // supaya orang lain tidak bisa mengambil alih (dan memutus) tautan Telegram admin.
+      const linkAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (user.role === 'ADMIN' && !linkAdminIds.includes(telegramUserId)) {
+        return {
+          replyText: '❌ Akun admin hanya dapat dihubungkan dari akun Telegram admin yang terdaftar.',
+          success: false,
+          actionTaken: 'LINK_ADMIN_DENIED',
+        };
+      }
+
       // Upsert telegram link
       await prisma.telegramUser.upsert({
         where: { userId: user.id },

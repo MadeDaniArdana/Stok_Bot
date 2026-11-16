@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { TelegramService } from '@/services/telegram.service';
 
 export async function POST(req: NextRequest) {
+  // Simulator bisa menyamar sebagai ID Telegram mana pun (termasuk admin),
+  // jadi di production hanya aktif jika diizinkan secara eksplisit.
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_TELEGRAM_SIMULATOR !== 'true') {
+    return NextResponse.json(
+      { error: 'Simulator Telegram dinonaktifkan di production. Gunakan bot Telegram asli.' },
+      { status: 403 }
+    );
+  }
+
   try {
     const {
       text,

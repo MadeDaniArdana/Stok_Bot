@@ -87,7 +87,7 @@ export function TelegramSimulator() {
       const botMsg: ChatMessage = {
         id: callbackData && currentBotMessage ? currentBotMessage.id : Math.random().toString(),
         sender: 'bot',
-        text: data.result?.replyText || 'Tidak ada balasan dari bot.',
+        text: data.result?.replyText || data.error || 'Tidak ada balasan dari bot.',
         time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
         actionTaken: data.result?.actionTaken,
         telegramMessageId: callbackData && currentBotMessage
