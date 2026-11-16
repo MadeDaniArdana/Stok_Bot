@@ -313,7 +313,7 @@ export class TelegramService {
       const parts = text.split(/\s+/);
       if (parts.length < 2) {
         return {
-          replyText: `⚠️ *Format pengaitan salah.*\nContoh: \`/link admin@stockflow.com\``,
+          replyText: `⚠️ *Format pengaitan salah.*\nContoh: \`/link email@teknokrat.ac.id\``,
           success: false,
         };
       }

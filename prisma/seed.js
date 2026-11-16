@@ -1,5 +1,17 @@
 const { PrismaClient } = require('@prisma/client');
+const { randomBytes, scryptSync } = require('crypto');
 const prisma = new PrismaClient();
+
+// Format sama dengan src/lib/password.ts: scrypt:<salt hex>:<hash hex>
+function hashPassword(password) {
+  const salt = randomBytes(16);
+  return `scrypt:${salt.toString('hex')}:${scryptSync(password, salt, 64).toString('hex')}`;
+}
+
+// Kata sandi admin TIDAK disimpan di repo; isi ADMIN_PASSWORD di .env sebelum menjalankan seed.
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'made_dani_ardana@teknokrat.ac.id').toLowerCase();
+const ADMIN_NAME = process.env.ADMIN_NAME || 'Made Dani Ardana';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 async function main() {
   console.log('Seeding StockFlow database...');
@@ -19,12 +31,14 @@ async function main() {
   const admin = await prisma.user.create({
     data: {
       id: 'u-admin-01',
-      name: 'Budi Pratama (Admin)',
-      email: 'admin@stockflow.com',
+      name: ADMIN_NAME,
+      email: ADMIN_EMAIL,
+      passwordHash: ADMIN_PASSWORD ? hashPassword(ADMIN_PASSWORD) : null,
       role: 'ADMIN',
       isActive: true,
     },
   });
+  if (!ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD kosong: admin dibuat tanpa kata sandi dan belum bisa login.');
 
   const userSiti = await prisma.user.create({
     data: {

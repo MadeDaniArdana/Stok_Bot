@@ -23,7 +23,7 @@ interface HeaderProps {
 }
 
 export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps) {
-  const { currentUser, availableUsers, switchUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { showToast } = useToast();
 
   const [timeStr, setTimeStr] = useState<string>('');
@@ -217,7 +217,7 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
                 {currentUser?.name ? currentUser.name.split(' ')[0] : 'Akun'}
               </p>
               <p className="text-[10px] text-maroon-800 font-medium">
-                {currentUser?.role === 'ADMIN' ? 'Administrator' : 'Staff Gudang'}
+                Administrator
               </p>
             </div>
           </button>
@@ -225,59 +225,20 @@ export function Header({ onToggleMobile, onOpenTelegramSimulator }: HeaderProps)
           {showUserMenu && (
             <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-2 border-b border-slate-100">
-                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                  Ganti Pengguna (Role Switcher)
-                </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Mudah menguji izin Admin & Staff
-                </p>
+                <p className="text-xs font-semibold text-slate-800">{currentUser?.name || 'Akun'}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">{currentUser?.email}</p>
               </div>
 
-              <div className="p-1 space-y-1">
-                {availableUsers.map((u) => {
-                  const isSelected = u.id === currentUser?.id;
-                  return (
-                    <button
-                      key={u.id}
-                      onClick={() => {
-                        switchUser(u.id);
-                        setShowUserMenu(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
-                        isSelected
-                          ? 'bg-maroon-50 text-maroon-900 font-semibold'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="text-left">
-                        <div className="flex items-center gap-1.5">
-                          <span>{u.name}</span>
-                          {u.role === 'ADMIN' ? (
-                            <span className="text-[9px] bg-maroon-100 text-maroon-800 font-bold px-1 py-0.2 rounded">
-                              Admin
-                            </span>
-                          ) : (
-                            <span className="text-[9px] bg-slate-100 text-slate-600 font-bold px-1 py-0.2 rounded">
-                              Staff
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400">{u.email}</p>
-                      </div>
-                      {isSelected && <Check className="w-4 h-4 text-maroon-800" />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="border-t border-slate-100 p-2 mt-1">
-                <Link
-                  href="/login"
-                  onClick={() => setShowUserMenu(false)}
-                  className="block text-center text-xs text-rose-600 hover:bg-rose-50 py-1.5 rounded-lg transition-colors font-medium"
+              <div className="p-2">
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    logout();
+                  }}
+                  className="w-full text-center text-xs text-rose-600 hover:bg-rose-50 py-1.5 rounded-lg transition-colors font-medium"
                 >
-                  Keluar Sesi (Logout)
-                </Link>
+                  Keluar (Logout)
+                </button>
               </div>
             </div>
           )}

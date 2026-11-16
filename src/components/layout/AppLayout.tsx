@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { AuthProvider } from './AuthContext';
 import { ToastProvider } from '../ui/Toast';
+import { AssistantFab } from '../assistant/AssistantFab';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -23,6 +24,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {children}
             </main>
           </div>
+          <AssistantFab />
         </div>
       </ToastProvider>
     </AuthProvider>

@@ -133,13 +133,14 @@ npm run start
 
 ---
 
-## 👤 Akun Uji Coba (Demo Credentials)
+## 👤 Akun Admin
 
-| Nama | Email | Role | Telegram Terhubung |
-|---|---|---|---|
-| **Budi Pratama** | `admin@stockflow.com` | `ADMIN` | Ya |
-| **Siti Rahma** | `siti@stockflow.com` | `USER` | `@sitirahma_ops` |
-| **Ahmad Fauzi** | `ahmad@stockflow.com` | `USER` | `@ahmadfauzi_dev` |
-| **Dewi Lestari** | `dewi@stockflow.com` | `USER` | Belum terhubung |
+Hanya akun dengan role `ADMIN` dan kata sandi yang dapat masuk ke web. Akun admin dibuat oleh seed dari variabel lingkungan:
 
-*Semua akun demo dapat digunakan dengan mengklik tombol "Akses Cepat Demo" pada halaman login atau menu switcher di header kanan atas.*
+| Variabel | Keterangan |
+|---|---|
+| `ADMIN_EMAIL` | Email login admin |
+| `ADMIN_NAME` | Nama admin |
+| `ADMIN_PASSWORD` | Kata sandi admin (wajib, tidak disimpan di repo) |
+
+Semua halaman dan API dikunci login, kecuali link bukti foto (`/proof/...`) dan webhook Telegram.
