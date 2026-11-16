@@ -15,6 +15,37 @@ interface TaskDetails {
   photoUrl: string | null;
 }
 
+const MAX_DIMENSION = 1600;
+const JPEG_QUALITY = 0.8;
+
+function formatSize(bytes: number) {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/**
+ * Mengecilkan foto di HP sebelum diunggah: sisi terpanjang maksimal 1600 px, JPEG kualitas 80%.
+ * Foto kamera 3–8 MB biasanya menjadi 200–400 KB. Jika gagal, file asli dipakai.
+ */
+async function compressPhoto(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const context = canvas.getContext('2d');
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
+    if (!blob || (blob.size >= file.size && file.type === 'image/jpeg')) return file;
+    return new File([blob], 'bukti.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+
 export function TaskProofPage({ token }: { token: string }) {
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
@@ -22,6 +53,26 @@ export function TaskProofPage({ token }: { token: string }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [sizeInfo, setSizeInfo] = useState('');
+
+  const handlePhotoSelected = async (file: File | null) => {
+    setError('');
+    setSizeInfo('');
+    if (!file) {
+      setPhoto(null);
+      return;
+    }
+    setCompressing(true);
+    const compressed = await compressPhoto(file);
+    setCompressing(false);
+    setPhoto(compressed);
+    setSizeInfo(
+      compressed === file
+        ? `Ukuran foto: ${formatSize(file.size)}`
+        : `Foto dikompres: ${formatSize(file.size)} → ${formatSize(compressed.size)}`
+    );
+  };
 
   useEffect(() => {
     fetch(`/api/tasks/proof/${encodeURIComponent(token)}`)
@@ -132,15 +183,16 @@ export function TaskProofPage({ token }: { token: string }) {
                     <input
                       id="proof-photo"
                       type="file"
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/*"
                       capture="environment"
-                      onChange={(event) => {
-                        setPhoto(event.target.files?.[0] || null);
-                        setError('');
-                      }}
+                      onChange={(event) => handlePhotoSelected(event.target.files?.[0] || null)}
                       className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-maroon-50 file:px-4 file:py-2 file:font-semibold file:text-maroon-900"
                     />
-                    <p className="mt-1 text-xs text-slate-500">Kamera akan terbuka setelah Anda memilih tombol ambil foto. Maksimal 4 MB.</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {compressing
+                        ? 'Mengecilkan ukuran foto...'
+                        : sizeInfo || 'Kamera akan terbuka setelah Anda memilih tombol ambil foto. Foto otomatis dikecilkan.'}
+                    </p>
                   </div>
                   {previewUrl && <img src={previewUrl} alt="Pratinjau bukti" className="max-h-80 w-full rounded-xl object-contain" />}
                   {error && (
@@ -151,7 +203,7 @@ export function TaskProofPage({ token }: { token: string }) {
                   <button
                     type="button"
                     onClick={submitProof}
-                    disabled={!photo || submitting}
+                    disabled={!photo || submitting || compressing}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-maroon-800 px-4 py-3 text-sm font-semibold text-white hover:bg-maroon-900 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}

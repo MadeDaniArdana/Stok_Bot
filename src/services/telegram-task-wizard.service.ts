@@ -37,6 +37,99 @@ export class TelegramTaskWizardService {
     return this.showProducts(telegramUserId, 0);
   }
 
+  /** Teks berformat cepat: minimal tiga bagian dipisah "/" dan tidak diawali "/". */
+  static isQuickTaskText(text: string) {
+    const trimmed = text.trim();
+    return !trimmed.startsWith('/') && trimmed.split('/').length >= 3;
+  }
+
+  /**
+   * Format cepat satu baris: pemasang/barang/lokasi/catatan
+   * - Bagian berupa angka saja dianggap jumlah (default 1), boleh di posisi mana pun setelah pemasang.
+   * - Catatan opsional; "-" berarti tanpa catatan.
+   * Contoh: "bimo/lampu led/gsg/-" atau "bimo/lampu led/3/gsg lt 4/pasang di aula"
+   */
+  static async handleQuickTask(
+    telegramUserId: string,
+    chatId: string,
+    isAllowedAdmin: boolean,
+    text: string
+  ): Promise<WizardResult> {
+    if (!isAllowedAdmin) return this.accessDenied();
+
+    const parts = text.split('/').map((part) => part.trim());
+    let quantity = 1;
+    const quantityIndex = parts.findIndex((part, index) => index > 0 && /^\d+$/.test(part));
+    if (quantityIndex !== -1) {
+      quantity = Number(parts[quantityIndex]);
+      parts.splice(quantityIndex, 1);
+    }
+
+    const [assigneeName = '', productQuery = '', location = '', ...noteParts] = parts;
+    const notesText = noteParts.join('/').trim();
+    const notes = notesText && notesText !== '-' ? notesText : null;
+
+    if (!assigneeName || !productQuery || !location || !Number.isSafeInteger(quantity) || quantity <= 0) {
+      return {
+        replyText:
+          'Format cepat belum lengkap. Gunakan:\n' +
+          'pemasang/barang/lokasi/catatan\n\n' +
+          'Contoh:\n' +
+          'bimo/lampu led/gsg/-\n' +
+          'bimo/lampu led/3/gsg lt 4/pasang di aula\n\n' +
+          'Angka dianggap jumlah (default 1). Catatan boleh "-".',
+        success: false,
+        actionTaken: 'QUICK_TASK_FORMAT',
+        replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
+      };
+    }
+
+    const data: ConversationData = { quantity, assigneeName, location, notes };
+    const words = productQuery.split(/\s+/).filter(Boolean);
+    const matches = await prisma.product.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { sku: { equals: productQuery.toUpperCase() } },
+          { AND: words.map((word) => ({ name: { contains: word, mode: 'insensitive' as const } })) },
+        ],
+      },
+      orderBy: { name: 'asc' },
+      take: PRODUCT_PAGE_SIZE,
+    });
+
+    if (matches.length === 1) {
+      const product = matches[0];
+      if (product.currentStock < quantity) {
+        await prisma.telegramConversation.deleteMany({ where: { telegramUserId } });
+        return {
+          replyText: `Stok ${product.name} hanya ${product.currentStock} ${product.unit}, tidak cukup untuk ${quantity} ${product.unit}.`,
+          success: false,
+          actionTaken: 'QUICK_TASK_INSUFFICIENT_STOCK',
+          replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
+        };
+      }
+      return this.confirm(telegramUserId, chatId, { ...data, productId: product.id });
+    }
+
+    // Tidak ada atau lebih dari satu barang cocok: pilih lewat tombol, data lain tetap tersimpan.
+    await this.saveConversation(telegramUserId, chatId, 'SELECT_PRODUCT', data);
+    if (matches.length > 1) {
+      return {
+        replyText: `Ada beberapa barang yang cocok dengan "${productQuery}". Pilih salah satu:`,
+        success: true,
+        actionTaken: 'QUICK_TASK_PRODUCT_MATCHES',
+        replyMarkup: this.productKeyboard(matches, 0, false),
+      };
+    }
+    return {
+      replyText: `Barang "${productQuery}" tidak ditemukan. Pilih barang dari daftar:`,
+      success: false,
+      actionTaken: 'QUICK_TASK_PRODUCT_NOT_FOUND',
+      replyMarkup: await this.productKeyboardForPage(0),
+    };
+  }
+
   static async handleCallback(
     telegramUserId: string,
     chatId: string,
@@ -350,6 +443,20 @@ export class TelegramTaskWizardService {
         actionTaken: 'TASK_PRODUCT_OUT_OF_STOCK',
         replyMarkup: await this.productKeyboardForPage(0),
       };
+    }
+
+    // Dari format cepat: jumlah, pemasang, dan lokasi sudah terisi, langsung ke konfirmasi.
+    const existing = this.readData(conversation.data);
+    if (existing.quantity && existing.assigneeName && existing.location) {
+      if (product.currentStock < existing.quantity) {
+        return {
+          replyText: `Stok ${product.name} hanya ${product.currentStock} ${product.unit}, tidak cukup untuk ${existing.quantity} ${product.unit}. Pilih barang lain:`,
+          success: false,
+          actionTaken: 'QUICK_TASK_INSUFFICIENT_STOCK',
+          replyMarkup: await this.productKeyboardForPage(0),
+        };
+      }
+      return this.confirm(telegramUserId, conversation.chatId, { ...existing, productId: product.id });
     }
 
     await this.saveConversation(telegramUserId, conversation.chatId, 'ENTER_QUANTITY', {

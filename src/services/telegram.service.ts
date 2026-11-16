@@ -268,7 +268,10 @@ export class TelegramService {
 
       return {
         replyText: linkedUser?.isActive && linkedUser.user.isActive
-          ? `👋 Selamat datang di StockFlow Bot, ${linkedUser.user.name}!\nPilih menu dengan menekan tombol di bawah.`
+          ? `👋 Selamat datang di StockFlow Bot, ${linkedUser.user.name}!\nPilih menu dengan menekan tombol di bawah.` +
+            (isAllowedAdmin
+              ? `\n\n⚡ Cara cepat buat tugas, kirim satu baris:\npemasang/barang/lokasi/catatan\nContoh: bimo/lampu led/gsg/-`
+              : '')
           : `👋 Selamat datang di StockFlow Bot, @${username}!\n\nAkun Telegram ini belum terdaftar sebagai admin.\nID Telegram Anda: ${telegramUserId}\nMinta pengelola sistem menambahkan ID ini ke TELEGRAM_ADMIN_IDS.`,
         success: true,
         actionTaken: 'START',
@@ -295,6 +298,7 @@ export class TelegramService {
       return {
         replyText:
           'Pilih tombol menu untuk melihat stok, mencari barang, atau melihat riwayat. Admin dapat membuat tugas pemasangan dengan memilih barang dan jumlah, lalu mengisi nama pemasang dan lokasi.\n\n' +
+          '⚡ Cara cepat (admin), kirim satu baris:\npemasang/barang/lokasi/catatan\nContoh: bimo/lampu led/gsg/-\nDengan jumlah: bimo/lampu led/3/gsg/pasang di aula\nAngka = jumlah (default 1), catatan boleh "-".\n\n' +
           'Pemasang menerima link melalui WhatsApp lalu mengirim foto bukti. Stok berkurang setelah foto diterima.',
         success: true,
         actionTaken: 'HELP',
@@ -413,6 +417,11 @@ export class TelegramService {
         isAllowedAdmin,
         'task:cancel'
       );
+    }
+
+    // Format cepat satu baris, contoh: bimo/lampu led/gsg/-
+    if (TelegramTaskWizardService.isQuickTaskText(text)) {
+      return TelegramTaskWizardService.handleQuickTask(telegramUserId, chatId, isAllowedAdmin, text);
     }
 
     if (!lower.startsWith('/')) {
