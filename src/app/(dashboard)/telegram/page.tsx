@@ -8,6 +8,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { TelegramSimulator } from '@/components/telegram/TelegramSimulator';
+import { TelegramAdminPanel } from '@/components/telegram/TelegramAdminPanel';
 
 export default function TelegramPage() {
   const [status, setStatus] = useState<any>(null);
@@ -125,6 +126,9 @@ export default function TelegramPage() {
         </div>
       </div>
 
+      {/* QR bot + kelola admin Telegram */}
+      <TelegramAdminPanel />
+
       {/* Split View: Live Simulator on Left, Guide on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Interactive Live Simulator (7 cols) */}
@@ -163,18 +167,10 @@ export default function TelegramPage() {
             </p>
 
             <ol className="list-decimal list-inside text-xs text-slate-600 space-y-2">
-              <li>
-                Buka bot Telegram StockFlow dan ketik <code>/start</code>.
-              </li>
-              <li>
-                Kirim perintah <code>/link &lt;email_anda&gt;</code> (misal: <code>/link siti@stockflow.com</code>).
-              </li>
-              <li>
-                Sistem akan memverifikasi email dan menautkan Telegram User ID Anda secara otomatis.
-              </li>
-              <li>
-                Setelah admin terhubung dan ID Telegram admin ditambahkan ke <code>TELEGRAM_ADMIN_IDS</code>, admin dapat membuat tugas pemasangan. Pemasang tidak perlu akun Telegram.
-              </li>
+              <li>Calon admin scan QR di atas lalu tekan <strong>Start</strong> di bot.</li>
+              <li>Di panel <strong>Admin Telegram</strong>, klik <strong>Jadikan admin</strong> pada namanya (atau ketik ID-nya).</li>
+              <li>Dia menekan Start sekali lagi; akun langsung terhubung tanpa mengetik perintah.</li>
+              <li>Pemasang tidak perlu akun Telegram, cukup menerima link bukti lewat WhatsApp.</li>
             </ol>
           </div>
         </div>

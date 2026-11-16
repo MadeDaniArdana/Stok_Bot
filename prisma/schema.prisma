@@ -83,6 +83,14 @@ model TelegramUser {
   linkedAt        DateTime @default(now())
 }
 
+// ID Telegram yang diizinkan sebagai admin bot (ditambah dari web), selain TELEGRAM_ADMIN_IDS di env.
+model TelegramAdmin {
+  id             String   @id @default(uuid())
+  telegramUserId String   @unique
+  label          String?
+  createdAt      DateTime @default(now())
+}
+
 model TelegramUpdate {
   id               String    @id @default(uuid())
   telegramUpdateId String    @unique

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getAllowedAdminIds } from '@/lib/telegram-admins';
 import { buildMainMenuKeyboard } from '@/lib/telegram-keyboards';
 import type { TelegramInlineKeyboardMarkup } from '@/lib/telegram-client';
 import { InstallationTaskService } from './installation-task.service';
@@ -152,21 +153,35 @@ export class TelegramService {
   }
 
   /**
-   * Admin yang ID Telegram-nya ada di TELEGRAM_ADMIN_IDS otomatis dihubungkan
-   * ke akun ADMIN pertama yang belum punya tautan Telegram, tanpa perlu mengetik /link.
+   * ID Telegram yang terdaftar sebagai admin (env TELEGRAM_ADMIN_IDS atau ditambahkan dari web)
+   * otomatis dihubungkan tanpa perlu mengetik /link:
+   * - ke akun ADMIN web yang belum punya tautan Telegram, atau
+   * - jika tidak ada, dibuatkan akun admin khusus Telegram (tanpa kata sandi, tidak bisa login web).
    */
   private static async autoLinkAdmin(telegramUserId: string, chatId: string, username: string) {
-    const adminIds = (process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+    const adminIds = await getAllowedAdminIds();
     if (!adminIds.includes(telegramUserId)) return;
 
     const existing = await prisma.telegramUser.findUnique({ where: { telegramUserId } });
     if (existing) return;
 
-    const adminUser = await prisma.user.findFirst({
-      where: { role: 'ADMIN', isActive: true, telegram: null },
+    let adminUser = await prisma.user.findFirst({
+      where: { role: 'ADMIN', isActive: true, telegram: null, passwordHash: { not: null } },
       orderBy: { createdAt: 'asc' },
     });
-    if (!adminUser) return;
+    if (!adminUser) {
+      const label = await prisma.telegramAdmin.findUnique({ where: { telegramUserId } });
+      adminUser = await prisma.user.upsert({
+        where: { email: `telegram-${telegramUserId}@telegram.local` },
+        update: { isActive: true, role: 'ADMIN' },
+        create: {
+          name: label?.label || (username && username !== 'unknown' ? `@${username}` : `Admin Telegram ${telegramUserId}`),
+          email: `telegram-${telegramUserId}@telegram.local`,
+          role: 'ADMIN',
+          isActive: true,
+        },
+      });
+    }
 
     await prisma.telegramUser.create({
       data: { userId: adminUser.id, telegramUserId, telegramChatId: chatId, username, isActive: true },
@@ -188,16 +203,13 @@ export class TelegramService {
 
     if (!tgUser || !tgUser.isActive || !tgUser.user.isActive) {
       return {
-        replyText: 'Akun Telegram ini belum terdaftar. Minta admin menambahkan ID Telegram Anda (' + telegramUserId + ') ke daftar admin.',
+        replyText: 'Akun Telegram ini belum terdaftar. Minta admin menambahkan ID Telegram Anda (' + telegramUserId + ') di web (menu Integrasi Telegram).',
         success: false,
         actionTaken: 'UNLINKED_USER',
       };
     }
 
-    const allowedAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
+    const allowedAdminIds = (await getAllowedAdminIds());
     const isAllowedAdmin = tgUser.user.role === 'ADMIN' && allowedAdminIds.includes(telegramUserId);
 
     if (
@@ -258,7 +270,7 @@ export class TelegramService {
         where: { telegramUserId },
         include: { user: true },
       });
-      const adminIds = (process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((id) => id.trim());
+      const adminIds = (await getAllowedAdminIds());
       const isAllowedAdmin = Boolean(
         linkedUser?.isActive &&
         linkedUser.user.isActive &&
@@ -272,7 +284,7 @@ export class TelegramService {
             (isAllowedAdmin
               ? `\n\n⚡ Cara cepat buat tugas, kirim satu baris:\npemasang/barang/lokasi/catatan\nContoh: bimo/lampu led/gsg/-`
               : '')
-          : `👋 Selamat datang di StockFlow Bot, @${username}!\n\nAkun Telegram ini belum terdaftar sebagai admin.\nID Telegram Anda: ${telegramUserId}\nMinta pengelola sistem menambahkan ID ini ke TELEGRAM_ADMIN_IDS.`,
+          : `👋 Selamat datang di StockFlow Bot, @${username}!\n\nAkun Telegram ini belum terdaftar sebagai admin.\nID Telegram Anda: ${telegramUserId}\nMinta admin menambahkan ID ini di web (menu Integrasi Telegram).`,
         success: true,
         actionTaken: 'START',
         replyMarkup: linkedUser?.isActive && linkedUser.user.isActive
@@ -287,7 +299,7 @@ export class TelegramService {
         where: { telegramUserId },
         include: { user: true },
       });
-      const adminIds = (process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((id) => id.trim());
+      const adminIds = (await getAllowedAdminIds());
       const isAllowedAdmin = Boolean(
         linkedUser?.isActive &&
         linkedUser.user.isActive &&
@@ -333,10 +345,7 @@ export class TelegramService {
 
       // Akun admin hanya boleh dihubungkan dari ID Telegram yang terdaftar di TELEGRAM_ADMIN_IDS,
       // supaya orang lain tidak bisa mengambil alih (dan memutus) tautan Telegram admin.
-      const linkAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
-        .split(',')
-        .map((id) => id.trim())
-        .filter(Boolean);
+      const linkAdminIds = (await getAllowedAdminIds());
       if (user.role === 'ADMIN' && !linkAdminIds.includes(telegramUserId)) {
         return {
           replyText: '❌ Akun admin hanya dapat dihubungkan dari akun Telegram admin yang terdaftar.',
@@ -363,10 +372,7 @@ export class TelegramService {
         },
       });
 
-      const allowedAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
-        .split(',')
-        .map((id) => id.trim())
-        .filter(Boolean);
+      const allowedAdminIds = (await getAllowedAdminIds());
       const isAllowedAdmin = user.role === 'ADMIN' && allowedAdminIds.includes(telegramUserId);
 
       return {
@@ -386,17 +392,14 @@ export class TelegramService {
     if (!tgUser || !tgUser.isActive || !tgUser.user.isActive) {
       return {
         replyText: `⛔ *Akses Ditolak*\n\nAkun Telegram Anda (\`${telegramUserId}\`) belum terhubung atau berstatus nonaktif di StockFlow.\n\n` +
-          `Minta pengelola sistem menambahkan ID ini ke daftar admin (TELEGRAM_ADMIN_IDS).`,
+          `Minta admin menambahkan ID ini di web (menu Integrasi Telegram).`,
         success: false,
       };
     }
 
     const internalUser = tgUser.user;
 
-    const allowedAdminIds = (process.env.TELEGRAM_ADMIN_IDS || '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
+    const allowedAdminIds = (await getAllowedAdminIds());
     const isAllowedAdmin = internalUser.role === 'ADMIN' && allowedAdminIds.includes(telegramUserId);
 
     if (lower === '🔎 cari barang') {

@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { getAIProvider, type AITool, type ChatTurn, type ToolCall } from '@/lib/ai';
+import { getAIProvider, ToolsNotSupportedError, type AITool, type ChatTurn, type ToolCall } from '@/lib/ai';
 
 /**
  * Asisten AI StockFlow: menjawab pertanyaan tentang stok, tugas pemasangan, dan riwayat stok.
@@ -213,15 +213,37 @@ function systemPrompt() {
 export const MAX_HISTORY = 12;
 export const MAX_MESSAGE_LENGTH = 1000;
 
+/** Ringkasan data untuk model yang tidak mendukung tool calling. */
+async function dataSnapshot() {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const [stok, tugas, riwayat] = await Promise.all([
+    cekStok({}),
+    cariTugas({}),
+    riwayatStok({ dari_tanggal: thirtyDaysAgo }),
+  ]);
+  return JSON.stringify({ stok, tugas_pemasangan_terbaru: tugas, riwayat_stok_30_hari: riwayat });
+}
+
 export class AssistantService {
   static async ask(history: ChatTurn[]) {
     const provider = getAIProvider();
-    const answer = await provider.chat({
-      system: systemPrompt(),
-      history: history.slice(-MAX_HISTORY),
-      tools: TOOLS,
-      runTool,
-    });
+    const trimmed = history.slice(-MAX_HISTORY);
+    let answer: string;
+    try {
+      answer = await provider.chat({ system: systemPrompt(), history: trimmed, tools: TOOLS, runTool });
+    } catch (error) {
+      if (!(error instanceof ToolsNotSupportedError)) throw error;
+      // Model tidak bisa memanggil alat: berikan ringkasan data langsung di instruksi sistem.
+      answer = await provider.chat({
+        system:
+          systemPrompt() +
+          '\n\nKamu tidak bisa memanggil alat. Jawab hanya berdasarkan DATA berikut (JSON). Jika data tidak memuat jawabannya, katakan tidak tersedia.\nDATA:\n' +
+          (await dataSnapshot()),
+        history: trimmed,
+        tools: [],
+        runTool,
+      });
+    }
     // Jaga-jaga jika model tetap memakai markdown tebal/judul.
     return answer.replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#{1,6}\s+/gm, '');
   }

@@ -26,6 +26,14 @@ export interface ChatTurn {
   content: string;
 }
 
+/** Dilempar penyedia jika server AI tidak mendukung tool calling; asisten lalu memakai mode ringkasan data. */
+export class ToolsNotSupportedError extends Error {
+  constructor() {
+    super('Server AI tidak mendukung tool calling.');
+    this.name = 'ToolsNotSupportedError';
+  }
+}
+
 export interface AIProvider {
   /**
    * Menjalankan percakapan dengan alat. `runTool` dipanggil setiap kali model meminta data;
