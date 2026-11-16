@@ -151,6 +151,28 @@ export class TelegramService {
     }
   }
 
+  /**
+   * Admin yang ID Telegram-nya ada di TELEGRAM_ADMIN_IDS otomatis dihubungkan
+   * ke akun ADMIN pertama yang belum punya tautan Telegram, tanpa perlu mengetik /link.
+   */
+  private static async autoLinkAdmin(telegramUserId: string, chatId: string, username: string) {
+    const adminIds = (process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((id) => id.trim()).filter(Boolean);
+    if (!adminIds.includes(telegramUserId)) return;
+
+    const existing = await prisma.telegramUser.findUnique({ where: { telegramUserId } });
+    if (existing) return;
+
+    const adminUser = await prisma.user.findFirst({
+      where: { role: 'ADMIN', isActive: true, telegram: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!adminUser) return;
+
+    await prisma.telegramUser.create({
+      data: { userId: adminUser.id, telegramUserId, telegramChatId: chatId, username, isActive: true },
+    });
+  }
+
   static async processCallbackQuery(params: {
     telegramUserId: string;
     chatId: string;
@@ -158,6 +180,7 @@ export class TelegramService {
     callbackData: string;
   }): Promise<TelegramProcessResult> {
     const { telegramUserId, chatId, username, callbackData } = params;
+    await this.autoLinkAdmin(telegramUserId, chatId, username);
     const tgUser = await prisma.telegramUser.findUnique({
       where: { telegramUserId },
       include: { user: true },
@@ -165,7 +188,7 @@ export class TelegramService {
 
     if (!tgUser || !tgUser.isActive || !tgUser.user.isActive) {
       return {
-        replyText: 'Akun Telegram belum terhubung. Hubungkan akun dengan mengirim /link email-anda.',
+        replyText: 'Akun Telegram ini belum terdaftar. Minta admin menambahkan ID Telegram Anda (' + telegramUserId + ') ke daftar admin.',
         success: false,
         actionTaken: 'UNLINKED_USER',
       };
@@ -201,7 +224,7 @@ export class TelegramService {
     const command = menuCommands[callbackData];
     if (!command) {
       return {
-        replyText: 'Tombol tidak dikenali. Kirim /start untuk membuka menu.',
+        replyText: 'Tombol tidak dikenali. Pilih menu di bawah.',
         success: false,
         actionTaken: 'INVALID_BUTTON',
         replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
@@ -226,6 +249,7 @@ export class TelegramService {
     text: string;
   }): Promise<TelegramProcessResult> {
     const { telegramUserId, chatId, username, text } = params;
+    await this.autoLinkAdmin(telegramUserId, chatId, username);
     const lower = text.toLowerCase();
 
     // /start command
@@ -245,7 +269,7 @@ export class TelegramService {
       return {
         replyText: linkedUser?.isActive && linkedUser.user.isActive
           ? `👋 Selamat datang di StockFlow Bot, ${linkedUser.user.name}!\nPilih menu dengan menekan tombol di bawah.`
-          : `👋 Selamat datang di StockFlow Bot, @${username}!\n\nHubungkan akun sekali dengan mengirim:\n/link email-akun-anda`,
+          : `👋 Selamat datang di StockFlow Bot, @${username}!\n\nAkun Telegram ini belum terdaftar sebagai admin.\nID Telegram Anda: ${telegramUserId}\nMinta pengelola sistem menambahkan ID ini ke TELEGRAM_ADMIN_IDS.`,
         success: true,
         actionTaken: 'START',
         replyMarkup: linkedUser?.isActive && linkedUser.user.isActive
@@ -271,7 +295,7 @@ export class TelegramService {
       return {
         replyText:
           'Pilih tombol menu untuk melihat stok, mencari barang, atau melihat riwayat. Admin dapat membuat tugas pemasangan dengan memilih barang dan jumlah, lalu mengisi nama pemasang dan lokasi.\n\n' +
-          'Pemasang menerima link melalui WhatsApp lalu mengirim foto bukti. Stok berkurang setelah foto diterima. Perintah /link hanya diperlukan saat menghubungkan akun.',
+          'Pemasang menerima link melalui WhatsApp lalu mengirim foto bukti. Stok berkurang setelah foto diterima.',
         success: true,
         actionTaken: 'HELP',
         replyMarkup: linkedUser?.isActive && linkedUser.user.isActive
@@ -358,7 +382,7 @@ export class TelegramService {
     if (!tgUser || !tgUser.isActive || !tgUser.user.isActive) {
       return {
         replyText: `⛔ *Akses Ditolak*\n\nAkun Telegram Anda (\`${telegramUserId}\`) belum terhubung atau berstatus nonaktif di StockFlow.\n\n` +
-          `Kirim: \`/link <email_anda>\` untuk menghubungkan akun terdaftar, atau hubungi Admin Gudang.`,
+          `Minta pengelola sistem menambahkan ID ini ke daftar admin (TELEGRAM_ADMIN_IDS).`,
         success: false,
       };
     }
