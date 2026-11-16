@@ -86,7 +86,7 @@ export class TelegramTaskWizardService {
 
     const data: ConversationData = { quantity, assigneeName, location, notes };
     const words = productQuery.split(/\s+/).filter(Boolean);
-    const matches = await prisma.product.findMany({
+    const candidates = await prisma.product.findMany({
       where: {
         isActive: true,
         OR: [
@@ -97,6 +97,12 @@ export class TelegramTaskWizardService {
       orderBy: { name: 'asc' },
       take: PRODUCT_PAGE_SIZE,
     });
+
+    // SKU persis atau nama persis langsung dipilih, walaupun ada barang lain yang namanya mirip
+    // (misal "lampu led" memilih "Lampu LED", bukan "Lampu LED 18W").
+    const query = productQuery.toLowerCase();
+    const exact = candidates.find((product) => product.sku.toLowerCase() === query || product.name.toLowerCase() === query);
+    const matches = exact ? [exact] : candidates;
 
     if (matches.length === 1) {
       const product = matches[0];
