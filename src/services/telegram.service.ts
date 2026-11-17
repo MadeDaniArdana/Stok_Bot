@@ -273,7 +273,8 @@ export class TelegramService {
     const lower = text.toLowerCase();
 
     // /start command
-    if (lower === '/start') {
+    // Termasuk "/start admin" dari link QR (?start=admin) dan "/start@NamaBot".
+    if (/^\/start(@\w+)?(\s|$)/.test(lower)) {
       const linkedUser = await prisma.telegramUser.findUnique({
         where: { telegramUserId },
         include: { user: true },

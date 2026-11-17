@@ -160,7 +160,7 @@ export default function TelegramPage() {
             </p>
 
             <ol className="list-decimal list-inside text-xs text-slate-600 space-y-2">
-              <li>Calon admin scan QR di atas lalu tekan <strong>Start</strong> di bot.</li>
+              <li>Calon admin scan QR di atas lalu tekan tombol <strong>Mulai / Start</strong> di bawah chat bot.</li>
               <li>Di panel <strong>Admin Telegram</strong>, klik <strong>Jadikan admin</strong> pada namanya (atau ketik ID-nya).</li>
               <li>Dia menekan Start sekali lagi; akun langsung terhubung tanpa mengetik perintah.</li>
               <li>Pemasang tidak perlu akun Telegram, cukup menerima link bukti lewat WhatsApp.</li>

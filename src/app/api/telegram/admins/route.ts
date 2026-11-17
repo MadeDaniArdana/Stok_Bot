@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEnvAdminIds } from '@/lib/telegram-admins';
+import { ensureTelegramBotProfile } from '@/lib/telegram-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,8 @@ function senderFromPayload(payload: string | null) {
 // Dilindungi middleware: hanya admin web yang sudah login.
 export async function GET() {
   try {
+    // Deskripsi & perintah bot agar pengguna baru yang scan QR tidak melihat chat kosong.
+    const botProfile = ensureTelegramBotProfile();
     const envIds = getEnvAdminIds();
     const [webAdmins, links, updates] = await Promise.all([
       prisma.telegramAdmin.findMany({ orderBy: { createdAt: 'asc' } }),
@@ -58,10 +61,11 @@ export async function GET() {
       if (candidates.size >= 10) break;
     }
 
+    await botProfile;
     const botUsername = (process.env.TELEGRAM_BOT_USERNAME || '').replace(/^@/, '');
     return NextResponse.json({
       botUsername,
-      botUrl: botUsername ? `https://t.me/${botUsername}` : null,
+      botUrl: botUsername ? `https://t.me/${botUsername}?start=admin` : null,
       admins,
       candidates: Array.from(candidates.values()),
     });
