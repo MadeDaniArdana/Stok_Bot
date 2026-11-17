@@ -3,11 +3,16 @@
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 
 import React, { useEffect, useState } from 'react';
-import { Calendar, Search, MapPin, User, Clock, CheckCircle2, Hourglass, X, ImageOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import { Calendar, Search, MapPin, User, Clock, CheckCircle2, Hourglass, X, ImageOff, ChevronLeft, ChevronRight, Send, Globe } from 'lucide-react';
 import { getCurrentReportMonth, getReportMonthRange } from '@/lib/report-period';
 
 interface TaskItem {
   id: string;
+  /** TELEGRAM = tugas dari bot, WEB = Distribusi Peralatan Listrik */
+  source: 'TELEGRAM' | 'WEB';
+  reference: string | null;
+  quantityLabel: string;
   productName: string;
   sku: string;
   unit: string;
@@ -21,6 +26,12 @@ interface TaskItem {
   completedAt: string | null;
   photoUrl: string | null;
 }
+
+const SOURCE_FILTERS = [
+  { value: 'all', label: 'Semua sumber' },
+  { value: 'TELEGRAM', label: 'Telegram' },
+  { value: 'WEB', label: 'Web' },
+];
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'Semua' },
@@ -44,6 +55,7 @@ export default function InstallationReportPage() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('all');
+  const [source, setSource] = useState('all');
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState<TaskItem | null>(null);
   const [month, setMonth] = useState('');
@@ -53,7 +65,7 @@ export default function InstallationReportPage() {
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const [loadedKey, setLoadedKey] = useState('');
-  const reportKey = JSON.stringify([month, status, search, page]);
+  const reportKey = JSON.stringify([month, status, source, search, page]);
   const isLoading = loading || loadedKey !== reportKey;
   const monthLabel = month ? getReportMonthRange(month).gte.toLocaleDateString('id-ID', {
     timeZone: 'Asia/Jakarta', month: 'long', year: 'numeric',
@@ -98,7 +110,7 @@ export default function InstallationReportPage() {
     setPreview(null);
     const timer = setTimeout(async () => {
       try {
-        const query = new URLSearchParams({ status, search, month, page: String(page) }).toString();
+        const query = new URLSearchParams({ status, search, month, page: String(page), ...(source !== 'all' ? { source } : {}) }).toString();
         const res = await fetch(`/api/tasks?${query}`, { signal: controller.signal });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Laporan tidak dapat dimuat.');
@@ -123,7 +135,7 @@ export default function InstallationReportPage() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [status, search, month, page, retry, reportKey]);
+  }, [status, source, search, month, page, retry, reportKey]);
 
   return (
     <div className="space-y-6">
@@ -131,7 +143,7 @@ export default function InstallationReportPage() {
       <div>
         <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">Laporan Pemasangan</h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Tugas pemasangan dari Telegram beserta foto bukti yang dikirim pemasang
+          Semua bukti pemasangan, baik dari tugas bot Telegram maupun dari Distribusi Peralatan Listrik di web
         </p>
       </div>
 
@@ -152,7 +164,7 @@ export default function InstallationReportPage() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               aria-label="Cari laporan pemasangan"
-              placeholder="Cari barang, pemasang, atau lokasi..."
+              placeholder="Cari barang, pemasang, lokasi, atau no. dokumen..."
               className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
             />
           </div>
@@ -160,6 +172,15 @@ export default function InstallationReportPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[11px] text-slate-500">Foto berdasarkan bulan unggah (WIB). Tugas menunggu foto berdasarkan bulan dibuat.</p>
           <div className="flex flex-wrap gap-2">
+            <label htmlFor="report-source" className="sr-only">Sumber</label>
+            <select
+              id="report-source"
+              value={source}
+              onChange={(e) => { setSource(e.target.value); setPage(1); }}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+            >
+              {SOURCE_FILTERS.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
+            </select>
             {STATUS_FILTERS.map((filter) => (
               <button
                 key={filter.value}
@@ -180,7 +201,7 @@ export default function InstallationReportPage() {
 
       {!isLoading && !error && summary.total > 0 && (
         <p className="text-xs text-slate-500">
-          {monthLabel}: {summary.total} tugas · {summary.completedCount} selesai · {summary.pendingCount} menunggu foto
+          {monthLabel}: {summary.total} pemasangan · {summary.completedCount} selesai · {summary.pendingCount} menunggu foto
         </p>
       )}
 
@@ -228,7 +249,18 @@ export default function InstallationReportPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="font-bold text-sm text-slate-900 truncate">{task.productName}</h3>
-                    <p className="text-[11px] text-slate-500 font-mono">{task.sku}</p>
+                    <p className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      {task.source === 'WEB' ? (
+                        <span className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                          <Globe className="h-3 w-3" aria-hidden="true" /> Web
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+                          <Send className="h-3 w-3" aria-hidden="true" /> Telegram
+                        </span>
+                      )}
+                      <span className="font-mono">{task.reference ?? task.sku}</span>
+                    </p>
                   </div>
                   {task.status === 'COMPLETED' ? (
                     <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
@@ -242,7 +274,7 @@ export default function InstallationReportPage() {
                 </div>
 
                 <p className="text-xs font-semibold text-slate-800">
-                  {task.quantity} {task.unit}
+                  {task.quantityLabel}
                 </p>
                 <div className="space-y-1 text-xs text-slate-600">
                   <p className="flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-slate-400" /> {task.assigneeName}</p>
@@ -253,6 +285,11 @@ export default function InstallationReportPage() {
                   </p>
                 </div>
                 {task.notes && <p className="text-[11px] text-slate-500 italic">"{task.notes}"</p>}
+                {task.source === 'WEB' && task.status === 'PENDING' && (
+                  <Link href="/distribution-reports/listrik" className="inline-block text-[11px] font-semibold text-maroon-800 underline">
+                    Kirim ulang link foto di Laporan Peralatan Listrik
+                  </Link>
+                )}
               </div>
             </div>
           ))
@@ -289,7 +326,7 @@ export default function InstallationReportPage() {
               className="w-full max-h-[75vh] object-contain rounded-xl bg-black"
             />
             <p className="text-center text-white text-xs mt-3">
-              {preview.productName} ({preview.quantity} {preview.unit}) · {preview.assigneeName} · {preview.location} ·{' '}
+              {preview.productName} ({preview.quantityLabel}) · {preview.assigneeName} · {preview.location} ·{' '}
               {formatDate(preview.completedAt)}
             </p>
           </div>

@@ -7,11 +7,51 @@ import type { Prisma } from '@prisma/client';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * Laporan Pemasangan: satu daftar bukti pemasangan dari dua pintu masuk.
+ * - TELEGRAM: tugas pemasangan dari bot (InstallationTask)
+ * - WEB: Distribusi Peralatan Listrik dengan link foto (Distribution LISTRIK)
+ * Data tetap di tabel masing-masing; di sini hanya digabung untuk ditampilkan.
+ * Aturan bulan sama untuk keduanya: yang sudah ada foto menurut waktu unggah,
+ * yang menunggu foto menurut waktu dibuat (WIB).
+ */
+type ReportItem = {
+  id: string;
+  source: 'TELEGRAM' | 'WEB';
+  reference: string | null;
+  productName: string;
+  sku: string;
+  unit: string;
+  quantity: number;
+  quantityLabel: string;
+  assigneeName: string;
+  location: string;
+  notes: string | null;
+  status: 'PENDING' | 'COMPLETED';
+  creatorName: string;
+  createdAt: Date;
+  completedAt: Date | null;
+  photoUrl: string | null;
+};
+
+// Urutan: foto terbaru dulu, lalu yang menunggu foto menurut waktu dibuat terbaru.
+function compareItems(a: ReportItem, b: ReportItem) {
+  const aDone = a.completedAt?.getTime();
+  const bDone = b.completedAt?.getTime();
+  if (aDone !== bDone) {
+    if (aDone === undefined) return 1;
+    if (bDone === undefined) return -1;
+    return bDone - aDone;
+  }
+  return b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
     const search = searchParams.get('search')?.trim();
+    const source = searchParams.get('source');
     const month = searchParams.get('month') ?? getCurrentReportMonth();
     let monthRange: ReturnType<typeof getReportMonthRange>;
     try {
@@ -24,7 +64,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Nomor halaman tidak valid.' }, { status: 400 });
     }
     const pageSize = 24;
-    const where: Prisma.InstallationTaskWhereInput = {
+    const includeTelegram = source !== 'WEB';
+    const includeWeb = source !== 'TELEGRAM';
+    const contains = (value: string) => ({ contains: value, mode: 'insensitive' as const });
+
+    const taskWhere: Prisma.InstallationTaskWhereInput = {
       AND: [
         {
           OR: [
@@ -35,41 +79,116 @@ export async function GET(req: NextRequest) {
         ...(status === 'PENDING' || status === 'COMPLETED' ? [{ status }] : []),
         ...(search ? [{
           OR: [
-            { assigneeName: { contains: search, mode: 'insensitive' as const } },
-            { location: { contains: search, mode: 'insensitive' as const } },
-            { product: { name: { contains: search, mode: 'insensitive' as const } } },
+            { assigneeName: contains(search) },
+            { location: contains(search) },
+            { product: { name: contains(search) } },
           ],
         }] : []),
       ],
     };
-    const findPage = (pageNumber: number) =>
-      prisma.installationTask.findMany({
-        where,
-        orderBy: [{ completedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
-        take: pageSize,
-        skip: (pageNumber - 1) * pageSize,
-        include: {
-          product: { select: { name: true, sku: true, unit: true } },
-          creator: { select: { name: true } },
-        },
-      });
 
-    // Hitung jumlah dan ambil halaman yang diminta secara paralel (satu round-trip database).
-    const [counts, requestedTasks] = await Promise.all([
-      prisma.installationTask.groupBy({
-        by: ['status'],
-        where,
-        _count: { _all: true },
-      }),
-      findPage(requestedPage),
+    const distributionWhere: Prisma.DistributionWhereInput = {
+      stockGroup: 'LISTRIK',
+      status: 'COMPLETED', // dokumen yang dibatalkan tidak ikut
+      AND: [
+        {
+          OR: [
+            { proofFileName: { not: null }, proofUploadedAt: monthRange },
+            { proofFileName: null, createdAt: monthRange },
+          ],
+        },
+        ...(status === 'COMPLETED' ? [{ proofFileName: { not: null } }] : []),
+        ...(status === 'PENDING' ? [{ proofFileName: null }] : []),
+        ...(search ? [{
+          OR: [
+            { handoverName: contains(search) },
+            { recipientUnit: contains(search) },
+            { number: contains(search) },
+            { items: { some: { product: { name: contains(search) } } } },
+          ],
+        }] : []),
+      ],
+    };
+
+    // Cukup ambil tugas Telegram sebanyak yang dibutuhkan sampai halaman yang diminta;
+    // distribusi listrik per bulan sedikit sehingga diambil semua lalu digabung.
+    const [taskCounts, tasks, distributions] = await Promise.all([
+      includeTelegram
+        ? prisma.installationTask.groupBy({ by: ['status'], where: taskWhere, _count: { _all: true } })
+        : Promise.resolve([] as { status: string; _count: { _all: number } }[]),
+      includeTelegram
+        ? prisma.installationTask.findMany({
+            where: taskWhere,
+            orderBy: [{ completedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
+            take: requestedPage * pageSize,
+            include: {
+              product: { select: { name: true, sku: true, unit: true } },
+              creator: { select: { name: true } },
+            },
+          })
+        : Promise.resolve([]),
+      includeWeb
+        ? prisma.distribution.findMany({
+            where: distributionWhere,
+            take: 2000,
+            include: {
+              items: { orderBy: { id: 'asc' }, include: { product: { select: { name: true, sku: true } } } },
+              creator: { select: { name: true } },
+            },
+          })
+        : Promise.resolve([]),
     ]);
-    const completedCount = counts.find((group) => group.status === 'COMPLETED')?._count._all || 0;
-    const pendingCount = counts.find((group) => group.status === 'PENDING')?._count._all || 0;
+
+    const items: ReportItem[] = [
+      ...tasks.map((task): ReportItem => ({
+        id: task.id,
+        source: 'TELEGRAM',
+        reference: null,
+        productName: task.product.name,
+        sku: task.product.sku,
+        unit: task.product.unit,
+        quantity: task.quantity,
+        quantityLabel: `${task.quantity} ${task.product.unit}`,
+        assigneeName: task.assigneeName,
+        location: task.location,
+        notes: task.notes,
+        status: task.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
+        creatorName: task.creator.name,
+        createdAt: task.createdAt,
+        completedAt: task.completedAt,
+        photoUrl: task.proofFileName ? `/api/tasks/${task.id}/photo` : null,
+      })),
+      ...distributions.map((distribution): ReportItem => {
+        const first = distribution.items[0];
+        const extra = distribution.items.length - 1;
+        return {
+          id: distribution.id,
+          source: 'WEB',
+          reference: distribution.number,
+          productName: first ? `${first.product.name}${extra > 0 ? ` +${extra} lainnya` : ''}` : '-',
+          sku: distribution.number,
+          unit: first?.unit ?? '',
+          quantity: first?.quantity ?? 0,
+          quantityLabel: distribution.items.map((item) => `${item.quantity} ${item.unit}`).join(' + ') || '-',
+          assigneeName: distribution.handoverName,
+          location: distribution.recipientUnit,
+          notes: distribution.notes,
+          status: distribution.proofFileName ? 'COMPLETED' : 'PENDING',
+          creatorName: distribution.creator?.name ?? '-',
+          createdAt: distribution.createdAt,
+          completedAt: distribution.proofUploadedAt,
+          photoUrl: distribution.proofFileName ? `/api/distributions/${distribution.id}/photo` : null,
+        };
+      }),
+    ].sort(compareItems);
+
+    const webCompleted = distributions.filter((d) => d.proofFileName).length;
+    const completedCount = (taskCounts.find((group) => group.status === 'COMPLETED')?._count._all || 0) + webCompleted;
+    const pendingCount = (taskCounts.find((group) => group.status === 'PENDING')?._count._all || 0) + (distributions.length - webCompleted);
     const total = completedCount + pendingCount;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    // Halaman di luar jangkauan diarahkan ke halaman terakhir; data yang sudah diambil sudah mencakupnya.
     const page = Math.min(requestedPage, totalPages);
-    // Jarang terjadi: halaman yang diminta melebihi jumlah halaman, ambil ulang halaman terakhir.
-    const tasks = page === requestedPage ? requestedTasks : await findPage(page);
 
     return NextResponse.json({
       month,
@@ -79,21 +198,7 @@ export async function GET(req: NextRequest) {
       totalPages,
       completedCount,
       pendingCount,
-      items: tasks.map((task) => ({
-        id: task.id,
-        productName: task.product.name,
-        sku: task.product.sku,
-        unit: task.product.unit,
-        quantity: task.quantity,
-        assigneeName: task.assigneeName,
-        location: task.location,
-        notes: task.notes,
-        status: task.status,
-        creatorName: task.creator.name,
-        createdAt: task.createdAt,
-        completedAt: task.completedAt,
-        photoUrl: task.proofFileName ? `/api/tasks/${task.id}/photo` : null,
-      })),
+      items: items.slice((page - 1) * pageSize, page * pageSize),
     });
   } catch (error) {
     return apiError(error, 'GET /api/tasks', req, 'Daftar tugas tidak dapat dimuat.');
