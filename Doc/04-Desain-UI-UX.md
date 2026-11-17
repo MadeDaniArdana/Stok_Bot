@@ -1,4 +1,4 @@
-# UI/UX Design Specification — StockFlow
+# UI/UX Design Specification - StockFlow
 ## Panduan Desain Website dan Pengalaman Telegram
 
 **Versi:** 1.0  
@@ -127,7 +127,7 @@ Setiap field memiliki:
 
 ## 6. Spesifikasi Halaman
 
-### 6.1 Login — `/login`
+### 6.1 Login - `/login`
 **Tujuan:** admin masuk dengan aman.
 
 Elemen:
@@ -138,7 +138,7 @@ Elemen:
 - Tombol “Masuk”.
 - Pesan error umum tanpa membocorkan apakah email tertentu terdaftar.
 
-### 6.2 Dashboard — `/dashboard`
+### 6.2 Dashboard - `/dashboard`
 **Tujuan:** memberi gambaran kondisi persediaan dalam beberapa detik.
 
 Urutan konten:
@@ -153,7 +153,7 @@ Catatan UX:
 - Klik item stok kritis membuka detail barang.
 - Data kosong harus menjelaskan bahwa belum ada transaksi.
 
-### 6.3 Daftar Barang — `/products`
+### 6.3 Daftar Barang - `/products`
 Elemen:
 - Judul dan tombol “Tambah Barang”.
 - Search nama/SKU.
@@ -186,7 +186,7 @@ Tampilkan:
 - Tombol “Barang Masuk” dan “Barang Keluar” sesuai izin.
 - Riwayat movement barang tersebut.
 
-### 6.6 Barang Masuk — `/stock/in`
+### 6.6 Barang Masuk - `/stock/in`
 Field:
 - Barang (searchable select).
 - Jumlah.
@@ -196,7 +196,7 @@ Field:
 
 Sebelum simpan, tampilkan ringkasan: stok sekarang + jumlah masuk = stok setelah transaksi.
 
-### 6.7 Barang Keluar — `/stock/out`
+### 6.7 Barang Keluar - `/stock/out`
 Field:
 - Barang.
 - Jumlah.
@@ -205,7 +205,7 @@ Field:
 
 Sebelum simpan, tampilkan stok tersedia dan perkiraan stok sesudah. Jika jumlah melebihi stok, tombol simpan dinonaktifkan atau server menolak dengan pesan yang jelas. Validasi server tetap wajib.
 
-### 6.8 Riwayat Transaksi — `/stock/history`
+### 6.8 Riwayat Transaksi - `/stock/history`
 Filter:
 - Periode tanggal.
 - Barang.
@@ -223,14 +223,14 @@ Kolom:
 - Sumber.
 - Catatan.
 
-### 6.9 Pengguna — `/users`
+### 6.9 Pengguna - `/users`
 - Daftar pengguna.
 - Role dan status aktif.
 - Status Telegram terhubung/tidak.
 - Buat/edit/nonaktifkan akun.
 - Aksi menghubungkan ulang Telegram dilakukan dengan proses aman.
 
-### 6.10 Integrasi Telegram — `/telegram`
+### 6.10 Integrasi Telegram - `/telegram`
 Tampilkan:
 - Status bot (terkonfigurasi/tidak).
 - Username bot jika aman untuk ditampilkan.
@@ -240,7 +240,7 @@ Tampilkan:
 - Petunjuk linking pengguna.
 - Jangan pernah menampilkan bot token atau secret webhook.
 
-### 6.11 Laporan — `/reports`
+### 6.11 Laporan - `/reports`
 MVP:
 - Filter periode.
 - Ringkasan barang masuk dan keluar.

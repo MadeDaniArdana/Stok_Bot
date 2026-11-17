@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'StockFlow — Inventory Management System',
+  title: 'StockFlow - Inventory Management System',
   description: 'Sistem Pengelolaan Persediaan Berbasis Web dengan Integrasi Telegram',
 };
 

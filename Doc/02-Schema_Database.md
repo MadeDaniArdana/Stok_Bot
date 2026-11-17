@@ -1,4 +1,4 @@
-# Database Schema — StockFlow
+# Database Schema - StockFlow
 ## PostgreSQL + Prisma ORM
 
 **Versi:** 1.0  

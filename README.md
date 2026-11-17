@@ -1,4 +1,4 @@
-# StockFlow — Inventory Management System
+# StockFlow - Inventory Management System
 
 Aplikasi manajemen persediaan gudang berbasis web modern dengan **Integrasi Telegram Bot** dan **Tema Maroon Elegance**, dibangun mengikuti panduan teknis pada folder `Doc/` (`01-PRD.md`, `02-Schema_Database.md`, `03-MVP.md`, `04-Desain-UI-UX.md`, dan `05-Arsitektur.md`).
 

@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-## StockFlow — Inventory Management System dengan Integrasi Telegram
+## StockFlow - Inventory Management System dengan Integrasi Telegram
 
 **Versi:** 1.0  
 **Status:** Draft siap menjadi acuan pengembangan MVP  
@@ -91,7 +91,7 @@ Menyediakan satu sumber data persediaan yang mudah digunakan, transparan, dan da
 
 ## 5. Fitur dan Kebutuhan Fungsional
 
-### FR-01 — Autentikasi
+### FR-01 - Autentikasi
 - Admin dapat login dan logout.
 - Halaman dashboard hanya dapat diakses setelah autentikasi.
 - Endpoint dan server action memeriksa sesi serta role, bukan hanya menyembunyikan menu di UI.
@@ -102,7 +102,7 @@ Menyediakan satu sumber data persediaan yang mudah digunakan, transparan, dan da
 - Role yang tidak berhak menerima respons akses ditolak.
 - Password disimpan dalam bentuk hash oleh penyedia autentikasi yang digunakan.
 
-### FR-02 — Dashboard
+### FR-02 - Dashboard
 Menampilkan:
 - Total jenis barang aktif.
 - Total kuantitas stok (angka agregat, dengan catatan satuan barang dapat berbeda).
@@ -114,7 +114,7 @@ Menampilkan:
 
 **Catatan:** total kuantitas lintas satuan hanya indikator agregat, bukan ukuran fisik yang dapat dijumlahkan secara bermakna. Tampilkan juga jumlah SKU dan rincian per satuan bila diperlukan.
 
-### FR-03 — Manajemen Barang
+### FR-03 - Manajemen Barang
 Admin dapat:
 - Membuat, melihat, mengubah, mencari, memfilter, dan menonaktifkan barang.
 - Mengatur nama, kategori, satuan, stok minimum, dan deskripsi; stok awal wajib diisi saat barang dibuat dan SKU otomatis dibuat dari kategori.
@@ -129,19 +129,19 @@ Admin dapat:
 - Stok minimum tidak boleh negatif.
 - Barang yang sudah memiliki transaksi hanya dapat diarsipkan/nonaktifkan.
 
-### FR-04 — Kategori dan Satuan
+### FR-04 - Kategori dan Satuan
 - Admin dapat mengelola kategori.
 - Satuan menggunakan daftar yang konsisten, misalnya pcs, box, rim, unit, meter, liter.
 - Barang memakai satu satuan dasar untuk seluruh transaksi.
 - Konversi satuan tidak termasuk MVP. Jangan mengizinkan transaksi menggunakan satuan berbeda tanpa aturan konversi yang eksplisit.
 
-### FR-05 — Barang Masuk (Stock In)
+### FR-05 - Barang Masuk (Stock In)
 Admin memasukkan barang, kuantitas, tanggal, sumber/supplier opsional, dan catatan.
 - Kuantitas harus lebih besar dari nol.
 - Sistem menambah stok dan membuat catatan `IN` dalam satu transaksi database.
 - Transaksi menyimpan aktor dan sumber transaksi.
 
-### FR-06 — Tugas Pemasangan dan Barang Keluar
+### FR-06 - Tugas Pemasangan dan Barang Keluar
 - Hanya admin Telegram yang masuk allowlist dapat membuat tugas pemasangan.
 - Tugas memuat barang, jumlah, nama pemasang, lokasi, dan catatan opsional.
 - Bot menghasilkan link unik; halaman link menampilkan ringkasan tugas dan menyediakan pengiriman foto.
@@ -149,7 +149,7 @@ Admin memasukkan barang, kuantitas, tanggal, sumber/supplier opsional, dan catat
 - Link tidak dapat menyelesaikan tugas lebih dari satu kali.
 - Jika stok tidak cukup saat foto dikirim, tugas tetap menunggu dan stok tidak berubah.
 
-### FR-07 — Integrasi Telegram
+### FR-07 - Integrasi Telegram
 Bot menyediakan menu tombol untuk melihat stok, mencari barang, melihat riwayat, dan melacak tugas. Admin membuat tugas melalui panduan bertahap:
 1. Memilih barang dan jumlah melalui tombol.
 2. Mengisi nama pemasang dan lokasi; catatan bersifat opsional.
@@ -157,7 +157,7 @@ Bot menyediakan menu tombol untuk melihat stok, mencari barang, melihat riwayat,
 
 Bot mengirim link bukti dan tombol berbagi WhatsApp. Perintah `/link` hanya diperlukan saat pertama kali menghubungkan akun. Perintah teks lama tetap dapat digunakan sebagai jalur kompatibilitas, tetapi bukan alur utama.
 
-### FR-08 — Pengaitan Telegram
+### FR-08 - Pengaitan Telegram
 - Pengguna memulai bot dengan `/start`.
 - Sistem memberikan kode pengaitan sekali pakai atau mekanisme verifikasi yang aman.
 - Pengguna memasukkan kode pada website atau admin mengaitkan akun secara terkontrol.
@@ -165,13 +165,13 @@ Bot mengirim link bukti dan tombol berbagi WhatsApp. Perintah `/link` hanya dipe
 - Satu Telegram User ID tidak boleh terhubung ke beberapa akun aktif tanpa kebijakan eksplisit.
 - Token bot dan secret webhook tidak pernah ditampilkan ke browser.
 
-### FR-09 — Riwayat Transaksi
+### FR-09 - Riwayat Transaksi
 Menampilkan waktu, barang, jenis transaksi, kuantitas, stok sebelum/sesudah (jika disimpan), aktor, sumber, dan catatan.
 - Dapat difilter berdasarkan periode, barang, tipe, pengguna, dan sumber.
 - Transaksi tidak dihapus permanen.
 - Koreksi dilakukan dengan movement pembalik yang merujuk transaksi awal.
 
-### FR-10 — Peringatan Stok Minimum
+### FR-10 - Peringatan Stok Minimum
 - Ketika stok mencapai atau berada di bawah batas minimum, sistem membuat notifikasi.
 - Notifikasi tidak dikirim berulang untuk setiap refresh.
 - Admin dapat melihat notifikasi pada website dan menerimanya melalui Telegram jika bot dan akun admin dikonfigurasi.

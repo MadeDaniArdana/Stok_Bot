@@ -135,7 +135,7 @@ export function TelegramAdminPanel() {
           </>
         )}
         <ol className="text-[11px] text-slate-500 text-left mt-4 space-y-1 list-decimal list-inside self-stretch">
-          <li>Calon admin scan QR ini lalu tekan <strong>Start</strong> di Telegram.</li>
+          <li>Calon admin scan QR ini lalu tekan tombol <strong>Mulai / Start</strong> di bawah chat. Jika tidak muncul, ketik <strong>/start</strong> lalu kirim.</li>
           <li>Klik <strong>Segarkan</strong>; namanya muncul di daftar "Baru menghubungi bot".</li>
           <li>Klik <strong>Jadikan admin</strong>, lalu minta dia menekan Start sekali lagi.</li>
         </ol>

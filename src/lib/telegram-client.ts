@@ -167,3 +167,53 @@ export async function sendTelegramPhoto(
     return false;
   }
 }
+
+let botProfileReady = false;
+
+/**
+ * Mengisi deskripsi, deskripsi singkat, dan daftar perintah bot.
+ * Deskripsi inilah yang tampil di chat kosong ("Apa yang bisa dilakukan bot ini?")
+ * sebelum pengguna menekan Start, sehingga pengguna baru tidak melihat layar kosong.
+ * Cukup berhasil sekali per proses server; aman dipanggil berulang.
+ */
+export async function ensureTelegramBotProfile(): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (botProfileReady || !token) return;
+
+  const call = async (method: string, body: unknown) => {
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`${method} gagal (${res.status}): ${await res.text()}`);
+  };
+
+  try {
+    await Promise.all([
+      call('setMyDescription', {
+        description:
+          'StockFlow Bot - asisten stok gudang.\n\n' +
+          'Tekan tombol MULAI / START di bawah untuk memulai.\n\n' +
+          'Admin dapat melihat stok, mencari barang, membuat tugas pemasangan, dan melihat riwayat. ' +
+          'Jika akun Anda belum terdaftar, bot akan menampilkan ID Telegram Anda untuk diberikan ke admin.',
+      }),
+      call('setMyShortDescription', {
+        short_description: 'Asisten stok gudang StockFlow. Tekan Start untuk memulai.',
+      }),
+      call('setMyCommands', {
+        commands: [
+          { command: 'start', description: 'Mulai dan tampilkan menu' },
+          { command: 'stok', description: 'Lihat stok barang' },
+          { command: 'cari', description: 'Cari barang' },
+          { command: 'tugas', description: 'Daftar tugas pemasangan' },
+          { command: 'riwayat', description: 'Riwayat transaksi' },
+          { command: 'bantuan', description: 'Cara memakai bot' },
+        ],
+      }),
+    ]);
+    botProfileReady = true;
+  } catch (error) {
+    await logError({ source: 'TELEGRAM', level: 'WARNING', error, location: 'ensureTelegramBotProfile' });
+  }
+}

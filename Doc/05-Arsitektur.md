@@ -1,4 +1,4 @@
-# System Architecture — StockFlow
+# System Architecture - StockFlow
 ## Arsitektur Aplikasi Web dan Integrasi Telegram
 
 **Versi:** 1.0  
@@ -344,13 +344,13 @@ Sediakan prosedur:
 
 ## 16. Rencana Evolusi Arsitektur
 
-### Tahap 1 — MVP
+### Tahap 1 - MVP
 Modular monolith, satu database PostgreSQL, satu bot, satu gudang, dan penyimpanan foto di Vercel Blob.
 
-### Tahap 2 — Operasional berkembang
+### Tahap 2 - Operasional berkembang
 Tambahkan job queue/outbox, notifikasi retry, export, approval, dan monitoring lebih lengkap.
 
-### Tahap 3 — Skala lebih besar
+### Tahap 3 - Skala lebih besar
 Pertimbangkan multi-gudang, event processing, service terpisah, cache, dan analitik terpisah hanya jika volume dan kebutuhan sudah membenarkan.
 
 ## 17. Keputusan Teknis yang Harus Dikunci
