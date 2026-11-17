@@ -42,27 +42,34 @@ export async function GET(req: NextRequest) {
         }] : []),
       ],
     };
-    const counts = await prisma.installationTask.groupBy({
-      by: ['status'],
-      where,
-      _count: { _all: true },
-    });
+    const findPage = (pageNumber: number) =>
+      prisma.installationTask.findMany({
+        where,
+        orderBy: [{ completedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
+        take: pageSize,
+        skip: (pageNumber - 1) * pageSize,
+        include: {
+          product: { select: { name: true, sku: true, unit: true } },
+          creator: { select: { name: true } },
+        },
+      });
+
+    // Hitung jumlah dan ambil halaman yang diminta secara paralel (satu round-trip database).
+    const [counts, requestedTasks] = await Promise.all([
+      prisma.installationTask.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+      }),
+      findPage(requestedPage),
+    ]);
     const completedCount = counts.find((group) => group.status === 'COMPLETED')?._count._all || 0;
     const pendingCount = counts.find((group) => group.status === 'PENDING')?._count._all || 0;
     const total = completedCount + pendingCount;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const page = Math.min(requestedPage, totalPages);
-
-    const tasks = await prisma.installationTask.findMany({
-      where,
-      orderBy: [{ completedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
-      take: pageSize,
-      skip: (page - 1) * pageSize,
-      include: {
-        product: { select: { name: true, sku: true, unit: true } },
-        creator: { select: { name: true } },
-      },
-    });
+    // Jarang terjadi: halaman yang diminta melebihi jumlah halaman, ambil ulang halaman terakhir.
+    const tasks = page === requestedPage ? requestedTasks : await findPage(page);
 
     return NextResponse.json({
       month,

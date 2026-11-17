@@ -52,6 +52,11 @@ const suggestions = [
   },
 ];
 
+function resizeTextarea(textarea: HTMLTextAreaElement) {
+  textarea.style.height = "auto";
+  textarea.style.height = Math.min(textarea.scrollHeight, 192) + "px";
+}
+
 export function AssistantChat() {
   const { currentUser } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -114,24 +119,26 @@ export function AssistantChat() {
     }
   }, [messages, sending, activeId]);
 
+  // Tinggi textarea mengikuti isi saat mengetik.
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (textarea) resizeTextarea(textarea);
+  }, [input, hasMessages]);
+
+  // Observer cukup dipasang sekali per textarea (bukan di setiap ketukan tombol).
   useEffect(() => {
     const textarea = inputRef.current;
     if (!textarea) return;
-    const resize = () => {
-      textarea.style.height = "auto";
-      textarea.style.height = Math.min(textarea.scrollHeight, 192) + "px";
-    };
-    resize();
     let width = textarea.clientWidth;
     const observer = new ResizeObserver(() => {
       if (textarea.clientWidth !== width) {
         width = textarea.clientWidth;
-        resize();
+        resizeTextarea(textarea);
       }
     });
     observer.observe(textarea);
     return () => observer.disconnect();
-  }, [input, hasMessages]);
+  }, [hasMessages]);
 
   useEffect(() => () => requestRef.current?.controller.abort(), []);
 

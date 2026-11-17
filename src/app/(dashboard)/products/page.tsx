@@ -1,11 +1,11 @@
 'use client';
 
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
-import { StockEntryForm } from '@/components/products/StockEntryForm';
+import dynamic from 'next/dynamic';
 import { UnitInput } from '@/components/products/UnitInput';
 import { cn } from '@/lib/cn';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Plus,
@@ -20,6 +20,12 @@ import {
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
 
+// Form Barang Masuk hanya dipakai di dalam modal, jadi kodenya dimuat saat modal dibuka.
+const StockEntryForm = dynamic(
+  () => import('@/components/products/StockEntryForm').then((mod) => mod.StockEntryForm),
+  { ssr: false, loading: () => <p className="p-6 text-sm text-slate-500">Memuat formulir...</p> }
+);
+
 function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,6 +39,8 @@ function ProductsContent() {
 
   // Filters
   const [search, setSearch] = useState('');
+  // Kata kunci yang benar-benar dikirim ke API, menunggu 300 ms setelah berhenti mengetik.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryId, setCategoryId] = useState('all');
   const [stockStatus, setStockStatus] = useState(searchParams.get('stockStatus') || 'all');
   const [status, setStatus] = useState('all');
@@ -72,11 +80,14 @@ function ProductsContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch products
+  // Penanda permintaan terbaru, agar respons lama tidak menimpa hasil filter terbaru.
+  const latestRequest = useRef(0);
   const fetchProducts = async () => {
+    const requestId = ++latestRequest.current;
     try {
       setLoading(true);
       const query = new URLSearchParams({
-        search,
+        search: debouncedSearch,
         categoryId,
         stockStatus,
         status,
@@ -85,12 +96,12 @@ function ProductsContent() {
       const res = await fetch(`/api/products?${query}`);
       if (res.ok) {
         const data = await res.json();
-        setProducts(data.items || []);
+        if (requestId === latestRequest.current) setProducts(data.items || []);
       }
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   };
 
@@ -112,8 +123,13 @@ function ProductsContent() {
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     fetchProducts();
-  }, [search, categoryId, stockStatus, status]);
+  }, [debouncedSearch, categoryId, stockStatus, status]);
 
   // Open Edit Modal
   const openEdit = (p: any) => {

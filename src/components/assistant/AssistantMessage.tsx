@@ -1,14 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import dynamic from "next/dynamic";
 import { Check, Copy, RotateCcw, TriangleAlert } from "lucide-react";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { Message } from "./chat-history";
 
 const cn = (...inputs: Parameters<typeof clsx>) => twMerge(clsx(...inputs));
+
+// react-markdown + remark-gfm (~55 KB) baru dimuat saat ada jawaban yang perlu ditampilkan.
+// Setelah dimuat sekali, file tersimpan di cache browser sehingga jawaban berikutnya langsung tampil.
+const MarkdownBody = dynamic(() => import("./MarkdownBody").then((mod) => mod.MarkdownBody), {
+  ssr: false,
+  loading: () => <div className="assistant-markdown whitespace-pre-wrap" />,
+});
 
 export function AssistantMessage({
   message,
@@ -64,35 +70,7 @@ export function AssistantMessage({
             </p>
           </div>
         ) : (
-          <div className="assistant-markdown">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                a: ({ children, href }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-neutral-300 underline-offset-4 hover:decoration-neutral-700"
-                  >
-                    {children}
-                  </a>
-                ),
-                img: ({ alt }) => (
-                  <span className="text-neutral-500">{alt || "Image"}</span>
-                ),
-                table: ({ children }) => (
-                  <div className="my-5 overflow-x-auto rounded-xl border border-neutral-200">
-                    <table className="w-full border-collapse text-left text-sm tabular-nums">
-                      {children}
-                    </table>
-                  </div>
-                ),
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
-          </div>
+          <MarkdownBody content={message.content} />
         )}
       </div>
       <div className="mt-3 flex items-center gap-1 text-neutral-400">

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 
+const MAX_VISIBLE_OPTIONS = 50;
+
 interface ProductOption {
   id: string;
   name: string;
@@ -29,13 +31,18 @@ export function ProductPicker({ id, products, value, onChange, disabled = false,
   const selected = products.find((product) => product.id === value);
   const expanded = open && !disabled;
   const listId = `${id}-options`;
-  const filtered = useMemo(() => {
+  // Teks pencarian per barang dihitung sekali, bukan di setiap ketukan tombol.
+  const searchIndex = useMemo(
+    () => products.map((product) => ({ product, text: `${product.name} ${product.sku}`.toLocaleLowerCase('id-ID') })),
+    [products]
+  );
+  const matches = useMemo(() => {
     const words = (query || '').trim().toLocaleLowerCase('id-ID').split(/\s+/).filter(Boolean);
-    return products.filter((product) => {
-      const text = `${product.name} ${product.sku}`.toLocaleLowerCase('id-ID');
-      return words.every((word) => text.includes(word));
-    });
-  }, [products, query]);
+    return searchIndex.filter(({ text }) => words.every((word) => text.includes(word))).map(({ product }) => product);
+  }, [searchIndex, query]);
+  // Hanya sebagian hasil yang dirender agar dropdown tetap ringan walau barangnya ratusan.
+  const filtered = useMemo(() => matches.slice(0, MAX_VISIBLE_OPTIONS), [matches]);
+  const hiddenCount = matches.length - filtered.length;
   const activeOption = filtered[activeIndex];
 
   useEffect(() => {
@@ -152,6 +159,11 @@ export function ProductPicker({ id, products, value, onChange, disabled = false,
               {product.id === value && <Check className="h-4 w-4 shrink-0 text-maroon-800" aria-hidden="true" />}
             </li>
           ))}
+          {hiddenCount > 0 && (
+            <li role="presentation" className="px-3 py-2 text-center text-[11px] text-slate-500">
+              {hiddenCount} barang lain tidak ditampilkan. Ketik lebih spesifik untuk mempersempit.
+            </li>
+          )}
         </ul>
       )}
       <p id={`${id}-hint`} className="mt-1.5 text-[11px] text-slate-500">Ketik nama atau SKU, lalu pilih barang dari hasil pencarian.</p>
