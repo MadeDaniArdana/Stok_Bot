@@ -154,7 +154,7 @@ function StockInContent() {
                 <option value="">-- Pilih Barang --</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    [{p.sku}] {p.name} — Stok Saat Ini: {p.currentStock} {p.unit}
+                    [{p.sku}] {p.name} - Stok Saat Ini: {p.currentStock} {p.unit}
                   </option>
                 ))}
               </select>

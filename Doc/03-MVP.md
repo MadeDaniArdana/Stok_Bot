@@ -1,4 +1,4 @@
-# MVP Plan — StockFlow
+# MVP Plan - StockFlow
 ## Rencana Produk Minimum yang Siap Diuji
 
 **Versi:** 1.0  
@@ -20,7 +20,7 @@ Untuk StockFlow, MVP dianggap berhasil jika:
 
 ## 2. Prioritas Fitur
 
-### P0 — Wajib sebelum uji operasional
+### P0 - Wajib sebelum uji operasional
 
 | Fitur | Hasil yang diharapkan | Pengguna |
 |---|---|---|
@@ -38,7 +38,7 @@ Untuk StockFlow, MVP dianggap berhasil jika:
 | Validasi stok | Stok tidak menjadi negatif | Sistem |
 | Log error | Admin/developer dapat menelusuri kegagalan | Sistem |
 
-### P1 — Setelah alur P0 stabil
+### P1 - Setelah alur P0 stabil
 - Notifikasi Telegram untuk stok minimum.
 - Pencarian dan filter lanjutan.
 - Bahasa natural dengan konfirmasi.
@@ -46,7 +46,7 @@ Untuk StockFlow, MVP dianggap berhasil jika:
 - Export CSV.
 - Grafik tren bulanan.
 
-### P2 — Pengembangan lanjutan
+### P2 - Pengembangan lanjutan
 - Multi-gudang.
 - Transfer stok.
 - Supplier dan purchase order.
@@ -115,7 +115,7 @@ Estimasi berikut adalah rencana awal, bukan janji durasi. Sesuaikan dengan jumla
 
 ## 7. User Stories dan Acceptance Criteria
 
-### US-01 — Admin membuat barang
+### US-01 - Admin membuat barang
 Sebagai admin, saya ingin menambahkan barang agar barang dapat dikelola sistem.
 
 **Acceptance criteria**
@@ -124,7 +124,7 @@ Sebagai admin, saya ingin menambahkan barang agar barang dapat dikelola sistem.
 - Stok barang baru harus bilangan bulat nol atau lebih.
 - Barang tersimpan dan muncul pada daftar.
 
-### US-02 — Admin mencatat barang masuk
+### US-02 - Admin mencatat barang masuk
 Sebagai admin, saya ingin menambahkan stok saat barang diterima.
 
 **Acceptance criteria**
@@ -133,7 +133,7 @@ Sebagai admin, saya ingin menambahkan stok saat barang diterima.
 - Movement `IN` tercatat.
 - Jika penyimpanan movement gagal, saldo tidak berubah.
 
-### US-03 — Admin membuat tugas pemasangan
+### US-03 - Admin membuat tugas pemasangan
 Sebagai admin terdaftar, saya ingin membuat tugas pemasangan melalui tombol Telegram dan membagikan link foto bukti.
 
 **Acceptance criteria**
@@ -143,7 +143,7 @@ Sebagai admin terdaftar, saya ingin membuat tugas pemasangan melalui tombol Tele
 - Stok belum berkurang saat tugas menunggu bukti.
 - Bukti foto valid menyelesaikan tugas dan mengurangi stok tepat satu kali.
 
-### US-04 — Update Telegram duplikat
+### US-04 - Update Telegram duplikat
 Sebagai sistem, saya tidak ingin tombol konfirmasi yang terkirim ulang membuat tugas ganda.
 
 **Acceptance criteria**
@@ -151,7 +151,7 @@ Sebagai sistem, saya tidak ingin tombol konfirmasi yang terkirim ulang membuat t
 - Update duplikat tidak membuat movement baru.
 - Bot tidak mengirim konfirmasi sukses palsu.
 
-### US-05 — Admin melihat stok kritis
+### US-05 - Admin melihat stok kritis
 Sebagai admin, saya ingin mengetahui barang yang mencapai batas minimum.
 
 **Acceptance criteria**
@@ -201,7 +201,7 @@ Fitur dianggap selesai jika:
 - Pengujian utama lulus.
 - Dokumentasi singkat diperbarui.
 
-## 10. UAT — User Acceptance Test
+## 10. UAT - User Acceptance Test
 
 Minta admin dan beberapa pengguna mencoba skenario berikut:
 1. Buat kategori Kertas, lalu barang Kertas A4 dengan stok 50 rim dan minimum 10.

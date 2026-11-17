@@ -255,7 +255,7 @@ export class TelegramTaskWizardService {
           const status = product.currentStock === 0
             ? 'Habis'
             : product.currentStock <= product.minimumStock ? 'Stok rendah' : 'Aman';
-          return `• ${product.name} — ${product.currentStock} ${product.unit} (${status})`;
+          return `• ${product.name} - ${product.currentStock} ${product.unit} (${status})`;
         }).join('\n')
         : `Barang "${text.trim()}" tidak ditemukan.`;
 
@@ -414,7 +414,7 @@ export class TelegramTaskWizardService {
     hasNextPage: boolean
   ): TelegramInlineKeyboardMarkup {
     const keyboard = products.map((product) => [{
-      text: `${product.name.slice(0, 40)} — ${product.currentStock} ${product.unit}`,
+      text: `${product.name.slice(0, 40)} - ${product.currentStock} ${product.unit}`,
       callback_data: `task:product:${product.id}`,
     }]);
 

@@ -573,7 +573,7 @@ export class TelegramService {
       const lines = tasks.map((task) => {
         const state = task.status === 'COMPLETED' ? 'Selesai' : 'Menunggu bukti';
         const date = task.createdAt.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-        return `• ${task.product.name} (${task.quantity} ${task.product.unit}) — ${task.assigneeName}, ${task.location}\n  ${state} | ${date}`;
+        return `• ${task.product.name} (${task.quantity} ${task.product.unit}) - ${task.assigneeName}, ${task.location}\n  ${state} | ${date}`;
       });
       return {
         replyText: `10 tugas pemasangan terbaru:\n\n${lines.join('\n\n')}`,

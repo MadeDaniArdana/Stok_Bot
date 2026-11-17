@@ -138,7 +138,7 @@ export default function TelegramPage() {
               Cara Pakai Bot (Tap Tombol)
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Untuk aktivitas harian, gunakan tombol menu—tidak perlu menghafal format atau perintah.
+              Untuk aktivitas harian, gunakan tombol menu - tidak perlu menghafal format atau perintah.
             </p>
 
             <ol className="list-decimal list-inside text-xs text-slate-600 space-y-2">

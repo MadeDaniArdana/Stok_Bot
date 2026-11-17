@@ -234,14 +234,14 @@ export function TaskProofPage({ token }: { token: string }) {
                   <Package className="mt-0.5 h-5 w-5 text-maroon-800" />
                   <div>
                     <p className="text-xs text-slate-500">Barang dan jumlah</p>
-                    <p className="font-semibold text-slate-900">{task.productName} — {task.quantity} {task.unit}</p>
+                    <p className="font-semibold text-slate-900">{task.productName} - {task.quantity} {task.unit}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <MapPin className="mt-0.5 h-5 w-5 text-maroon-800" />
                   <div>
                     <p className="text-xs text-slate-500">Pemasang dan lokasi</p>
-                    <p className="font-semibold text-slate-900">{task.assigneeName} — {task.location}</p>
+                    <p className="font-semibold text-slate-900">{task.assigneeName} - {task.location}</p>
                   </div>
                 </div>
                 {task.notes && <p className="border-t border-slate-200 pt-3 text-sm text-slate-600">{task.notes}</p>}
