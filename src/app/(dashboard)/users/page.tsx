@@ -1,5 +1,8 @@
 'use client';
 
+import { ModalOverlay } from '@/components/ui/ModalOverlay';
+import { cn } from '@/lib/cn';
+
 import React, { useState, useEffect } from 'react';
 import {
   Users,
@@ -167,7 +170,7 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">
             Manajemen Pengguna & Otorisasi
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -192,9 +195,10 @@ export default function UsersPage() {
       {/* Users Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
               <tr>
+                <th scope="col" className="w-16 py-3.5 px-4 text-center">No</th>
                 <th className="py-3.5 px-4">Nama Pengguna</th>
                 <th className="py-3.5 px-4">Email Login</th>
                 <th className="py-3.5 px-4 text-center">Peran (Role)</th>
@@ -207,26 +211,28 @@ export default function UsersPage() {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     Memuat daftar pengguna...
                   </td>
                 </tr>
               ) : (
-                users.map((u) => {
+                users.map((u, index) => {
                   const isCur = u.id === currentUser?.id;
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-xs">
-                          {u.name.charAt(0)}
+                      <td className="py-3.5 px-4 text-center font-medium text-slate-600 tabular-nums">
+                        {index + 1}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-900">
+                        <div className="flex items-center gap-2">
+                          <span>{u.name}</span>
+                          {isCur && (
+                            <span className="text-[10px] text-maroon-800 bg-maroon-50 px-1.5 py-0.2 rounded font-bold">
+                              Anda
+                            </span>
+                          )}
                         </div>
-                        <span>{u.name}</span>
-                        {isCur && (
-                          <span className="text-[10px] text-maroon-800 bg-maroon-50 px-1.5 py-0.2 rounded font-bold">
-                            Anda
-                          </span>
-                        )}
                       </td>
 
                       <td className="py-3.5 px-4 text-slate-600">{u.email}</td>
@@ -253,7 +259,8 @@ export default function UsersPage() {
                             {isAdmin && (
                               <button
                                 onClick={() => handleUnlinkTelegram(u)}
-                                className="text-slate-400 hover:text-rose-600 p-1"
+                                className="action-button action-icon action-danger"
+                                aria-label={`Putus tautan Telegram ${u.name}`}
                                 title="Putus Tautan Telegram"
                               >
                                 <Unlink className="w-3.5 h-3.5" />
@@ -295,7 +302,8 @@ export default function UsersPage() {
                                 setFormTgId(u.telegram?.telegramUserId || '');
                                 setFormTgUsername(u.telegram?.username || '');
                               }}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                              className="action-button action-icon action-edit"
+                              aria-label={`Edit pengguna ${u.name}`}
                               title="Edit Pengguna"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -304,11 +312,8 @@ export default function UsersPage() {
                             {!isCur && (
                               <button
                                 onClick={() => handleToggleActive(u)}
-                                className={`p-1.5 rounded-lg transition-colors ${
-                                  u.isActive
-                                    ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                                    : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
-                                }`}
+                                className={cn('action-button action-icon', u.isActive ? 'action-danger' : 'action-success')}
+                                aria-label={`${u.isActive ? 'Nonaktifkan' : 'Aktifkan'} akun ${u.name}`}
                                 title={u.isActive ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
                               >
                                 <Power className="w-4 h-4" />
@@ -328,7 +333,7 @@ export default function UsersPage() {
 
       {/* Modal Add / Edit */}
       {(isAddOpen || editingUser) && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalOverlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -348,7 +353,7 @@ export default function UsersPage() {
 
             <form
               onSubmit={editingUser ? handleUpdate : handleCreate}
-              className="space-y-4 pt-4 text-xs"
+              className="space-y-4 pt-4 text-sm"
             >
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
@@ -449,7 +454,7 @@ export default function UsersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   );

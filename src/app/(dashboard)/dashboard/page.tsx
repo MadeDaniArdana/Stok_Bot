@@ -7,11 +7,8 @@ import {
   Layers,
   AlertTriangle,
   PackageX,
-  ArrowDownToLine,
-  Plus,
   RefreshCw,
   Send,
-  Sparkles,
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { StockChart } from '@/components/dashboard/StockChart';
@@ -46,11 +43,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top Welcome & Action Bar */}
+      {/* Ringkasan dashboard */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">
               Dashboard Ringkasan Stok
             </h1>
             <span className="text-xs bg-maroon-100 text-maroon-800 font-bold px-2 py-0.5 rounded-full border border-maroon-200">
@@ -62,30 +59,22 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Quick action buttons */}
-        <div className="flex items-center flex-wrap gap-2">
+        <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
           <Link
-            href="/stock/in"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-all hover:shadow"
+            href="/telegram"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-maroon-200 bg-maroon-50 px-3 text-xs font-semibold text-maroon-800 transition-colors hover:border-maroon-300 hover:bg-maroon-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 focus-visible:ring-offset-2"
+            title="Buka pengaturan Telegram"
           >
-            <ArrowDownToLine className="w-3.5 h-3.5" />
-            <span>Barang Masuk</span>
+            <Send className="h-4 w-4" aria-hidden="true" />
+            <span>Telegram Bot</span>
           </Link>
-
-          <Link
-            href="/products"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold shadow-sm transition-all"
-          >
-            <Plus className="w-3.5 h-3.5 text-maroon-800" />
-            <span>Tambah Barang</span>
-          </Link>
-
           <button
             onClick={fetchSummary}
-            className="p-2 rounded-xl bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 shadow-sm transition-colors"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 focus-visible:ring-offset-2"
+            aria-label="Muat ulang data dashboard"
             title="Muat ulang data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-maroon-700' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-maroon-700' : ''}`} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -127,33 +116,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Telegram Feature Highlight Banner */}
-      <div className="p-4 rounded-xl bg-gradient-to-r from-maroon-900 via-maroon-800 to-maroon-950 text-white shadow-soft flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-maroon-200 flex-shrink-0">
-            <Send className="w-5 h-5 text-maroon-200" />
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>Integrasi Telegram Bot Siap Pakai</span>
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            </h4>
-            <p className="text-xs text-maroon-200 mt-0.5">
-              Admin membuat tugas pemasangan di Telegram; pemasang mengirim foto bukti melalui link WhatsApp.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Link
-            href="/telegram"
-            className="px-3.5 py-1.5 rounded-lg bg-white text-maroon-900 hover:bg-maroon-50 text-xs font-bold transition-all shadow-sm"
-          >
-            Buka Pengaturan Telegram
-          </Link>
-        </div>
-      </div>
-
       {/* Movement Chart Section */}
       <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-soft">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
@@ -192,9 +154,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Two Column Grid: Critical Stock + Recent Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CriticalTable items={data?.criticalItems || []} />
-        <RecentActivity movements={data?.recentActivities || []} />
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <CriticalTable items={(data?.criticalItems || []).slice(0, 5)} />
+        <RecentActivity movements={(data?.recentActivities || []).slice(0, 5)} />
       </div>
     </div>
   );

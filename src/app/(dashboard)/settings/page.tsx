@@ -39,7 +39,7 @@ export default function SettingsPage() {
           <div className="w-8 h-8 rounded-lg bg-maroon-50 text-maroon-800 flex items-center justify-center border border-maroon-200">
             <Settings className="w-5 h-5" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">
             Pengaturan Sistem Gudang
           </h1>
         </div>
@@ -48,7 +48,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6 text-xs">
+      <form onSubmit={handleSave} className="space-y-6 text-sm">
         {/* Warehouse Settings Card */}
         <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-soft space-y-4">
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">

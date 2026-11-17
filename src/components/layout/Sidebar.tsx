@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Package,
   Tags,
-  ArrowDownToLine,
   History,
   BarChart3,
   Users,
@@ -60,7 +59,6 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     {
       title: 'Inventori & Mutasi',
       items: [
-        { name: 'Barang Masuk', href: '/stock/in', icon: ArrowDownToLine, badge: 'IN' },
         { name: 'Riwayat Stok', href: '/stock/history', icon: History },
         { name: 'Laporan Pemasangan', href: '/tasks', icon: Camera },
       ],
@@ -134,9 +132,9 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                     key={item.href}
                     href={item.href}
                     onClick={onCloseMobile}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all group ${
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm leading-6 font-medium transition-all group ${
                       isActive
-                        ? 'bg-maroon-50 text-maroon-900 font-semibold border-l-4 border-maroon-800 shadow-sm'
+                        ? 'bg-maroon-50 text-maroon-900 font-semibold shadow-sm'
                         : 'text-slate-600 hover:text-maroon-900 hover:bg-maroon-50/50'
                     }`}
                   >
@@ -187,7 +185,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
               {currentUser?.name ? currentUser.name.substring(0, 2).toUpperCase() : 'SF'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-800 truncate">
+              <p className="text-sm font-medium text-slate-800 truncate">
                 {currentUser?.name || 'Memuat...'}
               </p>
               <div className="flex items-center gap-1 mt-0.5">

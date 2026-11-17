@@ -57,7 +57,7 @@ export function KPICard({ title, value, subtitle, icon: Icon, badge, variant = '
 
       {/* Main value */}
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{value}</span>
+        <span className="text-2xl sm:text-3xl font-semibold tabular-nums text-slate-900 tracking-tight">{value}</span>
         {badge && (
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${colors.badgeBg}`}>
             {badge}

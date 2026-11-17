@@ -1,5 +1,8 @@
 'use client';
 
+import { ModalOverlay } from '@/components/ui/ModalOverlay';
+import { getCategoryAppearance } from '@/lib/category-appearance';
+
 import React, { useState, useEffect } from 'react';
 import { Tags, Plus, Edit2, Trash2, X, Package, Layers } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
@@ -113,7 +116,7 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">
             Kategori Persediaan
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -150,19 +153,20 @@ export default function CategoriesPage() {
           categories.map((cat) => (
             <div
               key={cat.id}
+              data-category-id={cat.id}
               className="bg-white rounded-xl p-5 border border-slate-200 shadow-soft hover:shadow-md transition-shadow flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-maroon-50 text-maroon-800 flex items-center justify-center border border-maroon-200">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <div data-category-icon style={getCategoryAppearance(cat.id)} className="size-9 shrink-0 rounded-lg flex items-center justify-center border">
                       <Tags className="w-4 h-4" />
                     </div>
                     <h3 className="font-bold text-sm text-slate-900">{cat.name}</h3>
                   </div>
 
-                  <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Package className="w-3 h-3 text-slate-500" />
+                  <span data-category-count style={getCategoryAppearance(cat.id)} className="shrink-0 whitespace-nowrap text-[10px] font-semibold border px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Package className="size-3" />
                     {cat._count?.products || 0} Barang
                   </span>
                 </div>
@@ -180,7 +184,8 @@ export default function CategoriesPage() {
                       setName(cat.name);
                       setDescription(cat.description || '');
                     }}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                    className="action-button action-icon action-edit"
+                    aria-label={`Edit kategori ${cat.name}`}
                     title="Edit Kategori"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -188,7 +193,8 @@ export default function CategoriesPage() {
 
                   <button
                     onClick={() => handleDelete(cat)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                    className="action-button action-icon action-danger"
+                    aria-label={`Hapus kategori ${cat.name}`}
                     title="Hapus Kategori"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -202,7 +208,7 @@ export default function CategoriesPage() {
 
       {/* Modal Add / Edit */}
       {(isAddOpen || editingCategory) && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalOverlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -222,7 +228,7 @@ export default function CategoriesPage() {
 
             <form
               onSubmit={editingCategory ? handleUpdate : handleCreate}
-              className="space-y-4 pt-4 text-xs"
+              className="space-y-4 pt-4 text-sm"
             >
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
@@ -270,7 +276,7 @@ export default function CategoriesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   );

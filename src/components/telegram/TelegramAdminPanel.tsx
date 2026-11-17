@@ -147,7 +147,7 @@ export function TelegramAdminPanel() {
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" /> Admin Telegram
           </h3>
-          <button onClick={load} className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-maroon-800">
+          <button onClick={load} className="action-button action-info">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Segarkan
           </button>
         </div>
@@ -173,7 +173,7 @@ export function TelegramAdminPanel() {
                 ) : (
                   <button
                     onClick={() => removeAdmin(admin)}
-                    className="shrink-0 inline-flex items-center gap-1 text-[11px] text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-lg"
+                    className="action-button action-danger"
                     aria-label={`Hapus admin ${admin.telegramUserId}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" /> Hapus

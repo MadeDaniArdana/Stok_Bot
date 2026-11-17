@@ -1,8 +1,13 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { AlertCircle, AlertTriangle, ArrowRight, ArrowDownToLine } from 'lucide-react';
+import Link from "next/link";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  ArrowDownToLine,
+  Check,
+} from "lucide-react";
 
 interface CriticalItem {
   id: string;
@@ -15,100 +20,182 @@ interface CriticalItem {
   isZero: boolean;
 }
 
-interface CriticalTableProps {
-  items: CriticalItem[];
+function StockStatus({ item }: { item: CriticalItem }) {
+  const Icon = item.isZero ? AlertCircle : AlertTriangle;
+  return (
+    <span
+      className={
+        item.isZero
+          ? "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700"
+          : "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700"
+      }
+    >
+      <Icon className="size-3 shrink-0" />
+      {item.isZero ? "Habis" : "Menipis"}
+    </span>
+  );
 }
 
-export function CriticalTable({ items }: CriticalTableProps) {
-  if (!items || items.length === 0) {
+function RestockLink({ item }: { item: CriticalItem }) {
+  return (
+    <Link
+      href={`/products?entry=stock&productId=${encodeURIComponent(item.id)}`}
+      aria-label={`Restock ${item.name}`}
+      className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+    >
+      <ArrowDownToLine className="size-3 shrink-0" />
+      Restock
+    </Link>
+  );
+}
+
+export function CriticalTable({ items }: { items: CriticalItem[] }) {
+  if (!items?.length) {
     return (
-      <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
-        <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-          ✓
+      <div className="min-w-0 self-start rounded-xl border border-slate-200 bg-white p-8 text-center">
+        <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <Check className="size-5" />
         </div>
-        <h4 className="text-sm font-semibold text-slate-800">Semua Stok Aman</h4>
-        <p className="text-xs text-slate-500 mt-1">Tidak ada barang yang berada di bawah stok minimum saat ini.</p>
+        <h4 className="text-sm font-semibold text-slate-800">
+          Semua Stok Aman
+        </h4>
+        <p className="mt-1 text-xs text-slate-500">
+          Tidak ada barang yang berada di bawah stok minimum saat ini.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-soft">
-      <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+    <section
+      data-critical-stock
+      className="critical-stock min-w-0 self-start overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 sm:p-5">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            <span className="size-2 shrink-0 rounded-full bg-rose-500" />
             Stok Perlu Perhatian
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">Barang habis atau telah mencapai batas minimum persediaan</p>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Barang habis atau mencapai batas minimum persediaan
+          </p>
         </div>
         <Link
           href="/products?stockStatus=low"
-          className="text-xs font-semibold text-maroon-800 hover:text-maroon-900 flex items-center gap-1 hover:underline"
+          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-maroon-800 hover:underline"
         >
-          Lihat Semua <ArrowRight className="w-3.5 h-3.5" />
+          Lihat Semua
+          <ArrowRight className="size-3.5" />
         </Link>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+      <div className="critical-stock-table">
+        <table className="w-full table-fixed text-left text-sm tabular-nums">
+          <colgroup>
+            <col style={{ width: "44%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "18%" }} />
+          </colgroup>
+          <thead className="border-b border-slate-100 bg-slate-50 text-xs font-medium text-slate-500">
             <tr>
-              <th className="py-3 px-4">Barang & SKU</th>
-              <th className="py-3 px-4">Kategori</th>
-              <th className="py-3 px-4 text-center">Stok Saat Ini</th>
-              <th className="py-3 px-4 text-center">Batas Min.</th>
-              <th className="py-3 px-4 text-center">Status</th>
-              <th className="py-3 px-4 text-right">Aksi</th>
+              <th className="whitespace-nowrap px-4 py-3 font-medium">
+                Barang
+              </th>
+              <th className="whitespace-nowrap px-3 py-3 font-medium">Stok</th>
+              <th className="whitespace-nowrap px-2 py-3 font-medium">
+                Status
+              </th>
+              <th className="whitespace-nowrap px-2 py-3 text-center font-medium">
+                Aksi
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700">
-            {items.map((item) => {
-              const percentage = Math.min(100, Math.round((item.currentStock / (item.minimumStock || 1)) * 100));
-
-              return (
-                <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3 px-4">
-                    <p className="font-semibold text-slate-900 line-clamp-1">{item.name}</p>
-                    <span className="font-mono text-[11px] text-slate-400">{item.sku}</span>
-                  </td>
-                  <td className="py-3 px-4 text-slate-600">{item.category}</td>
-                  <td className="py-3 px-4 text-center font-bold text-sm">
-                    <span className={item.isZero ? 'text-rose-600' : 'text-amber-600'}>
-                      {item.currentStock} {item.unit}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center text-slate-500">
-                    {item.minimumStock} {item.unit}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {item.isZero ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                        <AlertCircle className="w-3 h-3 text-rose-600" />
-                        Habis
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                        <AlertTriangle className="w-3 h-3 text-amber-600" />
-                        Rendah ({percentage}%)
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <Link
-                      href={`/stock/in?productId=${item.id}`}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-maroon-50 text-maroon-800 hover:bg-maroon-100 border border-maroon-200 transition-colors"
-                    >
-                      <ArrowDownToLine className="w-3 h-3" />
-                      Restock
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
+          <tbody className="divide-y divide-slate-100">
+            {items.map((item) => (
+              <tr key={item.id} className="hover:bg-slate-50/70">
+                <td className="break-words px-4 py-4 align-top">
+                  <p className="font-medium leading-6 text-slate-900">
+                    {item.name}
+                  </p>
+                  <p className="mt-1 break-words text-xs leading-5 text-slate-400">
+                    {item.sku}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                    {item.category}
+                  </p>
+                </td>
+                <td className="px-3 py-4 align-top">
+                  <p
+                    className={
+                      item.isZero
+                        ? "whitespace-nowrap font-semibold leading-6 text-rose-600"
+                        : "whitespace-nowrap font-semibold leading-6 text-amber-600"
+                    }
+                  >
+                    {item.currentStock}{" "}
+                    <span className="text-xs font-normal">{item.unit}</span>
+                  </p>
+                  <p className="mt-1 whitespace-nowrap text-xs leading-5 text-slate-500">
+                    Min. {item.minimumStock} {item.unit}
+                  </p>
+                </td>
+                <td className="px-2 py-4 align-top">
+                  <StockStatus item={item} />
+                </td>
+                <td className="px-2 py-4 text-center align-top">
+                  <RestockLink item={item} />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-    </div>
+
+      <div className="critical-stock-list divide-y divide-slate-100">
+        {items.map((item) => (
+          <article key={item.id} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h4 className="break-words text-sm font-medium leading-6 text-slate-900">
+                  {item.name}
+                </h4>
+                <p className="mt-1 break-words text-xs leading-5 text-slate-400">
+                  {item.sku}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                  {item.category}
+                </p>
+              </div>
+              <StockStatus item={item} />
+            </div>
+            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+              <dl className="flex gap-5 tabular-nums">
+                <div>
+                  <dt className="text-xs text-slate-500">Sisa stok</dt>
+                  <dd
+                    className={
+                      item.isZero
+                        ? "mt-1 text-sm font-semibold text-rose-600"
+                        : "mt-1 text-sm font-semibold text-amber-600"
+                    }
+                  >
+                    {item.currentStock} {item.unit}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Minimum</dt>
+                  <dd className="mt-1 text-sm text-slate-600">
+                    {item.minimumStock} {item.unit}
+                  </dd>
+                </div>
+              </dl>
+              <RestockLink item={item} />
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -41,7 +41,7 @@ export default function TelegramPage() {
             <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-200">
               <Send className="w-5 h-5" />
             </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">
               Integrasi Telegram Bot & Webhook
             </h1>
           </div>
@@ -179,7 +179,7 @@ export default function TelegramPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
               <tr>
                 <th className="py-3 px-4">Update ID</th>

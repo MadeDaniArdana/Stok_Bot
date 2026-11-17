@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalOverlay } from '@/components/ui/ModalOverlay';
+
 import React, { useState, useEffect } from 'react';
 import {
   History,
@@ -160,7 +162,7 @@ export default function StockHistoryPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">
             Riwayat Stok
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -170,7 +172,7 @@ export default function StockHistoryPage() {
 
         <button
           onClick={handleExportCSV}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold shadow-soft transition-all"
+          className="action-button action-success"
         >
           <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
           <span>Ekspor ke CSV</span>
@@ -251,14 +253,14 @@ export default function StockHistoryPage() {
       {/* Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
               <tr>
                 <th className="py-3.5 px-4">Waktu (WIB)</th>
                 <th className="py-3.5 px-4">Barang & SKU</th>
                 <th className="py-3.5 px-4 text-center">Tipe</th>
                 <th className="py-3.5 px-4 text-right">Perubahan</th>
-                <th className="py-3.5 px-4 text-center">Saldo (Sebelum &rarr; Sesudah)</th>
+                <th className="py-3.5 px-4 text-center">Stok Sebelum &rarr; Sesudah</th>
                 <th className="py-3.5 px-4">Aktor / Pemakai</th>
                 <th className="py-3.5 px-4 text-center">Sumber</th>
                 <th className="py-3.5 px-4">Catatan / Dokumen</th>
@@ -380,7 +382,7 @@ export default function StockHistoryPage() {
                                 setReversalTarget(m);
                                 setReversalReason('');
                               }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-slate-500 hover:text-purple-700 hover:bg-purple-50 transition-colors text-[11px] font-semibold border border-transparent hover:border-purple-200"
+                              className="action-button action-reversal"
                               title="Buat Koreksi Pembalik Transaksi"
                             >
                               <RotateCcw className="w-3 h-3" />
@@ -400,7 +402,7 @@ export default function StockHistoryPage() {
 
       {/* Modal Koreksi / Reversal */}
       {reversalTarget && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <ModalOverlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -415,7 +417,7 @@ export default function StockHistoryPage() {
               </button>
             </div>
 
-            <form onSubmit={handleReversalSubmit} className="space-y-4 pt-4 text-xs">
+            <form onSubmit={handleReversalSubmit} className="space-y-4 pt-4 text-sm">
               <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-purple-900 text-xs">
                 <p className="font-bold">Detail Transaksi yang Akan Dibalik:</p>
                 <p className="mt-1">
@@ -464,7 +466,7 @@ export default function StockHistoryPage() {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   );

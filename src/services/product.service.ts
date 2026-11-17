@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { normalizeProductUnit } from '@/lib/product-units';
 
 export interface CreateProductInput {
   name: string;
@@ -9,6 +10,10 @@ export interface CreateProductInput {
   minimumStock: number;
   initialStock: number;
   actorUserId?: string;
+  receipt?: {
+    notes?: string;
+    referenceId?: string;
+  };
 }
 
 export interface UpdateProductInput {
@@ -103,7 +108,7 @@ export class ProductService {
   }
 
   static async createProduct(input: CreateProductInput) {
-    const { name, description, categoryId, unit, minimumStock, initialStock, actorUserId } = input;
+    const { name, description, categoryId, unit, minimumStock, initialStock, actorUserId, receipt } = input;
 
     if (!name || !name.trim()) throw new Error('Nama barang wajib diisi.');
     if (!categoryId || !categoryId.trim()) throw new Error('Kategori barang wajib dipilih.');
@@ -122,7 +127,7 @@ export class ProductService {
           name: name.trim(),
           description: description?.trim() || null,
           categoryId: category.id,
-          unit: unit.trim().toLowerCase(),
+          unit: normalizeProductUnit(unit),
           currentStock: initialStock,
           minimumStock,
           isActive: true,
@@ -138,8 +143,9 @@ export class ProductService {
             quantity: initialStock,
             stockBefore: 0,
             stockAfter: initialStock,
-            source: 'SYSTEM',
-            notes: 'Saldo awal pembuatan master barang',
+            source: receipt ? 'WEB' : 'SYSTEM',
+            notes: receipt?.notes?.trim() || 'Saldo awal pembuatan master barang',
+            referenceId: receipt?.referenceId?.trim() || null,
           },
         });
       }
@@ -151,6 +157,9 @@ export class ProductService {
   }
 
   static async updateProduct(id: string, input: UpdateProductInput) {
+    if (input.unit !== undefined && !normalizeProductUnit(input.unit)) {
+      throw new Error('Satuan dasar barang wajib diisi.');
+    }
     if (
       input.minimumStock !== undefined &&
       (!Number.isSafeInteger(input.minimumStock) || input.minimumStock < 0)
@@ -180,7 +189,7 @@ export class ProductService {
           name: input.name ? input.name.trim() : undefined,
           description: input.description !== undefined ? input.description?.trim() || null : undefined,
           categoryId: input.categoryId !== undefined ? input.categoryId : undefined,
-          unit: input.unit ? input.unit.trim().toLowerCase() : undefined,
+          unit: input.unit !== undefined ? normalizeProductUnit(input.unit) : undefined,
           minimumStock: input.minimumStock !== undefined ? input.minimumStock : undefined,
         },
       });

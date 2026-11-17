@@ -40,7 +40,7 @@ const config: Config = {
         'btn': '8px',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['var(--font-inter)', 'system-ui', '-apple-system', 'sans-serif'],
       },
       boxShadow: {
         'soft': '0 2px 10px -2px rgba(128, 0, 32, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05)',

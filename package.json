@@ -8,6 +8,7 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
+    "test:reports": "node --test tests/installation-reports.test.cjs",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "admin:reset": "node --env-file=.env prisma/reset-admin.js",
@@ -22,7 +23,9 @@
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^9.1.0",
     "recharts": "^2.13.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.4",
     "zod": "^3.23.8"
   },

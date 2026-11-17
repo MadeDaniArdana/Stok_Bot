@@ -1,7 +1,10 @@
 'use client';
 
+import { ModalOverlay } from '@/components/ui/ModalOverlay';
+
 import React, { useEffect, useState } from 'react';
-import { Camera, Search, MapPin, User, Clock, CheckCircle2, Hourglass, X, ImageOff } from 'lucide-react';
+import { Calendar, Search, MapPin, User, Clock, CheckCircle2, Hourglass, X, ImageOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getCurrentReportMonth, getReportMonthRange } from '@/lib/report-period';
 
 interface TaskItem {
   id: string;
@@ -43,20 +46,76 @@ export default function InstallationReportPage() {
   const [status, setStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState<TaskItem | null>(null);
+  const [month, setMonth] = useState('');
+  const [followCurrentMonth, setFollowCurrentMonth] = useState(true);
+  const [page, setPage] = useState(1);
+  const [summary, setSummary] = useState({ total: 0, completedCount: 0, pendingCount: 0, totalPages: 1 });
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const [loadedKey, setLoadedKey] = useState('');
+  const reportKey = JSON.stringify([month, status, search, page]);
+  const isLoading = loading || loadedKey !== reportKey;
+  const monthLabel = month ? getReportMonthRange(month).gte.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta', month: 'long', year: 'numeric',
+  }) : '';
+
+  const changeMonth = (value: string) => {
+    try {
+      getReportMonthRange(value);
+    } catch {
+      return;
+    }
+    setMonth(value);
+    setPage(1);
+    setPreview(null);
+    setFollowCurrentMonth(value === getCurrentReportMonth());
+  };
 
   useEffect(() => {
+    if (!followCurrentMonth) return;
+    const syncMonth = () => {
+      const currentMonth = getCurrentReportMonth();
+      if (currentMonth !== month) {
+        setMonth(currentMonth);
+        setPage(1);
+        setPreview(null);
+      }
+    };
+    syncMonth();
+    const timer = setInterval(syncMonth, 60_000);
+    window.addEventListener('focus', syncMonth);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', syncMonth);
+    };
+  }, [followCurrentMonth, month]);
+
+  useEffect(() => {
+    if (!month) return;
     const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    setPreview(null);
     const timer = setTimeout(async () => {
       try {
-        setLoading(true);
-        const query = new URLSearchParams({ status, search }).toString();
+        const query = new URLSearchParams({ status, search, month, page: String(page) }).toString();
         const res = await fetch(`/api/tasks?${query}`, { signal: controller.signal });
         const data = await res.json();
-        setTasks(res.ok ? data.items || [] : []);
+        if (!res.ok) throw new Error(data.error || 'Laporan tidak dapat dimuat.');
+        if (controller.signal.aborted) return;
+        setTasks(data.items || []);
+        setSummary({ total: data.total, completedCount: data.completedCount, pendingCount: data.pendingCount, totalPages: data.totalPages });
+        setPage(data.page);
       } catch (error) {
-        if ((error as Error).name !== 'AbortError') setTasks([]);
+        if (!controller.signal.aborted) {
+          setTasks([]);
+          setError('Laporan tidak dapat dimuat. Silakan coba lagi.');
+        }
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          setLoadedKey(reportKey);
+        }
       }
     }, 250);
 
@@ -64,65 +123,81 @@ export default function InstallationReportPage() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [status, search]);
-
-  const completedCount = tasks.filter((task) => task.status === 'COMPLETED').length;
-  const pendingCount = tasks.length - completedCount;
+  }, [status, search, month, page, retry, reportKey]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">Laporan Pemasangan</h1>
+        <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">Laporan Pemasangan</h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
           Tugas pemasangan dari Telegram beserta foto bukti yang dikirim pemasang
         </p>
       </div>
 
       {/* Filter */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-soft flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari barang, pemasang, atau lokasi..."
-            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
-          />
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-soft space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="report-month" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+              <Calendar className="h-4 w-4 text-slate-400" aria-hidden="true" /> Bulan Laporan
+            </label>
+            <input id="report-month" type="month" min="1000-01" max="9999-12" required value={month} onChange={(e) => changeMonth(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700" />
+            <button type="button" onClick={() => changeMonth(getCurrentReportMonth())} className="action-button action-neutral">Bulan Ini</button>
+          </div>
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              aria-label="Cari laporan pemasangan"
+              placeholder="Cari barang, pemasang, atau lokasi..."
+              className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+            />
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {STATUS_FILTERS.map((filter) => (
-            <button
-              key={filter.value}
-              onClick={() => setStatus(filter.value)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                status === filter.value
-                  ? 'bg-maroon-800 text-white border-maroon-800'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[11px] text-slate-500">Foto berdasarkan bulan unggah (WIB). Tugas menunggu foto berdasarkan bulan dibuat.</p>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.value}
+                onClick={() => { setStatus(filter.value); setPage(1); }}
+                aria-pressed={status === filter.value}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  status === filter.value
+                    ? 'bg-maroon-800 text-white border-maroon-800'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {!loading && tasks.length > 0 && (
+      {!isLoading && !error && summary.total > 0 && (
         <p className="text-xs text-slate-500">
-          {tasks.length} tugas · {completedCount} selesai · {pendingCount} menunggu foto
+          {monthLabel}: {summary.total} tugas · {summary.completedCount} selesai · {summary.pendingCount} menunggu foto
         </p>
       )}
 
       {/* Daftar tugas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading ? (
+        {isLoading ? (
           <div className="col-span-full py-12 text-center text-slate-400 text-xs">Memuat laporan...</div>
+        ) : error ? (
+          <div role="alert" className="col-span-full rounded-xl border border-rose-200 bg-white p-8 text-center text-xs text-rose-700">
+            <p>{error}</p>
+            <button type="button" onClick={() => { setLoading(true); setRetry((value) => value + 1); }} className="action-button action-neutral mt-3">Coba Lagi</button>
+          </div>
         ) : tasks.length === 0 ? (
           <div className="col-span-full py-12 text-center text-slate-400 text-xs bg-white rounded-xl border border-slate-200">
-            Belum ada tugas pemasangan{status !== 'all' || search ? ' yang cocok dengan filter' : ''}.
+            Belum ada laporan pemasangan untuk {monthLabel}{status !== 'all' || search ? ' yang cocok dengan filter' : ''}.
             <br />
-            Tugas dibuat admin melalui bot Telegram.
+            Pilih bulan lain untuk melihat arsip laporan sebelumnya.
           </div>
         ) : (
           tasks.map((task) => (
@@ -138,6 +213,7 @@ export default function InstallationReportPage() {
                     src={task.photoUrl}
                     alt={`Bukti pemasangan ${task.productName} di ${task.location}`}
                     loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </button>
@@ -183,9 +259,19 @@ export default function InstallationReportPage() {
         )}
       </div>
 
+      {!isLoading && !error && summary.totalPages > 1 && (
+        <nav aria-label="Halaman laporan pemasangan" className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+          <p>Halaman {page} dari {summary.totalPages} · {summary.total} tugas</p>
+          <div className="flex gap-2">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="action-button action-neutral"><ChevronLeft className="h-4 w-4" aria-hidden="true" /> Sebelumnya</button>
+            <button type="button" disabled={page >= summary.totalPages} onClick={() => setPage((value) => value + 1)} className="action-button action-neutral">Berikutnya <ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
+          </div>
+        </nav>
+      )}
+
       {/* Foto ukuran penuh */}
-      {preview?.photoUrl && (
-        <div
+      {!isLoading && preview?.photoUrl && (
+        <ModalOverlay
           className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setPreview(null)}
         >
@@ -207,7 +293,7 @@ export default function InstallationReportPage() {
               {formatDate(preview.completedAt)}
             </p>
           </div>
-        </div>
+        </ModalOverlay>
       )}
     </div>
   );

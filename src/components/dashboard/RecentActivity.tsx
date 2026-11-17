@@ -38,8 +38,8 @@ export function RecentActivity({ movements }: RecentActivityProps) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-soft">
-      <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+    <div className="min-w-0 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-soft">
+      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap gap-3 items-center justify-between">
         <div>
           <h3 className="text-sm sm:text-base font-bold text-slate-900">Aktivitas Terkini</h3>
           <p className="text-xs text-slate-500 mt-0.5">Catatan pergerakan stok real-time</p>
@@ -107,7 +107,7 @@ export function RecentActivity({ movements }: RecentActivityProps) {
                   {m.notes || (isIncoming ? 'Barang masuk ke gudang' : 'Pengambilan persediaan')}
                 </p>
 
-                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-400">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[10px] text-slate-400">
                   <span>{timeLabel}</span>
                   <span>•</span>
                   <span className="font-medium text-slate-600">{m.actor?.name || 'Sistem'}</span>

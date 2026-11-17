@@ -43,13 +43,13 @@ function LoginForm() {
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-maroon-700 via-maroon-800 to-maroon-950 text-white flex items-center justify-center mx-auto shadow-maroon shadow-md mb-3">
               <Boxes className="w-6 h-6" />
             </div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight text-balance">
               Masuk ke <span className="text-maroon-800">StockFlow</span>
             </h1>
             <p className="text-xs text-slate-500 mt-1">Sistem Manajemen Persediaan & Integrasi Telegram Bot</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4 text-xs">
+          <form onSubmit={handleLogin} className="space-y-4 text-sm">
             <div>
               <label htmlFor="email" className="block font-semibold text-slate-700 mb-1">Alamat Email</label>
               <div className="relative">

@@ -1,4 +1,5 @@
 'use client';
+import { cn } from '@/lib/cn';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -127,7 +128,7 @@ export default function ErrorLogPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance flex items-center gap-2">
             <Bug className="w-6 h-6 text-maroon-800" /> Log Error
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -136,7 +137,7 @@ export default function ErrorLogPage() {
         </div>
         <button
           onClick={load}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold shadow-soft"
+          className="action-button action-info"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Segarkan
         </button>
@@ -196,10 +197,10 @@ export default function ErrorLogPage() {
             </button>
           ))}
           <span className="w-px h-5 bg-slate-200 mx-1 hidden sm:block" />
-          <button onClick={resolveAll} disabled={!totalOpen} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40">
+          <button onClick={resolveAll} disabled={!totalOpen} className="action-button action-success">
             Tandai semua selesai
           </button>
-          <button onClick={deleteResolved} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 inline-flex items-center gap-1">
+          <button onClick={deleteResolved} className="action-button action-danger">
             <Trash2 className="w-3.5 h-3.5" /> Hapus yang selesai
           </button>
         </div>
@@ -267,9 +268,7 @@ export default function ErrorLogPage() {
                     )}
                     <button
                       onClick={() => setResolved(item.id, !item.resolved)}
-                      className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                        item.resolved ? 'text-slate-600 border-slate-200 hover:bg-slate-50' : 'text-emerald-700 border-emerald-200 hover:bg-emerald-50'
-                      }`}
+                      className={cn('action-button', item.resolved ? 'action-neutral' : 'action-success')}
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" /> {item.resolved ? 'Buka lagi' : 'Tandai selesai'}
                     </button>
