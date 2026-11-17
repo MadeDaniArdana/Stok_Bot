@@ -8,6 +8,8 @@ Paket ini berisi lima dokumen perencanaan dan rancangan untuk membangun StockFlo
 3. `03-MVP.md` - prioritas fitur, sprint, user stories, pengujian, UAT, dan kriteria go-live.
 4. `04-Desain-UI-UX.md` - navigasi, layout, design tokens, spesifikasi halaman, microcopy, dan aksesibilitas.
 5. `05-Arsitektur.md` - diagram sistem, alur Telegram, struktur folder, API, keamanan, deployment, dan monitoring.
+6. `06-Flow-Sistem.md` - visualisasi flow sistem (Mermaid): tech stack, login, tugas pemasangan, bot Telegram, barang masuk/keluar, asisten AI, log error, ERD ringkas, dan deployment.
+7. `07-UseCase-Activity-PlantUML.md` - Use Case Diagram dan Activity Diagram (swimlane) dalam format PlantUML, siap disalin ke plantuml.com.
 
 ## Urutan membaca
 Mulai dari PRD → MVP → UI/UX → Database Schema → Arsitektur. Saat implementasi, developer sebaiknya membaca Database Schema dan Arsitektur secara bersamaan.
