@@ -454,7 +454,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                 <label htmlFor="dist-handover" className="mb-1 block text-xs font-semibold text-slate-700">
                   {group.handoverLabel} <span className="text-rose-500">*</span>
                 </label>
-                <input id="dist-handover" required value={handoverName} onChange={(e) => setHandoverName(e.target.value)} maxLength={150} className={inputClass} />
+                <input id="dist-handover" required value={handoverName} onChange={(e) => setHandoverName(e.target.value)} maxLength={150} aria-describedby="dist-handover-hint" className={inputClass} />
+                <p id="dist-handover-hint" className="mt-1 text-[11px] text-slate-500">
+                  Otomatis nama admin yang login. Ubah untuk form ini saja, atau ganti permanen di{' '}
+                  <Link href="/settings" className="font-semibold text-maroon-800 underline">Pengaturan</Link>.
+                </p>
               </div>
             </>
           )}

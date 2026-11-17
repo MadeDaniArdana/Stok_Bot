@@ -49,7 +49,7 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
                 </>
               ) : (
                 <>
-                  <p className="text-[9px] uppercase tracking-wide">Yayasan Pendidikan</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide">Yayasan Pendidikan</p>
                   <p className="text-[17px] font-black uppercase tracking-tight">Teknokrat</p>
                 </>
               )}
@@ -150,9 +150,6 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
             <p>Penerima,</p>
             <div className="h-16" />
             <p className="font-bold">{distribution.receiverName || '(.................................)'}</p>
-            {!isListrik && distribution.receiverName !== distribution.recipientUnit && (
-              <p className="text-[11px]">{distribution.recipientUnit}</p>
-            )}
           </div>
           <div className="text-left">
             <p>Bandarlampung, {monthYear(distribution.distributedAt)}</p>

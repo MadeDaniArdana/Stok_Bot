@@ -13,6 +13,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
+import { AdminProfileCard } from '@/components/settings/AdminProfileCard';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
@@ -47,6 +48,9 @@ export default function SettingsPage() {
           Konfigurasi umum aplikasi, integrasi bot Telegram, dan parameter peringatan stok
         </p>
       </div>
+
+      {/* Form terpisah (bukan di dalam form di bawah) karena benar-benar disimpan ke database. */}
+      <AdminProfileCard />
 
       <form onSubmit={handleSave} className="space-y-6 text-sm">
         {/* Warehouse Settings Card */}
