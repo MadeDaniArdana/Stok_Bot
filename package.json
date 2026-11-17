@@ -11,6 +11,7 @@
     "test:reports": "node --test tests/installation-reports.test.cjs",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
+    "db:seed-distribusi": "node --env-file=.env prisma/seed-distribusi.js",
     "admin:reset": "node --env-file=.env prisma/reset-admin.js",
     "db:studio": "prisma studio"
   },

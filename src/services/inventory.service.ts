@@ -193,6 +193,26 @@ export class InventoryService {
         throw new Error('Transaksi pembalik tidak dapat dibalik ulang.');
       }
 
+      const existingReversal = await tx.stockMovement.findFirst({
+        where: { type: 'REVERSAL', referenceId: original.id },
+        select: { id: true },
+      });
+      if (existingReversal) {
+        throw new Error('Transaksi ini sudah pernah dikoreksi sehingga tidak dapat dibalik dua kali.');
+      }
+
+      if (original.type === 'OUT' && original.referenceId) {
+        const distribution = await tx.distribution.findUnique({
+          where: { id: original.referenceId },
+          select: { number: true },
+        });
+        if (distribution) {
+          throw new Error(
+            `Barang keluar ini bagian dari dokumen distribusi ${distribution.number}. Batalkan dokumennya di menu Laporan Distribusi.`
+          );
+        }
+      }
+
       const product = original.product;
       let stockAfter = product.currentStock;
 

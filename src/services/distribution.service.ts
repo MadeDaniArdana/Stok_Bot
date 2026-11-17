@@ -1,0 +1,426 @@
+import { createHash, randomBytes } from 'crypto';
+import { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { getReportMonthRange } from '@/lib/report-period';
+import { getStockGroup, isStockGroup, type StockGroup } from '@/lib/stock-groups';
+import { NotificationService } from './notification.service';
+import { deleteTaskProof, saveTaskProof } from '@/lib/task-proof-storage';
+import { normalizeWhatsAppNumber } from '@/lib/phone';
+
+const PROOF_TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
+const hashProofToken = (token: string) => createHash('sha256').update(token).digest('hex');
+/** Link foto bukti hanya untuk distribusi Peralatan Listrik (untuk sementara). */
+export const usesProofLink = (stockGroup: string) => stockGroup === 'LISTRIK';
+
+const MAX_ITEMS = 50;
+const TEXT_LIMIT = 150;
+// Form bisa berisi puluhan barang (beberapa query per barang), jadi batas waktu transaksi dilonggarkan.
+const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+
+export interface DistributionItemInput {
+  productId: string;
+  quantity: number;
+}
+
+export interface CreateDistributionInput {
+  stockGroup: string;
+  recipientUnit: string;
+  orderNumber?: string | null;
+  /** Tanggal pesanan/distribusi, format YYYY-MM-DD (WIB) */
+  date?: string | null;
+  storageLocation?: string | null;
+  receiverName?: string | null;
+  /** No. WhatsApp petugas (opsional, khusus Peralatan Listrik) */
+  officerPhone?: string | null;
+  handoverName: string;
+  notes?: string | null;
+  items: DistributionItemInput[];
+  actorUserId?: string | null;
+}
+
+export interface DistributionListFilter {
+  stockGroup: StockGroup;
+  month: string;
+  search?: string;
+  status?: 'COMPLETED' | 'CANCELLED' | 'all';
+  page?: number;
+  pageSize?: number;
+}
+
+const itemInclude = {
+  items: {
+    include: { product: { select: { id: true, name: true, sku: true, unit: true } } },
+    orderBy: { id: 'asc' as const },
+  },
+  creator: { select: { id: true, name: true } },
+} satisfies Prisma.DistributionInclude;
+
+export type DistributionWithItems = Prisma.DistributionGetPayload<{ include: typeof itemInclude }>;
+
+function cleanText(value: unknown, label: string, required = false): string | null {
+  const text = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+  if (!text) {
+    if (required) throw new Error(`${label} wajib diisi.`);
+    return null;
+  }
+  if (text.length > TEXT_LIMIT) throw new Error(`${label} maksimal ${TEXT_LIMIT} karakter.`);
+  return text;
+}
+
+/** "2026-11-17" ditafsirkan sebagai tengah hari WIB agar tidak bergeser tanggal di zona waktu lain. */
+function parseDistributionDate(value: string | null | undefined): Date {
+  if (!value) return new Date();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Tanggal distribusi tidak valid.');
+  const date = new Date(`${value}T12:00:00+07:00`);
+  if (Number.isNaN(date.getTime())) throw new Error('Tanggal distribusi tidak valid.');
+  if (date.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error('Tanggal distribusi tidak boleh di masa depan.');
+  return date;
+}
+
+function monthKey(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit' }).formatToParts(date);
+  return `${parts.find((p) => p.type === 'year')!.value}${parts.find((p) => p.type === 'month')!.value}`;
+}
+
+export class DistributionService {
+  /**
+   * Simpan form distribusi dan kurangi stok setiap barang dalam satu transaksi.
+   * Jika satu barang gagal (stok kurang, nonaktif, beda jenis), seluruh form dibatalkan.
+   */
+  static async create(input: CreateDistributionInput) {
+    if (!isStockGroup(input.stockGroup)) throw new Error('Jenis stok tidak dikenal.');
+    const group = getStockGroup(input.stockGroup);
+
+    const recipientUnit = cleanText(input.recipientUnit, group.recipientLabel, true)!;
+    const handoverName = cleanText(input.handoverName, group.handoverLabel, true)!;
+    const orderNumber = cleanText(input.orderNumber, 'No. nota pesanan');
+    const storageLocation = cleanText(input.storageLocation, 'Tempat penyimpanan');
+    const receiverName = cleanText(input.receiverName, 'Nama penerima');
+    const officerPhone = usesProofLink(group.id) ? normalizeWhatsAppNumber(input.officerPhone) : null;
+    const notes = typeof input.notes === 'string' && input.notes.trim() ? input.notes.trim().slice(0, 500) : null;
+    const distributedAt = parseDistributionDate(input.date);
+
+    const rawItems = Array.isArray(input.items) ? input.items : [];
+    if (rawItems.length === 0) throw new Error('Tambahkan minimal satu barang.');
+    if (rawItems.length > MAX_ITEMS) throw new Error(`Maksimal ${MAX_ITEMS} barang per form.`);
+
+    const seen = new Set<string>();
+    const items = rawItems.map((item, index) => {
+      const quantity = Number(item?.quantity);
+      if (!item?.productId) throw new Error(`Barang pada baris ${index + 1} belum dipilih.`);
+      if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+        throw new Error(`Jumlah pada baris ${index + 1} harus bilangan bulat lebih dari nol.`);
+      }
+      if (seen.has(item.productId)) throw new Error(`Barang pada baris ${index + 1} sudah ada di baris lain. Gabungkan jumlahnya.`);
+      seen.add(item.productId);
+      return { productId: item.productId, quantity };
+    });
+
+    const prefix = `${group.numberPrefix}-${monthKey(distributedAt)}-`;
+    // Token mentah hanya dikembalikan sekali (untuk dikirim ke petugas); database menyimpan hash-nya.
+    const proofToken = usesProofLink(group.id) ? randomBytes(32).toString('hex') : null;
+
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const products = await tx.product.findMany({
+            where: { id: { in: items.map((item) => item.productId) } },
+            include: { category: { select: { stockGroup: true } } },
+          });
+          const byId = new Map(products.map((product) => [product.id, product]));
+
+          const last = await tx.distribution.findFirst({
+            where: { number: { startsWith: prefix } },
+            orderBy: { number: 'desc' },
+            select: { number: true },
+          });
+          const nextNumber = (last ? Number(last.number.slice(prefix.length)) || 0 : 0) + 1;
+          const number = `${prefix}${String(nextNumber).padStart(3, '0')}`;
+
+          const distribution = await tx.distribution.create({
+            data: {
+              number,
+              stockGroup: group.id,
+              recipientUnit,
+              orderNumber,
+              distributedAt,
+              storageLocation,
+              receiverName,
+              handoverName,
+              officerPhone,
+              notes,
+              creatorUserId: input.actorUserId || null,
+              proofTokenHash: proofToken ? hashProofToken(proofToken) : null,
+            },
+          });
+
+          const stockAfter: { productId: string; stock: number }[] = [];
+          for (const item of items) {
+            const product = byId.get(item.productId);
+            if (!product) throw new Error('Salah satu barang tidak ditemukan.');
+            if (!product.isActive) throw new Error(`Barang "${product.name}" nonaktif dan tidak dapat didistribusikan.`);
+            if ((product.category?.stockGroup ?? 'ATK') !== group.id) {
+              throw new Error(`Barang "${product.name}" bukan termasuk jenis ${group.label}.`);
+            }
+
+            // Pengurangan bersyarat: aman jika dua admin mengambil barang yang sama bersamaan.
+            const updated = await tx.product.updateMany({
+              where: { id: product.id, currentStock: { gte: item.quantity } },
+              data: { currentStock: { decrement: item.quantity } },
+            });
+            if (updated.count === 0) {
+              const fresh = await tx.product.findUnique({ where: { id: product.id }, select: { currentStock: true } });
+              throw new Error(
+                `Stok "${product.name}" tidak cukup: diminta ${item.quantity} ${product.unit}, tersedia ${fresh?.currentStock ?? 0} ${product.unit}.`
+              );
+            }
+            const after = (await tx.product.findUnique({ where: { id: product.id }, select: { currentStock: true } }))!.currentStock;
+
+            const movement = await tx.stockMovement.create({
+              data: {
+                productId: product.id,
+                actorUserId: input.actorUserId || null,
+                type: 'OUT',
+                quantity: item.quantity,
+                stockBefore: after + item.quantity,
+                stockAfter: after,
+                source: 'WEB',
+                referenceId: distribution.id,
+                notes: `Distribusi ${number} ke ${recipientUnit}`,
+              },
+            });
+
+            await tx.distributionItem.create({
+              data: {
+                distributionId: distribution.id,
+                productId: product.id,
+                quantity: item.quantity,
+                unit: product.unit,
+                movementId: movement.id,
+              },
+            });
+            stockAfter.push({ productId: product.id, stock: after });
+          }
+
+          const full = await tx.distribution.findUniqueOrThrow({ where: { id: distribution.id }, include: itemInclude });
+          return { distribution: full, stockAfter };
+        }, TX_OPTIONS);
+
+        for (const { productId, stock } of result.stockAfter) {
+          await NotificationService.checkStockLevelAndAlert(productId, stock, input.actorUserId).catch(() => undefined);
+        }
+        return { distribution: result.distribution, proofToken };
+      } catch (error) {
+        // Nomor dokumen bentrok karena dua form disimpan bersamaan: coba lagi dengan nomor berikutnya.
+        const isNumberClash = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+        if (isNumberClash && attempt < 3) continue;
+        throw error;
+      }
+    }
+  }
+
+  /** Batalkan distribusi: stok dikembalikan lewat movement REVERSAL, dokumen tetap tersimpan. */
+  static async cancel(id: string, reason: string, actorUserId?: string | null) {
+    const cleanReason = reason?.trim();
+    if (!cleanReason) throw new Error('Alasan pembatalan wajib diisi.');
+
+    const result = await prisma.$transaction(async (tx) => {
+      const distribution = await tx.distribution.findUnique({ where: { id }, include: { items: { include: { product: true } } } });
+      if (!distribution) throw new Error('Dokumen distribusi tidak ditemukan.');
+      if (distribution.status === 'CANCELLED') throw new Error('Dokumen distribusi ini sudah dibatalkan.');
+
+      const movementIds = distribution.items.map((item) => item.movementId).filter((value): value is string => Boolean(value));
+      const alreadyReversed = await tx.stockMovement.count({ where: { type: 'REVERSAL', referenceId: { in: movementIds } } });
+      if (alreadyReversed > 0) {
+        throw new Error('Sebagian barang pada dokumen ini sudah dikoreksi lewat Riwayat Stok, sehingga dokumen tidak dapat dibatalkan otomatis.');
+      }
+
+      const stockAfter: { productId: string; stock: number }[] = [];
+      for (const item of distribution.items) {
+        const updated = await tx.product.update({
+          where: { id: item.productId },
+          data: { currentStock: { increment: item.quantity } },
+          select: { currentStock: true },
+        });
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            actorUserId: actorUserId || null,
+            type: 'REVERSAL',
+            quantity: item.quantity,
+            stockBefore: updated.currentStock - item.quantity,
+            stockAfter: updated.currentStock,
+            source: 'WEB',
+            referenceId: item.movementId,
+            notes: `Pembatalan distribusi ${distribution.number}. Alasan: ${cleanReason}`,
+          },
+        });
+        stockAfter.push({ productId: item.productId, stock: updated.currentStock });
+      }
+
+      await tx.distribution.update({
+        where: { id },
+        data: { status: 'CANCELLED', cancelReason: cleanReason.slice(0, 300), cancelledAt: new Date() },
+      });
+      return stockAfter;
+    }, TX_OPTIONS);
+
+    for (const { productId, stock } of result) {
+      await NotificationService.checkStockLevelAndAlert(productId, stock, actorUserId).catch(() => undefined);
+    }
+  }
+
+  /** Buat link foto baru (link lama tidak berlaku lagi), selama foto belum dikirim. */
+  static async regenerateProofLink(id: string) {
+    const distribution = await prisma.distribution.findUnique({ where: { id } });
+    if (!distribution) throw new Error('Dokumen distribusi tidak ditemukan.');
+    if (!usesProofLink(distribution.stockGroup)) throw new Error('Link foto hanya tersedia untuk distribusi Peralatan Listrik.');
+    if (distribution.status === 'CANCELLED') throw new Error('Dokumen ini sudah dibatalkan.');
+    if (distribution.proofFileName) throw new Error('Foto bukti untuk dokumen ini sudah diterima.');
+    const token = randomBytes(32).toString('hex');
+    await prisma.distribution.update({ where: { id }, data: { proofTokenHash: hashProofToken(token) } });
+    return token;
+  }
+
+  static async getByProofToken(token: string) {
+    if (!PROOF_TOKEN_PATTERN.test(token)) return null;
+    return prisma.distribution.findFirst({ where: { proofTokenHash: hashProofToken(token) }, include: itemInclude });
+  }
+
+  /** Simpan foto bukti dari petugas. Stok sudah dikurangi saat form disimpan, jadi di sini hanya foto. */
+  static async attachProof(token: string, file: File) {
+    const distribution = await this.getByProofToken(token);
+    if (!distribution) throw new Error('Link foto tidak valid atau sudah diganti.');
+    if (distribution.status === 'CANCELLED') throw new Error('Distribusi ini sudah dibatalkan.');
+    if (distribution.proofFileName) throw new Error('Foto bukti untuk distribusi ini sudah pernah dikirim.');
+
+    const proofFileName = await saveTaskProof(file);
+    const uploadedAt = new Date();
+    // Bersyarat agar dua kiriman bersamaan tidak saling menimpa.
+    const updated = await prisma.distribution.updateMany({
+      where: { id: distribution.id, proofFileName: null, status: 'COMPLETED' },
+      data: { proofFileName, proofMimeType: file.type, proofUploadedAt: uploadedAt },
+    });
+    if (updated.count !== 1) {
+      await deleteTaskProof(proofFileName).catch(() => undefined);
+      throw new Error('Foto bukti untuk distribusi ini sudah pernah dikirim.');
+    }
+    return { uploadedAt };
+  }
+
+  static async getById(id: string) {
+    return prisma.distribution.findUnique({ where: { id }, include: itemInclude });
+  }
+
+  private static buildWhere(filter: Pick<DistributionListFilter, 'stockGroup' | 'month' | 'search' | 'status'>) {
+    const range = getReportMonthRange(filter.month);
+    const search = filter.search?.trim();
+    const where: Prisma.DistributionWhereInput = {
+      stockGroup: filter.stockGroup,
+      distributedAt: range,
+      ...(filter.status && filter.status !== 'all' ? { status: filter.status } : {}),
+      ...(search
+        ? {
+            OR: [
+              { number: { contains: search, mode: 'insensitive' } },
+              { recipientUnit: { contains: search, mode: 'insensitive' } },
+              { receiverName: { contains: search, mode: 'insensitive' } },
+              { handoverName: { contains: search, mode: 'insensitive' } },
+              { items: { some: { product: { name: { contains: search, mode: 'insensitive' } } } } },
+            ],
+          }
+        : {}),
+    };
+    return where;
+  }
+
+  /** Riwayat dokumen + rekap bulanan untuk satu jenis stok. */
+  static async list(filter: DistributionListFilter) {
+    const pageSize = Math.min(Math.max(filter.pageSize ?? 20, 1), 200);
+    const where = this.buildWhere(filter);
+    const summaryWhere = this.buildWhere({ ...filter, status: 'COMPLETED' });
+
+    const [total, rows, summaryRows, monthRows] = await Promise.all([
+      prisma.distribution.count({ where }),
+      prisma.distribution.findMany({
+        where,
+        include: itemInclude,
+        orderBy: [{ distributedAt: 'desc' }, { createdAt: 'desc' }],
+        skip: (Math.max(filter.page ?? 1, 1) - 1) * pageSize,
+        take: pageSize,
+      }),
+      // Rekap hanya dari dokumen yang tidak dibatalkan.
+      prisma.distribution.findMany({
+        where: summaryWhere,
+        select: {
+          recipientUnit: true,
+          items: { select: { quantity: true, unit: true, product: { select: { id: true, name: true, sku: true } } } },
+        },
+      }),
+      // Bulan (WIB) yang memiliki dokumen, untuk pintasan pilihan bulan di halaman laporan.
+      prisma.$queryRaw<{ month: string; documents: bigint }[]>`
+        SELECT to_char("distributedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM') AS month,
+               COUNT(*) AS documents
+        FROM "Distribution"
+        WHERE "stockGroup" = ${filter.stockGroup}
+        GROUP BY 1
+        ORDER BY 1 DESC
+        LIMIT 24`,
+    ]);
+
+    const byUnit = new Map<string, { unit: string; documents: number; itemLines: number }>();
+    const byProduct = new Map<string, { productId: string; name: string; sku: string; unit: string; quantity: number; documents: number }>();
+    let totalLines = 0;
+
+    for (const row of summaryRows) {
+      const unitKey = row.recipientUnit.toLocaleLowerCase('id-ID');
+      const unit = byUnit.get(unitKey) ?? { unit: row.recipientUnit, documents: 0, itemLines: 0 };
+      unit.documents += 1;
+      unit.itemLines += row.items.length;
+      byUnit.set(unitKey, unit);
+
+      for (const item of row.items) {
+        totalLines += 1;
+        const product = byProduct.get(item.product.id) ?? {
+          productId: item.product.id,
+          name: item.product.name,
+          sku: item.product.sku,
+          unit: item.unit,
+          quantity: 0,
+          documents: 0,
+        };
+        product.quantity += item.quantity;
+        product.documents += 1;
+        byProduct.set(item.product.id, product);
+      }
+    }
+
+    return {
+      items: rows,
+      total,
+      page: Math.max(filter.page ?? 1, 1),
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      availableMonths: monthRows.map((row) => ({ month: row.month, documents: Number(row.documents) })),
+      summary: {
+        documents: summaryRows.length,
+        itemLines: totalLines,
+        productKinds: byProduct.size,
+        units: byUnit.size,
+        byUnit: Array.from(byUnit.values()).sort((a, b) => b.documents - a.documents || a.unit.localeCompare(b.unit, 'id')),
+        byProduct: Array.from(byProduct.values()).sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name, 'id')),
+      },
+    };
+  }
+
+  /** Daftar unit/ruang tujuan yang pernah dipakai, untuk saran isian form. */
+  static async recentRecipients(stockGroup: StockGroup) {
+    const rows = await prisma.distribution.findMany({
+      where: { stockGroup },
+      distinct: ['recipientUnit'],
+      orderBy: { createdAt: 'desc' },
+      select: { recipientUnit: true },
+      take: 50,
+    });
+    return rows.map((row) => row.recipientUnit);
+  }
+}

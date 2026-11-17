@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
+import { DEFAULT_STOCK_GROUP, isStockGroup, parseStockGroup } from '@/lib/stock-groups';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const stockGroup = parseStockGroup(new URL(req.url).searchParams.get('jenis'));
     const categories = await prisma.category.findMany({
+      where: stockGroup ? { stockGroup } : undefined,
       orderBy: { name: 'asc' },
       include: {
         _count: {
@@ -20,7 +23,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, description } = await req.json();
+    const { name, description, stockGroup } = await req.json();
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Nama kategori wajib diisi' }, { status: 400 });
     }
@@ -37,6 +40,7 @@ export async function POST(req: NextRequest) {
       data: {
         name: name.trim(),
         description: description?.trim() || null,
+        stockGroup: isStockGroup(stockGroup) ? stockGroup : DEFAULT_STOCK_GROUP,
       },
     });
 

@@ -8,65 +8,72 @@ datasource db {
 }
 
 model User {
-  id                String          @id @default(uuid())
+  id                String             @id @default(uuid())
   name              String
-  email             String          @unique
+  email             String             @unique
   passwordHash      String?
-  role              String          @default("USER") // ADMIN, USER
-  isActive          Boolean         @default(true)
+  role              String             @default("USER") // ADMIN, USER
+  isActive          Boolean            @default(true)
   movements         StockMovement[]
   installationTasks InstallationTask[] @relation("TaskCreator")
+  distributions     Distribution[]
   telegram          TelegramUser?
   notifications     Notification[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Category {
   id          String    @id @default(uuid())
   name        String    @unique
   description String?
+  // Jenis stok: LISTRIK (Peralatan Listrik), LOGISTIK, ATK. Barang mengikuti jenis kategorinya.
+  stockGroup  String    @default("ATK")
   products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([stockGroup])
 }
 
 model Product {
-  id                String          @id @default(uuid())
-  sku               String          @unique
+  id                String                     @id @default(uuid())
+  sku               String                     @unique
   name              String
   description       String?
   categoryId        String?
-  category          Category?       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category          Category?                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   unit              String
-  currentStock      Int             @default(0)
-  minimumStock      Int             @default(0)
-  isActive          Boolean         @default(true)
+  currentStock      Int                        @default(0)
+  minimumStock      Int                        @default(0)
+  isActive          Boolean                    @default(true)
   movements         StockMovement[]
   installationTasks InstallationTask[]
+  distributionItems DistributionItem[]
+  templateItems     DistributionTemplateItem[]
   notifications     Notification[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
 
   @@index([isActive, name])
   @@index([categoryId])
 }
 
 model StockMovement {
-  id               String         @id @default(uuid())
+  id               String   @id @default(uuid())
   productId        String
-  product          Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
   actorUserId      String?
-  actor            User?          @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
-  type             String         // IN, OUT, ADJUSTMENT, REVERSAL
+  actor            User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  type             String // IN, OUT, ADJUSTMENT, REVERSAL
   quantity         Int
   stockBefore      Int
   stockAfter       Int
-  source           String         // WEB, TELEGRAM, SYSTEM
+  source           String // WEB, TELEGRAM, SYSTEM
   referenceId      String?
   notes            String?
-  telegramUpdateId String?        @unique
-  createdAt        DateTime       @default(now())
+  telegramUpdateId String?  @unique
+  createdAt        DateTime @default(now())
 
   @@index([productId, createdAt])
   @@index([actorUserId, createdAt])
@@ -74,25 +81,25 @@ model StockMovement {
 }
 
 model TelegramUser {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Restrict)
-  telegramUserId  String   @unique
-  telegramChatId  String
-  username        String?
-  isActive        Boolean  @default(true)
-  linkedAt        DateTime @default(now())
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  telegramUserId String   @unique
+  telegramChatId String
+  username       String?
+  isActive       Boolean  @default(true)
+  linkedAt       DateTime @default(now())
 }
 
 // Catatan error dari web, Telegram, AI, upload foto, dan browser untuk ditelusuri admin.
 model ErrorLog {
   id        String   @id @default(uuid())
-  source    String   // WEB, TELEGRAM, AI, UPLOAD, NOTIFICATION, BROWSER
+  source    String // WEB, TELEGRAM, AI, UPLOAD, NOTIFICATION, BROWSER
   level     String   @default("ERROR") // ERROR, WARNING
   message   String
-  location  String?  // route API, fungsi, atau halaman tempat error terjadi
+  location  String? // route API, fungsi, atau halaman tempat error terjadi
   stack     String?
-  context   String?  // JSON: request, ID Telegram, isi pesan, dsb.
+  context   String? // JSON: request, ID Telegram, isi pesan, dsb.
   resolved  Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -131,7 +138,6 @@ model TelegramConversation {
   updatedAt      DateTime @updatedAt
 }
 
-
 model InstallationTask {
   id            String    @id @default(uuid())
   productId     String
@@ -159,7 +165,7 @@ model Notification {
   product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   recipientUserId String?
   recipient       User?    @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
-  type            String   // LOW_STOCK, OUT_OF_STOCK, SYSTEM
+  type            String // LOW_STOCK, OUT_OF_STOCK, SYSTEM
   message         String
   isRead          Boolean  @default(false)
   dedupeKey       String?  @unique
@@ -168,4 +174,80 @@ model Notification {
   @@index([recipientUserId, isRead, createdAt])
   @@index([createdAt])
   @@index([isRead])
+}
+
+// Form Distribusi Barang (pengiriman barang ke unit/ruang). Setiap item mengurangi stok
+// lewat StockMovement OUT dengan referenceId = id distribusi.
+model Distribution {
+  id              String             @id @default(uuid())
+  number          String             @unique // contoh: ATK-202611-001
+  stockGroup      String // LISTRIK, LOGISTIK, ATK
+  recipientUnit   String // "Kepada" (unit/bagian) atau "Ruang" untuk peralatan listrik
+  orderNumber     String? // No. Nota Pesanan
+  distributedAt   DateTime // Tanggal pesanan / distribusi
+  storageLocation String? // Tempat penyimpanan
+  receiverName    String? // Penerima
+  handoverName    String // Yang menyerahkan / petugas
+  officerPhone    String? // No. WhatsApp petugas (opsional, format 62xxx), untuk kirim link foto
+  notes           String?
+  status          String             @default("COMPLETED") // COMPLETED, CANCELLED
+  cancelReason    String?
+  cancelledAt     DateTime?
+  // Foto bukti lewat link (khusus Peralatan Listrik), mirip tugas pemasangan di Telegram.
+  proofTokenHash  String?
+  proofFileName   String?
+  proofMimeType   String?
+  proofUploadedAt DateTime?
+  creatorUserId   String?
+  creator         User?              @relation(fields: [creatorUserId], references: [id], onDelete: SetNull)
+  items           DistributionItem[]
+  createdAt       DateTime           @default(now())
+
+  @@index([stockGroup, distributedAt])
+  @@index([status])
+  // Token acak 256-bit, cukup index (tanpa unique) untuk pencarian link foto.
+  @@index([proofTokenHash])
+}
+
+model DistributionItem {
+  id             String       @id @default(uuid())
+  distributionId String
+  distribution   Distribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity       Int
+  unit           String // satuan saat distribusi dibuat
+  movementId     String?      @unique
+
+  @@index([distributionId])
+  @@index([productId])
+}
+
+// Paket distribusi: template tabel barang per unit (mis. BAAK FSIP, LPPM, Prodi FTIK)
+// yang dimuat ke Form Distribusi lalu bisa diubah sebelum disimpan.
+model DistributionTemplate {
+  id              String                     @id @default(uuid())
+  stockGroup      String // LISTRIK, LOGISTIK, ATK
+  name            String // nama paket, mis. "BAAK FSIP"
+  recipientUnit   String // isian "Kepada"
+  storageLocation String?
+  receiverName    String?
+  items           DistributionTemplateItem[]
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@unique([stockGroup, name])
+}
+
+model DistributionTemplateItem {
+  id         String               @id @default(uuid())
+  templateId String
+  template   DistributionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity   Int
+  sortOrder  Int                  @default(0)
+
+  @@unique([templateId, productId])
+  @@index([productId])
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -15,11 +15,14 @@ import {
   Boxes,
   X,
   ChevronRight,
+  ChevronDown,
   ShieldCheck,
   UserCheck,
   Camera,
   Bug,
   Bot,
+  Truck,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -28,9 +31,16 @@ interface SidebarProps {
   onCloseMobile: () => void;
 }
 
-interface NavItem {
+interface NavChild {
   name: string;
   href: string;
+}
+
+interface NavItem {
+  name: string;
+  /** Untuk menu induk (punya children), href hanya dipakai sebagai kunci. */
+  href: string;
+  children?: NavChild[];
   icon: any;
   badge?: string;
   highlight?: boolean;
@@ -52,8 +62,42 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       title: 'Menu Utama',
       items: [
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-        { name: 'Master Barang', href: '/products', icon: Package },
+        {
+          name: 'Barang',
+          href: '/products',
+          icon: Package,
+          children: [
+            { name: 'Master Barang ATK', href: '/products/atk' },
+            { name: 'Master Barang Peralatan Listrik', href: '/products/listrik' },
+            { name: 'Master Barang Logistik', href: '/products/logistik' },
+          ],
+        },
         { name: 'Kategori', href: '/categories', icon: Tags },
+      ],
+    },
+    {
+      title: 'Distribusi Barang',
+      items: [
+        {
+          name: 'Distribusi Barang',
+          href: '/distribution',
+          icon: Truck,
+          children: [
+            { name: 'Distribusi ATK', href: '/distribution/atk' },
+            { name: 'Distribusi Peralatan Listrik', href: '/distribution/listrik' },
+            { name: 'Distribusi Logistik', href: '/distribution/logistik' },
+          ],
+        },
+        {
+          name: 'Laporan Distribusi',
+          href: '/distribution-reports',
+          icon: ClipboardList,
+          children: [
+            { name: 'Laporan ATK', href: '/distribution-reports/atk' },
+            { name: 'Laporan Peralatan Listrik', href: '/distribution-reports/listrik' },
+            { name: 'Laporan Logistik', href: '/distribution-reports/logistik' },
+          ],
+        },
       ],
     },
     {
@@ -75,6 +119,28 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       ],
     },
   ];
+
+  // Cocok persis atau sub-halaman (/stock/history/...), bukan sekadar awalan teks:
+  // /distribution tidak boleh ikut aktif saat membuka /distribution-reports.
+  const matches = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  // Menu induk terbuka otomatis bila salah satu sub menunya sedang dibuka.
+  const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const activeParent = navItems
+      .flatMap((section) => section.items)
+      .find((item) => item.children?.some((child) => matches(child.href)));
+    if (activeParent) setOpenMenus((current) => (current.has(activeParent.href) ? current : new Set(current).add(activeParent.href)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  const toggleMenu = (href: string) =>
+    setOpenMenus((current) => {
+      const next = new Set(current);
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
+      return next;
+    });
 
   return (
     <>
@@ -124,8 +190,56 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
               </p>
               {section.items.map((item) => {
                 if (item.adminOnly && !isAdmin) return null;
-                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                 const Icon = item.icon;
+
+                if (item.children) {
+                  const childActive = item.children.some((child) => matches(child.href));
+                  const open = openMenus.has(item.href);
+                  const menuId = `submenu-${item.href.replace(/\W+/g, '-')}`;
+                  return (
+                    <div key={item.href}>
+                      <button
+                        type="button"
+                        onClick={() => toggleMenu(item.href)}
+                        aria-expanded={open}
+                        aria-controls={menuId}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm leading-6 font-medium transition-all group ${
+                          childActive ? 'text-maroon-900 font-semibold' : 'text-slate-600 hover:text-maroon-900 hover:bg-maroon-50/50'
+                        }`}
+                      >
+                        <span className="flex items-center gap-3">
+                          <Icon className={`w-4 h-4 transition-colors ${childActive ? 'text-maroon-800' : 'text-slate-400 group-hover:text-maroon-700'}`} />
+                          {item.name}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                      </button>
+                      {open && (
+                        <div id={menuId} className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-3">
+                          {item.children.map((child) => {
+                            const active = matches(child.href);
+                            return (
+                              <Link
+                                key={child.href}
+                                href={child.href}
+                                onClick={onCloseMobile}
+                                aria-current={active ? 'page' : undefined}
+                                className={`block rounded-lg px-3 py-2 text-[13px] leading-5 transition-colors ${
+                                  active
+                                    ? 'bg-maroon-50 text-maroon-900 font-semibold shadow-sm'
+                                    : 'text-slate-600 hover:text-maroon-900 hover:bg-maroon-50/50'
+                                }`}
+                              >
+                                {child.name}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                const isActive = matches(item.href);
 
                 return (
                   <Link

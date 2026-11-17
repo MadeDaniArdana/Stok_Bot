@@ -14,15 +14,18 @@ import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
 import { ProductPicker } from './ProductPicker';
 import { UnitInput } from './UnitInput';
+import { getStockGroup, type StockGroup } from '@/lib/stock-groups';
 
 interface StockEntryFormProps {
   initialProductId?: string;
   initialMode?: 'existing' | 'new';
   onSaved: () => void;
   onCancel: () => void;
+  /** Jika diisi, hanya barang & kategori jenis ini yang ditampilkan. */
+  stockGroup?: StockGroup | null;
 }
 
-export function StockEntryForm({ initialProductId = '', initialMode = 'existing', onSaved, onCancel }: StockEntryFormProps) {
+export function StockEntryForm({ initialProductId = '', initialMode = 'existing', onSaved, onCancel, stockGroup = null }: StockEntryFormProps) {
   const { showToast } = useToast();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -58,7 +61,7 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
         let page = 1;
         let totalPages = 1;
         do {
-          const res = await fetch(`/api/products?status=active&limit=500&page=${page}`);
+          const res = await fetch(`/api/products?status=active&limit=500&page=${page}${stockGroup ? `&jenis=${stockGroup}` : ''}`);
           if (!res.ok) throw new Error('Gagal memuat daftar barang.');
           const data = await res.json();
           allProducts.push(...(data.items || []));
@@ -77,18 +80,18 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
       }
     };
     fetchProducts();
-  }, []);
+  }, [stockGroup]);
 
   useEffect(() => {
     if (!isAdmin) return;
-    fetch('/api/categories')
+    fetch(stockGroup ? `/api/categories?jenis=${stockGroup}` : '/api/categories')
       .then(async (res) => {
         if (!res.ok) throw new Error('Gagal memuat kategori.');
         setCategories(await res.json());
       })
       .catch(() => setCategoriesError(true))
       .finally(() => setCategoriesLoading(false));
-  }, [isAdmin]);
+  }, [isAdmin, stockGroup]);
 
   const selectedProduct = isNewProduct
     ? { name: name.trim() || 'Barang baru', unit, currentStock: 0, sku: '' }
@@ -231,7 +234,7 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
                     <label htmlFor="new-product-category" className="block font-semibold text-slate-700 mb-1">Kategori <span className="text-rose-500">*</span></label>
                     <select id="new-product-category" required disabled={categoriesLoading || categoriesError} value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700">
                       <option value="">{categoriesLoading ? 'Memuat kategori...' : 'Pilih kategori'}</option>
-                      {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                      {categories.map((category) => <option key={category.id} value={category.id}>{category.name} ({getStockGroup(category.stockGroup).shortLabel})</option>)}
                     </select>
                     {categoriesError ? (
                       <p className="text-xs text-rose-600 mt-1">Kategori gagal dimuat. Muat ulang halaman untuk mencoba lagi.</p>

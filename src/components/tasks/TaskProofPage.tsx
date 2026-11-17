@@ -14,6 +14,8 @@ interface TaskDetails {
   status: string;
   completedAt: string | null;
   photoUrl: string | null;
+  /** Ringkasan beberapa barang (distribusi); jika ada, dipakai menggantikan nama + jumlah. */
+  itemsSummary?: string;
 }
 
 const MAX_DIMENSION = 1600;
@@ -47,7 +49,8 @@ async function compressPhoto(file: File): Promise<File> {
   }
 }
 
-export function TaskProofPage({ token }: { token: string }) {
+/** Dipakai untuk tugas pemasangan Telegram (/api/tasks/proof) dan distribusi listrik (/api/distributions/proof). */
+export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: string; apiBase?: string }) {
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -160,7 +163,7 @@ export function TaskProofPage({ token }: { token: string }) {
   };
 
   useEffect(() => {
-    fetch(`/api/tasks/proof/${encodeURIComponent(token)}`)
+    fetch(`${apiBase}/${encodeURIComponent(token)}`)
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Tugas tidak dapat dimuat.');
@@ -168,7 +171,7 @@ export function TaskProofPage({ token }: { token: string }) {
       })
       .catch((requestError: Error) => setError(requestError.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, apiBase]);
 
   useEffect(() => {
     if (!photo) {
@@ -191,7 +194,7 @@ export function TaskProofPage({ token }: { token: string }) {
     try {
       const body = new FormData();
       body.append('photo', photo);
-      const response = await fetch(`/api/tasks/proof/${encodeURIComponent(token)}`, {
+      const response = await fetch(`${apiBase}/${encodeURIComponent(token)}`, {
         method: 'POST',
         body,
       });
@@ -201,7 +204,7 @@ export function TaskProofPage({ token }: { token: string }) {
         ...current,
         status: data.status,
         completedAt: data.completedAt,
-        photoUrl: `/api/tasks/proof/${encodeURIComponent(token)}/photo`,
+        photoUrl: `${apiBase}/${encodeURIComponent(token)}/photo`,
       } : current);
       setPhoto(null);
     } catch (requestError) {
@@ -234,7 +237,7 @@ export function TaskProofPage({ token }: { token: string }) {
                   <Package className="mt-0.5 h-5 w-5 text-maroon-800" />
                   <div>
                     <p className="text-xs text-slate-500">Barang dan jumlah</p>
-                    <p className="font-semibold text-slate-900">{task.productName} - {task.quantity} {task.unit}</p>
+                    <p className="font-semibold text-slate-900">{task.itemsSummary ?? `${task.productName} - ${task.quantity} ${task.unit}`}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

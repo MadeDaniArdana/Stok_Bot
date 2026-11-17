@@ -2,6 +2,8 @@
 
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { getCategoryAppearance } from '@/lib/category-appearance';
+import { DEFAULT_STOCK_GROUP, STOCK_GROUPS, getStockGroup } from '@/lib/stock-groups';
+import { cn } from '@/lib/cn';
 
 import React, { useState, useEffect } from 'react';
 import { Tags, Plus, Edit2, Trash2, X, Package, Layers } from 'lucide-react';
@@ -23,6 +25,8 @@ export default function CategoriesPage() {
   // Form State
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [stockGroup, setStockGroup] = useState<string>(DEFAULT_STOCK_GROUP);
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchCategories = async () => {
@@ -53,7 +57,7 @@ export default function CategoriesPage() {
       const res = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim(), stockGroup }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -79,7 +83,7 @@ export default function CategoriesPage() {
       const res = await fetch(`/api/categories/${editingCategory.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
+        body: JSON.stringify({ name: name.trim(), description: description.trim(), stockGroup }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -129,6 +133,7 @@ export default function CategoriesPage() {
             onClick={() => {
               setName('');
               setDescription('');
+              setStockGroup(groupFilter || DEFAULT_STOCK_GROUP);
               setIsAddOpen(true);
             }}
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-maroon-800 hover:bg-maroon-900 text-white text-xs font-semibold shadow-soft hover:shadow-maroon transition-all"
@@ -139,18 +144,39 @@ export default function CategoriesPage() {
         )}
       </div>
 
+      {/* Filter jenis stok */}
+      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-soft">
+        {[{ id: null as string | null, label: 'Semua Jenis' }, ...STOCK_GROUPS.map((g) => ({ id: g.id as string | null, label: g.label }))].map((tab) => (
+          <button
+            key={tab.label}
+            type="button"
+            aria-pressed={groupFilter === tab.id}
+            onClick={() => setGroupFilter(tab.id)}
+            className={cn(
+              'whitespace-nowrap rounded-lg px-4 py-2 text-xs font-semibold transition-colors',
+              groupFilter === tab.id ? 'bg-maroon-800 text-white shadow-sm' : 'text-slate-600 hover:bg-maroon-50 hover:text-maroon-900'
+            )}
+          >
+            {tab.label}
+            <span className="ml-1.5 opacity-70">
+              {tab.id ? categories.filter((c) => c.stockGroup === tab.id).length : categories.length}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Grid of Categories */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           <div className="col-span-full py-12 text-center text-slate-400 text-xs">
             Memuat kategori...
           </div>
-        ) : categories.length === 0 ? (
+        ) : categories.filter((c) => !groupFilter || c.stockGroup === groupFilter).length === 0 ? (
           <div className="col-span-full py-12 text-center text-slate-400 text-xs bg-white rounded-xl border border-slate-200">
             Belum ada kategori yang terdaftar.
           </div>
         ) : (
-          categories.map((cat) => (
+          categories.filter((c) => !groupFilter || c.stockGroup === groupFilter).map((cat) => (
             <div
               key={cat.id}
               data-category-id={cat.id}
@@ -171,7 +197,10 @@ export default function CategoriesPage() {
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-500 mt-3 line-clamp-2 leading-relaxed">
+                <span className={cn('mt-3 inline-block rounded border px-2 py-0.5 text-[10px] font-semibold', getStockGroup(cat.stockGroup).badgeClass)}>
+                  {getStockGroup(cat.stockGroup).label}
+                </span>
+                <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">
                   {cat.description || 'Tidak ada deskripsi tambahan.'}
                 </p>
               </div>
@@ -183,6 +212,7 @@ export default function CategoriesPage() {
                       setEditingCategory(cat);
                       setName(cat.name);
                       setDescription(cat.description || '');
+                      setStockGroup(cat.stockGroup || DEFAULT_STOCK_GROUP);
                     }}
                     className="action-button action-icon action-edit"
                     aria-label={`Edit kategori ${cat.name}`}
@@ -243,6 +273,36 @@ export default function CategoriesPage() {
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
                 />
               </div>
+
+              <fieldset>
+                <legend className="block font-semibold text-slate-700 mb-1">
+                  Jenis Stok <span className="text-rose-500">*</span>
+                </legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {STOCK_GROUPS.map((g) => (
+                    <label
+                      key={g.id}
+                      className={cn(
+                        'cursor-pointer rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-colors',
+                        stockGroup === g.id ? 'border-maroon-700 bg-maroon-50 text-maroon-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="stockGroup"
+                        value={g.id}
+                        checked={stockGroup === g.id}
+                        onChange={() => setStockGroup(g.id)}
+                        className="sr-only"
+                      />
+                      {g.label}
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Menentukan tab barang di Master Barang dan form distribusi yang bisa memakai barang kategori ini.
+                </p>
+              </fieldset>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Deskripsi</label>

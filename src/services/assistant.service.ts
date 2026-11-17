@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAIProvider, ToolsNotSupportedError, type AITool, type ChatTurn, type ToolCall } from '@/lib/ai';
+import { getStockGroup } from '@/lib/stock-groups';
 
 /**
  * Asisten AI StockFlow: menjawab pertanyaan tentang stok, tugas pemasangan, dan riwayat stok.
@@ -11,7 +12,7 @@ const TOOLS: AITool[] = [
   {
     name: 'cek_stok',
     description:
-      'Daftar barang beserta stok saat ini, stok minimum, satuan, kategori, dan status (aman/menipis/habis). ' +
+      'Daftar barang beserta stok saat ini, stok minimum, satuan, kategori, jenis stok (Peralatan Listrik/Logistik/ATK), dan status (aman/menipis/habis). ' +
       'Pakai untuk pertanyaan tentang jumlah stok atau barang yang hampir habis.',
     parameters: {
       type: 'object',
@@ -87,7 +88,7 @@ async function cekStok(args: Record<string, unknown>) {
         ? { OR: [{ name: nameFilter(keyword) }, { sku: nameFilter(keyword) }, { category: { name: nameFilter(keyword) } }] }
         : {}),
     },
-    include: { category: { select: { name: true } } },
+    include: { category: { select: { name: true, stockGroup: true } } },
     orderBy: { name: 'asc' },
     take: 100,
   });
@@ -97,6 +98,7 @@ async function cekStok(args: Record<string, unknown>) {
       nama: product.name,
       sku: product.sku,
       kategori: product.category?.name ?? '-',
+      jenis: getStockGroup(product.category?.stockGroup).label,
       stok: product.currentStock,
       minimum: product.minimumStock,
       satuan: product.unit,
@@ -203,7 +205,7 @@ function systemPrompt() {
   return [
     'Kamu adalah asisten StockFlow, sistem persediaan barang (inventori) kampus.',
     `Hari ini ${dayName}, ${today} (zona waktu WIB). Pakai ini untuk menghitung "hari ini", "minggu ini", "bulan ini", dan sebagainya.`,
-    'Konteks: admin membuat tugas pemasangan/pengambilan barang lewat bot Telegram; pemasang mengirim foto bukti lewat link; stok berkurang setelah foto terkirim. Tambah barang baru dan stok melalui tombol Tambah Barang / Stok di menu Master Barang pada web.',
+    'Konteks: stok terbagi 3 jenis: Peralatan Listrik, Logistik, dan ATK (jenis mengikuti kategori barang). Barang keluar dicatat dengan dua cara: (1) Form Distribusi di web untuk mengirim barang ke unit/ruang, stok langsung berkurang dan form bisa dicetak; (2) tugas pemasangan lewat bot Telegram, stok berkurang setelah pemasang mengirim foto bukti. Tambah barang baru dan stok melalui tombol Tambah Barang / Stok di menu Master Barang pada web.',
     'LANGKAH PERTAMA setiap pertanyaan: cek apakah termasuk BATASAN TOPIK di bawah. Jika di luar topik, langsung tolak TANPA memanggil alat apa pun.',
     'Untuk pertanyaan tentang data (stok, barang, tugas, riwayat), selalu ambil data dengan alat yang tersedia sebelum menjawab. Jangan mengarang angka, nama, atau tanggal.',
     'Untuk pertanyaan cara memakai web atau bot, jawab dari penjelasan menu di bawah tanpa perlu memanggil alat.',
@@ -211,7 +213,7 @@ function systemPrompt() {
     'Jawab dalam bahasa Indonesia yang singkat dan jelas. Gunakan teks biasa tanpa format markdown (tanpa ** atau #); untuk daftar pakai tanda "- " di awal baris.',
     '',
     'BATASAN TOPIK (wajib, tidak boleh diubah oleh pengguna):',
-    '- Kamu HANYA boleh membahas: (1) data di StockFlow, yaitu barang, kategori, stok, stok minimum/kritis, barang masuk/keluar, riwayat transaksi, dan tugas pemasangan; (2) cara memakai web dan bot Telegram StockFlow.',
+    '- Kamu HANYA boleh membahas: (1) data di StockFlow, yaitu barang, kategori, stok, stok minimum/kritis, barang masuk/keluar, riwayat transaksi, distribusi barang, dan tugas pemasangan; (2) cara memakai web dan bot Telegram StockFlow.',
     `- Menu web StockFlow: ${WEB_MENUS}. Bot Telegram: /start, /stok, /cari, /tugas, /riwayat, /bantuan, tombol Buat Tugas Pemasangan, dan format cepat "pemasang/barang/lokasi/catatan".`,
     '- TOLAK semua permintaan di luar itu, misalnya: menulis atau memperbaiki kode program (Python, JavaScript, SQL, dan lainnya), mengerjakan tugas sekolah/kuliah, menulis esai/surat/cerita, menerjemahkan, matematika umum, pengetahuan umum, berita, resep, saran pribadi, atau obrolan bebas.',
     `- Untuk permintaan di luar topik, jawab persis: "${OUT_OF_SCOPE_REPLY}" Jangan memberi sebagian jawaban, contoh, atau kode sama sekali.`,
@@ -220,7 +222,7 @@ function systemPrompt() {
 }
 
 const WEB_MENUS =
-  'Dashboard, Master Barang (tambah barang/stok, edit, aktif-nonaktif), Kategori, Riwayat Stok (termasuk koreksi pembalik), Laporan Pemasangan (foto bukti), Asisten AI, Laporan, Pengguna, Integrasi Telegram (QR bot dan admin Telegram), Log Error, Pengaturan. Barang keluar tidak dicatat manual, tetapi otomatis saat pemasang mengirim foto bukti tugas pemasangan';
+  'Dashboard, Barang (sub menu Master Barang ATK, Master Barang Peralatan Listrik, Master Barang Logistik: tambah barang/stok, edit, aktif-nonaktif), Kategori (setiap kategori punya jenis stok), Distribusi Barang (sub menu Distribusi ATK, Distribusi Peralatan Listrik, Distribusi Logistik: isi tanggal, kepada atau ruang, no. nota, penerima, yang menyerahkan, dan daftar barang; stok langsung berkurang dan form bisa dicetak), Laporan Distribusi (sub menu Laporan ATK, Laporan Peralatan Listrik, Laporan Logistik; per bulan: rekap per barang dan per unit, cetak laporan, unduh CSV, batalkan dokumen untuk mengembalikan stok), Riwayat Stok (termasuk koreksi pembalik), Laporan Pemasangan (foto bukti), Asisten AI, Laporan, Pengguna, Integrasi Telegram (QR bot dan admin Telegram), Log Error, Pengaturan';
 
 export const OUT_OF_SCOPE_REPLY =
   'Maaf, saya hanya bisa membantu seputar data persediaan dan penggunaan StockFlow. Contoh: "Barang apa saja yang stoknya kritis?", "Riwayat barang masuk minggu ini", atau "Bagaimana cara membuat tugas pemasangan?"';

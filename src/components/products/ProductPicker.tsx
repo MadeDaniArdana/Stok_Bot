@@ -20,9 +20,13 @@ interface ProductPickerProps {
   onChange: (id: string) => void;
   disabled?: boolean;
   loading?: boolean;
+  /** Tampilkan teks petunjuk di bawah kolom (matikan untuk tabel berbaris banyak). */
+  showHint?: boolean;
+  placeholder?: string;
+  required?: boolean;
 }
 
-export function ProductPicker({ id, products, value, onChange, disabled = false, loading = false }: ProductPickerProps) {
+export function ProductPicker({ id, products, value, onChange, disabled = false, loading = false, showHint = true, placeholder, required = true }: ProductPickerProps) {
   const [query, setQuery] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -77,12 +81,12 @@ export function ProductPicker({ id, products, value, onChange, disabled = false,
           aria-expanded={expanded}
           aria-controls={listId}
           aria-activedescendant={expanded && activeOption ? `${listId}-${activeOption.id}` : undefined}
-          aria-describedby={`${id}-hint`}
+          aria-describedby={showHint ? `${id}-hint` : undefined}
           autoComplete="off"
-          required
+          required={required}
           disabled={disabled}
           value={query ?? (selected ? `[${selected.sku}] ${selected.name}` : '')}
-          placeholder={loading ? 'Memuat barang...' : 'Ketik nama barang atau SKU...'}
+          placeholder={loading ? 'Memuat barang...' : placeholder || 'Ketik nama barang atau SKU...'}
           onFocus={(event) => {
             setOpen(true);
             setActiveIndex(0);
@@ -166,7 +170,9 @@ export function ProductPicker({ id, products, value, onChange, disabled = false,
           )}
         </ul>
       )}
-      <p id={`${id}-hint`} className="mt-1.5 text-[11px] text-slate-500">Ketik nama atau SKU, lalu pilih barang dari hasil pencarian.</p>
+      {showHint && (
+        <p id={`${id}-hint`} className="mt-1.5 text-[11px] text-slate-500">Ketik nama atau SKU, lalu pilih barang dari hasil pencarian.</p>
+      )}
     </div>
   );
 }

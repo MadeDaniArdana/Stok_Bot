@@ -9,14 +9,14 @@ export default function StockOutPage() {
       </div>
       <h1 className="mt-4 text-xl font-bold text-slate-900">Pencatatan Barang Keluar</h1>
       <p className="mt-2 text-sm leading-6 text-slate-600">
-        Barang keluar dicatat melalui tugas pemasangan di Telegram. Setelah pemasang mengirim foto
-        bukti melalui link WhatsApp, stok akan diperbarui otomatis tanpa konfirmasi di web.
+        Barang keluar dicatat melalui <strong>Form Distribusi</strong> (Peralatan Listrik, Logistik, ATK) atau
+        melalui tugas pemasangan di Telegram yang mengurangi stok setelah pemasang mengirim foto bukti.
       </p>
       <Link
-        href="/telegram"
+        href="/distribution/atk"
         className="mt-5 inline-flex items-center gap-2 rounded-xl bg-maroon-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-maroon-900"
       >
-        Buka panduan Telegram
+        Buka Form Distribusi
       </Link>
     </div>
   );

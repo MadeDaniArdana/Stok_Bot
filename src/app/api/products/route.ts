@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { ProductService } from '@/services/product.service';
+import { parseStockGroup } from '@/lib/stock-groups';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || undefined;
     const categoryId = searchParams.get('categoryId') || undefined;
+    const stockGroup = parseStockGroup(searchParams.get('jenis')) ?? undefined;
     const status = (searchParams.get('status') as any) || 'all';
     const stockStatus = (searchParams.get('stockStatus') as any) || 'all';
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -15,6 +17,7 @@ export async function GET(req: NextRequest) {
     const result = await ProductService.getProducts({
       search,
       categoryId,
+      stockGroup,
       status,
       stockStatus,
       page,

@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   '/proof/', // link bukti foto untuk pemasang
   '/api/auth/login',
   '/api/tasks/proof/', // data tugas & upload foto lewat link bukti
+  '/api/distributions/proof/', // data distribusi listrik & upload foto lewat link bukti
   '/api/telegram/webhook', // dilindungi TELEGRAM_WEBHOOK_SECRET
   '/api/logs/client', // laporan error browser (juga dari halaman bukti foto), dibatasi frekuensinya
 ];

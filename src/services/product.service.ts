@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { normalizeProductUnit } from '@/lib/product-units';
+import type { StockGroup } from '@/lib/stock-groups';
 
 export interface CreateProductInput {
   name: string;
@@ -27,6 +28,7 @@ export interface UpdateProductInput {
 export interface ProductFilterOptions {
   search?: string;
   categoryId?: string;
+  stockGroup?: StockGroup;
   status?: 'active' | 'inactive' | 'all';
   stockStatus?: 'all' | 'safe' | 'low' | 'empty';
   page?: number;
@@ -35,7 +37,7 @@ export interface ProductFilterOptions {
 
 export class ProductService {
   static async getProducts(filters: ProductFilterOptions = {}) {
-    const { search, categoryId, status = 'all', stockStatus = 'all', page = 1, limit = 50 } = filters;
+    const { search, categoryId, stockGroup, status = 'all', stockStatus = 'all', page = 1, limit = 50 } = filters;
 
     const where: any = {};
 
@@ -47,6 +49,10 @@ export class ProductService {
 
     if (categoryId && categoryId !== 'all') {
       where.categoryId = categoryId;
+    }
+
+    if (stockGroup) {
+      where.category = { stockGroup };
     }
 
     if (search && search.trim()) {
