@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ClipboardList, PackageOpen, Plus, Printer, Save, Send, Trash2, X } from 'lucide-react';
+import { CheckCircle2, ClipboardList, LoaderCircle, PackageOpen, Plus, Printer, Save, Send, Trash2, X } from 'lucide-react';
+import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { ProductPicker } from '@/components/products/ProductPicker';
 import { ProofLinkBox } from './ProofLinkBox';
 import { useToast } from '@/components/ui/Toast';
@@ -83,8 +84,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const activeTemplate = templates.find((template) => template.id === activeTemplateId) ?? null;
 
   // Untuk ATK/Logistik, "Yang menyerahkan" biasanya admin yang login.
+  // Selama belum diubah manual di form ini, kolom selalu mengikuti nama admin terbaru
+  // (mis. setelah nama diganti di Pengaturan).
+  const handoverTouched = useRef(false);
   useEffect(() => {
-    if (!isListrik && currentUser?.name) setHandoverName((current) => current || currentUser.name);
+    if (!isListrik && currentUser?.name && !handoverTouched.current) setHandoverName(currentUser.name);
   }, [currentUser?.name, isListrik]);
 
   const loadProducts = () => {
@@ -232,7 +236,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     setReceiverName('');
     setOfficerPhone('');
     setNotes('');
-    if (isListrik) setHandoverName('');
+    handoverTouched.current = false;
+    setHandoverName(isListrik ? '' : currentUser?.name || '');
     setActiveTemplateId(null);
     setNewTemplateName(null);
     setRows([{ key: nextKey.current++, productId: '', quantity: '' }]);
@@ -319,7 +324,18 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="space-y-5" aria-busy={submitting}>
+      {submitting && (
+        <ModalOverlay role="alertdialog" aria-modal="true" aria-live="assertive" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
+            <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-maroon-800" aria-hidden="true" />
+            <p className="mt-3 text-sm font-bold text-slate-900">Menyimpan distribusi...</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Mengurangi stok {filledRows.length} barang dan membuat dokumen. Jangan tutup halaman ini.
+            </p>
+          </div>
+        </ModalOverlay>
+      )}
       {usesTemplates && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
           <div className="flex items-center gap-2">
@@ -454,7 +470,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                 <label htmlFor="dist-handover" className="mb-1 block text-xs font-semibold text-slate-700">
                   {group.handoverLabel} <span className="text-rose-500">*</span>
                 </label>
-                <input id="dist-handover" required value={handoverName} onChange={(e) => setHandoverName(e.target.value)} maxLength={150} aria-describedby="dist-handover-hint" className={inputClass} />
+                <input id="dist-handover" required value={handoverName} onChange={(e) => { handoverTouched.current = true; setHandoverName(e.target.value); }} maxLength={150} aria-describedby="dist-handover-hint" className={inputClass} />
                 <p id="dist-handover-hint" className="mt-1 text-[11px] text-slate-500">
                   Otomatis nama admin yang login. Ubah untuk form ini saja, atau ganti permanen di{' '}
                   <Link href="/settings" className="font-semibold text-maroon-800 underline">Pengaturan</Link>.
@@ -649,7 +665,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             disabled={!canSubmit}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-maroon-800 px-5 py-2.5 text-xs font-semibold text-white shadow-soft hover:bg-maroon-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Send className="h-4 w-4" />
+            {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {submitting ? 'Menyimpan...' : 'Simpan & Kurangi Stok'}
           </button>
         </div>

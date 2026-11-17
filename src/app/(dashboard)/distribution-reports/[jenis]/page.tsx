@@ -7,6 +7,7 @@ import {
   Building2,
   Camera,
   Link2,
+  LoaderCircle,
   ChevronDown,
   Download,
   FileText,
@@ -502,7 +503,8 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                 Kembali
               </button>
               <button type="submit" disabled={cancelling || !cancelReason.trim()} className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50">
-                {cancelling ? 'Memproses...' : 'Batalkan Distribusi'}
+                {cancelling && <LoaderCircle className="mr-1.5 inline h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+                {cancelling ? 'Mengembalikan stok...' : 'Batalkan Distribusi'}
               </button>
             </div>
           </form>
