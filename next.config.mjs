@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // sharp adalah modul native; jangan di-bundle webpack.
+  experimental: { serverComponentsExternalPackages: ['sharp'] },
   async redirects() {
     return [
       {

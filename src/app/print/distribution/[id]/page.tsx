@@ -84,7 +84,7 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
                 <tr key={item.id}>
                   <td className="border border-black px-2 py-1 text-center">{shortDate(distribution.distributedAt)}</td>
                   <td className="border border-black px-2 py-1">{item.product.name}</td>
-                  <td className="border border-black px-2 py-1">{distribution.recipientUnit}</td>
+                  <td className="border border-black px-2 py-1">{item.location || distribution.recipientUnit}</td>
                   <td className="border border-black px-2 py-1 text-center">{item.quantity} {item.unit}</td>
                   <td className="border border-black px-2 py-1">{distribution.handoverName}</td>
                 </tr>

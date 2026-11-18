@@ -33,6 +33,10 @@ type ReportItem = {
   createdAt: Date;
   completedAt: Date | null;
   photoUrl: string | null;
+  /** Semua foto bukti (distribusi listrik bisa punya satu foto per lokasi). */
+  photos: { url: string; label: string }[];
+  /** Jumlah lokasi yang butuh foto (1 untuk tugas Telegram). */
+  photoSlots: number;
 };
 
 // Urutan: foto terbaru dulu, lalu yang menunggu foto menurut waktu dibuat terbaru.
@@ -135,6 +139,7 @@ export async function GET(req: NextRequest) {
             include: {
               items: { orderBy: { id: 'asc' }, include: { product: { select: { name: true, sku: true } } } },
               creator: { select: { name: true } },
+              proofs: { orderBy: { uploadedAt: 'asc' } },
             },
           })
         : Promise.resolve([]),
@@ -158,6 +163,8 @@ export async function GET(req: NextRequest) {
         createdAt: task.createdAt,
         completedAt: task.completedAt,
         photoUrl: task.proofFileName ? `/api/tasks/${task.id}/photo` : null,
+        photos: task.proofFileName ? [{ url: `/api/tasks/${task.id}/photo`, label: task.location }] : [],
+        photoSlots: 1,
       })),
       ...distributions.map((distribution): ReportItem => {
         const first = distribution.items[0];
@@ -179,6 +186,13 @@ export async function GET(req: NextRequest) {
           createdAt: distribution.createdAt,
           completedAt: distribution.proofUploadedAt,
           photoUrl: distribution.proofFileName ? `/api/distributions/${distribution.id}/photo` : null,
+          // Satu foto per lokasi; dokumen lama menyimpan satu foto di level dokumen.
+          photos: distribution.proofs.length
+            ? distribution.proofs.map((proof) => ({ url: `/api/distributions/${distribution.id}/photo?location=${encodeURIComponent(proof.location)}`, label: proof.location }))
+            : distribution.proofFileName
+              ? [{ url: `/api/distributions/${distribution.id}/photo`, label: distribution.recipientUnit }]
+              : [],
+          photoSlots: new Set(distribution.items.map((item) => item.location || distribution.recipientUnit)).size,
         };
       }),
     ].sort(compareItems);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
 import { readTaskProof } from '@/lib/task-proof-storage';
+import { proofResponse } from '@/lib/proof-response';
 
 export const runtime = 'nodejs';
 
@@ -20,9 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
     const photo = await readTaskProof(fileName);
     if (!photo) return NextResponse.json({ error: 'File foto tidak ditemukan.' }, { status: 404 });
-    return new NextResponse(new Uint8Array(photo), {
-      headers: { 'Content-Type': mimeType, 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' },
-    });
+    return proofResponse(request, photo, mimeType, 'private, max-age=86400');
   } catch (error) {
     await logError({ source: 'UPLOAD', error, location: 'GET /api/distributions/[id]/photo', context: { distribusiId: params.id } });
     return NextResponse.json({ error: 'Foto bukti tidak dapat dimuat.' }, { status: 500 });

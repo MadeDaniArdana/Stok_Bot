@@ -1,5 +1,6 @@
 'use client';
 
+import { PhotoSlider } from '@/components/PhotoSlider';
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 
 import React, { useEffect, useState } from 'react';
@@ -25,6 +26,8 @@ interface TaskItem {
   createdAt: string;
   completedAt: string | null;
   photoUrl: string | null;
+  photos: { url: string; label: string }[];
+  photoSlots: number;
 }
 
 const SOURCE_FILTERS = [
@@ -58,6 +61,7 @@ export default function InstallationReportPage() {
   const [source, setSource] = useState('all');
   const [search, setSearch] = useState('');
   const [preview, setPreview] = useState<TaskItem | null>(null);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [month, setMonth] = useState('');
   const [followCurrentMonth, setFollowCurrentMonth] = useState(true);
   const [page, setPage] = useState(1);
@@ -223,21 +227,20 @@ export default function InstallationReportPage() {
         ) : (
           tasks.map((task) => (
             <div key={task.id} className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden flex flex-col">
-              {task.photoUrl ? (
-                <button
-                  onClick={() => setPreview(task)}
-                  className="block aspect-[4/3] bg-slate-100 overflow-hidden group"
-                  aria-label={`Lihat foto bukti ${task.productName}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={task.photoUrl}
+              {task.photos.length > 0 ? (
+                <div className="relative">
+                  <PhotoSlider
+                    photos={task.photos}
+                    width={480}
                     alt={`Bukti pemasangan ${task.productName} di ${task.location}`}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onSlideClick={(index) => { setPreview(task); setPreviewIndex(index); }}
                   />
-                </button>
+                  {task.photos.length < task.photoSlots && (
+                    <span className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      Menunggu {task.photoSlots - task.photos.length} foto lagi
+                    </span>
+                  )}
+                </div>
               ) : (
                 <div className="aspect-[4/3] bg-slate-50 flex flex-col items-center justify-center text-slate-400 gap-2">
                   <ImageOff className="w-6 h-6" />
@@ -307,7 +310,7 @@ export default function InstallationReportPage() {
       )}
 
       {/* Foto ukuran penuh */}
-      {!isLoading && preview?.photoUrl && (
+      {!isLoading && preview && preview.photos.length > 0 && (
         <ModalOverlay
           className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setPreview(null)}
@@ -319,12 +322,19 @@ export default function InstallationReportPage() {
             >
               <X className="w-4 h-4" /> Tutup
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={preview.photoUrl}
+            <PhotoSlider
+              key={preview.id}
+              photos={preview.photos}
+              width={960}
+              fit="object-contain"
+              className="h-[70vh] rounded-xl bg-black"
               alt={`Bukti pemasangan ${preview.productName} di ${preview.location}`}
-              className="w-full max-h-[75vh] object-contain rounded-xl bg-black"
+              startIndex={previewIndex}
+              onIndexChange={setPreviewIndex}
             />
+            <a href={preview.photos[Math.min(previewIndex, preview.photos.length - 1)].url} target="_blank" rel="noopener" className="mt-2 block text-center text-[11px] text-white/70 underline">
+              Buka ukuran asli
+            </a>
             <p className="text-center text-white text-xs mt-3">
               {preview.productName} ({preview.quantityLabel}) · {preview.assigneeName} · {preview.location} ·{' '}
               {formatDate(preview.completedAt)}

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { del, put } from '@vercel/blob';
+import sharp from 'sharp';
 
 // Batas body request Vercel Function sekitar 4,5 MB, jadi foto dibatasi 4 MB.
 const MAX_PROOF_SIZE = 4 * 1024 * 1024;
@@ -32,6 +33,29 @@ function isValidImage(type: string, contents: Buffer) {
   );
 }
 
+const MAX_SIDE = 1600;
+
+/**
+ * Mengecilkan foto di server: sisi terpanjang maksimal 1600 px, orientasi EXIF diterapkan lalu metadata dibuang.
+ * Format tetap sama dengan aslinya (agar MIME tersimpan tetap benar). Jika gagal atau hasilnya tidak lebih kecil,
+ * file asli dipakai.
+ */
+async function compressImage(contents: Buffer, type: string): Promise<Buffer> {
+  try {
+    const image = sharp(contents).rotate().resize({ width: MAX_SIDE, height: MAX_SIDE, fit: 'inside', withoutEnlargement: true });
+    const output = await (type === 'image/png' ? image.png({ compressionLevel: 9 }) : type === 'image/webp' ? image.webp({ quality: 80 }) : image.jpeg({ quality: 80, mozjpeg: true })).toBuffer();
+    return output.length < contents.length ? output : contents;
+  } catch {
+    return contents;
+  }
+}
+
+/** Versi kecil (WebP) untuk daftar/thumbnail, supaya halaman tidak memuat foto ukuran penuh. */
+export const PROOF_WIDTHS = [240, 480, 960];
+export async function resizeProof(contents: Buffer, width: number): Promise<Buffer> {
+  return sharp(contents).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+}
+
 /**
  * Menyimpan foto bukti dan mengembalikan referensinya:
  * URL Vercel Blob (produksi) atau nama file lokal (development).
@@ -41,8 +65,9 @@ export async function saveTaskProof(file: File) {
   if (!extension) throw new Error('Format foto harus JPEG, PNG, atau WebP.');
   if (file.size <= 0 || file.size > MAX_PROOF_SIZE) throw new Error('Ukuran foto maksimal 4 MB.');
 
-  const contents = Buffer.from(await file.arrayBuffer());
-  if (!isValidImage(file.type, contents)) throw new Error('Isi file bukan gambar yang valid.');
+  const original = Buffer.from(await file.arrayBuffer());
+  if (!isValidImage(file.type, original)) throw new Error('Isi file bukan gambar yang valid.');
+  const contents = await compressImage(original, file.type);
 
   const fileName = `${randomUUID()}${extension}`;
 
