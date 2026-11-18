@@ -1,5 +1,6 @@
 'use client';
 
+import { formatStock } from '@/lib/product-units';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 
@@ -11,6 +12,8 @@ interface ProductOption {
   sku: string;
   currentStock: number;
   unit: string;
+  packUnit?: string | null;
+  packSize?: number | null;
 }
 
 interface ProductPickerProps {
@@ -158,7 +161,7 @@ export function ProductPicker({ id, products, value, onChange, disabled = false,
             >
               <div className="min-w-0">
                 <p className="break-words text-xs font-semibold">{product.name}</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">{product.sku} · Stok: {product.currentStock} {product.unit}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">{product.sku} · Stok: {formatStock(product, product.currentStock)}</p>
               </div>
               {product.id === value && <Check className="h-4 w-4 shrink-0 text-maroon-800" aria-hidden="true" />}
             </li>

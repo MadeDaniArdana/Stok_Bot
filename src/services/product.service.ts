@@ -23,6 +23,9 @@ export interface UpdateProductInput {
   categoryId?: string | null;
   unit?: string;
   minimumStock?: number;
+  /** Mengaktifkan satuan kecil: satuan lama menjadi kemasan, 1 kemasan = packSize satuan kecil. */
+  subUnit?: string;
+  packSize?: number;
 }
 
 export interface ProductFilterOptions {
@@ -188,6 +191,28 @@ export class ProductService {
         }
       }
 
+      if (existing.packSize && input.unit !== undefined && normalizeProductUnit(input.unit) !== existing.unit) {
+        throw new Error('Satuan barang berkemasan tidak dapat diubah.');
+      }
+
+      // Aktifkan satuan kecil: seluruh angka lama (dalam satuan lama) dikonversi ke satuan kecil.
+      let pack: { unit: string; packUnit: string; packSize: number; minimumStock?: number } | undefined;
+      if (input.subUnit && input.packSize !== undefined && !existing.packSize) {
+        const subUnit = normalizeProductUnit(input.subUnit);
+        const size = input.packSize;
+        if (!subUnit || subUnit === existing.unit) throw new Error('Satuan kecil harus berbeda dari satuan barang saat ini.');
+        if (!Number.isSafeInteger(size) || size < 2) throw new Error('Isi per kemasan harus bilangan bulat minimal 2.');
+        if (existing.currentStock * size > 2_000_000_000) throw new Error('Isi per kemasan terlalu besar.');
+        await tx.stockMovement.updateMany({
+          where: { productId: id },
+          data: { quantity: { multiply: size }, stockBefore: { multiply: size }, stockAfter: { multiply: size } },
+        });
+        await tx.distributionTemplateItem.updateMany({ where: { productId: id }, data: { quantity: { multiply: size } } });
+        await tx.installationTask.updateMany({ where: { productId: id }, data: { quantity: { multiply: size } } });
+        await tx.product.update({ where: { id }, data: { currentStock: { multiply: size }, minimumStock: { multiply: size } } });
+        pack = { unit: subUnit, packUnit: existing.unit, packSize: size };
+      }
+
       return tx.product.update({
         where: { id },
         data: {
@@ -196,7 +221,9 @@ export class ProductService {
           description: input.description !== undefined ? input.description?.trim() || null : undefined,
           categoryId: input.categoryId !== undefined ? input.categoryId : undefined,
           unit: input.unit !== undefined ? normalizeProductUnit(input.unit) : undefined,
-          minimumStock: input.minimumStock !== undefined ? input.minimumStock : undefined,
+          minimumStock: input.minimumStock !== undefined ? input.minimumStock * (pack?.packSize ?? 1) : undefined,
+          // Ditaruh terakhir agar menimpa unit lama dari form.
+          ...(pack && { unit: pack.unit, packUnit: pack.packUnit, packSize: pack.packSize }),
         },
       });
     });

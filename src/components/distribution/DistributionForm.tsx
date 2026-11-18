@@ -9,6 +9,7 @@ import { ProofLinkBox } from './ProofLinkBox';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
 import { cn } from '@/lib/cn';
+import { formatStock, toBaseQuantity } from '@/lib/product-units';
 import type { StockGroupConfig } from '@/lib/stock-groups';
 
 interface ProductOption {
@@ -17,12 +18,16 @@ interface ProductOption {
   sku: string;
   currentStock: number;
   unit: string;
+  packUnit?: string | null;
+  packSize?: number | null;
 }
 
 interface Row {
   key: number;
   productId: string;
   quantity: string;
+  /** Satuan input; kosong = satuan dasar. Hanya relevan untuk barang berkemasan. */
+  unit?: string;
 }
 
 interface Template {
@@ -136,10 +141,13 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
 
   const rowState = rows.map((row) => {
     const product = productById.get(row.productId);
-    const quantity = Number(row.quantity);
-    const validQuantity = Number.isSafeInteger(quantity) && quantity > 0;
+    const typed = Number(row.quantity.replace(',', '.'));
+    const inputUnit = product?.packUnit && row.unit === product.packUnit ? product.packUnit : product?.unit ?? '';
+    // Jumlah selalu dikirim dalam satuan dasar (pcs/gram); konversi kemasan dilakukan di sini.
+    const quantity = (product ? toBaseQuantity(product, typed, inputUnit) : Number.isSafeInteger(typed) && typed > 0 ? typed : null) ?? 0;
+    const validQuantity = quantity > 0;
     const overStock = Boolean(product && validQuantity && quantity > product.currentStock);
-    return { row, product, quantity, validQuantity, overStock };
+    return { row, product, quantity, validQuantity, overStock, inputUnit };
   });
   const filledRows = rowState.filter((state) => state.row.productId);
   const canSubmit =
@@ -520,7 +528,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
         </div>
 
         <div className="divide-y divide-slate-100">
-          {rowState.map(({ row, product, overStock, validQuantity }, index) => {
+          {rowState.map(({ row, product, overStock, validQuantity, inputUnit }, index) => {
             const options = optionsByRow.get(row.key) ?? products;
             return (
               <div key={row.key} className="grid grid-cols-[auto_1fr_auto] items-start gap-3 px-5 py-3 sm:grid-cols-[2rem_1fr_9rem_2.5rem]">
@@ -530,7 +538,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                     id={`dist-product-${row.key}`}
                     products={options}
                     value={row.productId}
-                    onChange={(productId) => updateRow(row.key, { productId })}
+                    onChange={(productId) => updateRow(row.key, { productId, unit: '' })}
                     loading={productsLoading}
                     showHint={false}
                     required={rows.length === 1}
@@ -538,7 +546,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                   />
                   {product && (
                     <p className={cn('mt-1 text-[11px]', product.currentStock === 0 ? 'text-rose-600' : 'text-slate-500')}>
-                      Stok tersedia: {product.currentStock} {product.unit}
+                      Stok tersedia: {formatStock(product, product.currentStock)}
                     </p>
                   )}
                 </div>
@@ -549,10 +557,10 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                       <input
                         id={`dist-qty-${row.key}`}
                         type="number"
-                        inputMode="numeric"
-                        min={1}
-                        step={1}
-                        max={product?.currentStock}
+                        inputMode={product?.packUnit ? 'decimal' : 'numeric'}
+                        min={product?.packUnit ? 0.01 : 1}
+                        step={product?.packUnit ? 'any' : 1}
+                        max={product?.packUnit ? undefined : product?.currentStock}
                         required={Boolean(row.productId)}
                         value={row.quantity}
                         onChange={(e) => updateRow(row.key, { quantity: e.target.value })}
@@ -560,8 +568,36 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                         aria-invalid={overStock || (Boolean(row.quantity) && !validQuantity)}
                         className={cn(inputClass, 'pr-14', overStock && 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20')}
                       />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">{product?.unit || ''}</span>
+                      {!product?.packUnit && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">{product?.unit || ''}</span>}
                     </div>
+                    {product?.packUnit && (
+                      <div className="mt-1 space-y-1">
+                        <select
+                          aria-label={`Satuan baris ${index + 1}`}
+                          value={inputUnit}
+                          onChange={(e) => updateRow(row.key, { unit: e.target.value })}
+                          className={cn(inputClass, 'py-1.5')}
+                        >
+                          <option value={product.packUnit}>{product.packUnit}</option>
+                          <option value={product.unit}>{product.unit}</option>
+                        </select>
+                        {product.packUnit === 'kg' && (
+                          <div className="flex flex-wrap gap-1">
+                            {[['¼', '0.25'], ['½', '0.5'], ['¾', '0.75'], ['1', '1']].map(([label, value]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                onClick={() => updateRow(row.key, { unit: 'kg', quantity: value })}
+                                className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-maroon-50 hover:text-maroon-800"
+                              >
+                                {label} kg
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {Boolean(row.quantity) && !validQuantity && <p className="mt-1 text-[11px] text-rose-600">Jumlah tidak valid (hasil harus bilangan bulat {product?.unit}).</p>}
                     {overStock && <p className="mt-1 text-[11px] text-rose-600">Melebihi stok.</p>}
                   </div>
                   <button

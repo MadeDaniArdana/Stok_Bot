@@ -14,6 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
 import { ProductPicker } from './ProductPicker';
 import { UnitInput } from './UnitInput';
+import { formatStock, toBaseQuantity } from '@/lib/product-units';
 import { getStockGroup, type StockGroup } from '@/lib/stock-groups';
 
 interface StockEntryFormProps {
@@ -45,6 +46,7 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
   const [description, setDescription] = useState('');
   const [selectedProductId, setSelectedProductId] = useState(initialProductId);
   const [quantity, setQuantity] = useState<number | ''>('');
+  const [entryUnit, setEntryUnit] = useState('');
   const [supplier, setSupplier] = useState('');
   const [referenceId, setReferenceId] = useState('');
   const [notes, setNotes] = useState('');
@@ -98,8 +100,16 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
     : products.find((p) => p.id === selectedProductId);
 
   const currentStock = selectedProduct?.currentStock || 0;
-  const validQuantity = typeof quantity === 'number' && Number.isSafeInteger(quantity) && quantity >= (isNewProduct ? 0 : 1);
-  const parsedQty = validQuantity ? Number(quantity) : 0;
+  const packUnit: string | null = (!isNewProduct && (selectedProduct as any)?.packUnit) || null;
+  const inputUnit = packUnit && entryUnit === packUnit ? packUnit : selectedProduct?.unit || 'satuan';
+  const baseQty = typeof quantity === 'number' && selectedProduct && !isNewProduct
+    ? toBaseQuantity(selectedProduct as any, quantity, inputUnit)
+    : null;
+  const validQuantity = isNewProduct
+    ? typeof quantity === 'number' && Number.isSafeInteger(quantity) && quantity >= 0
+    : baseQty !== null;
+  const parsedQty = validQuantity ? (isNewProduct ? Number(quantity) : (baseQty as number)) : 0;
+  const showStock = (value: number) => (packUnit ? formatStock(selectedProduct as any, value) : `${value} ${selectedProduct?.unit}`);
   const projectedStock = currentStock + parsedQty;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -282,14 +292,15 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
               <div>
                 <div>
                   <label htmlFor="stock-in-quantity" className="block font-semibold text-slate-700 mb-1">
-                    {isNewProduct ? 'Jumlah Stok Pertama' : 'Jumlah Barang Masuk'} ({selectedProduct?.unit || 'satuan'}){' '}
+                    {isNewProduct ? 'Jumlah Stok Pertama' : 'Jumlah Barang Masuk'} ({packUnit ? '' : selectedProduct?.unit || 'satuan'}){' '}
                     <span className="text-rose-500">*</span>
                   </label>
+                  <div className="flex gap-2">
                   <input
                     id="stock-in-quantity"
                     type="number"
-                    min={isNewProduct ? 0 : 1}
-                    step="1"
+                    min={isNewProduct ? 0 : 0.01}
+                    step={packUnit ? 'any' : '1'}
                     required
                     value={quantity}
                     onChange={(e) =>
@@ -298,6 +309,18 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
                     placeholder="Misal: 10"
                     className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
                   />
+                  {packUnit && (
+                    <select
+                      aria-label="Satuan jumlah masuk"
+                      value={inputUnit}
+                      onChange={(e) => setEntryUnit(e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700"
+                    >
+                      <option value={packUnit}>{packUnit}</option>
+                      <option value={selectedProduct?.unit}>{selectedProduct?.unit}</option>
+                    </select>
+                  )}
+                  </div>
                   {isNewProduct && <p className="text-xs text-slate-500 mt-1">Isi 0 jika barang belum memiliki stok. Stok 0 hanya mendaftarkan barang, tanpa transaksi penerimaan.</p>}
                 </div>
               </div>
@@ -396,21 +419,21 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
                   <div className="flex items-center justify-between py-1 border-b border-slate-100">
                     <span className="text-slate-500">Stok Saat Ini:</span>
                     <span className="font-bold text-slate-800">
-                      {currentStock} {selectedProduct.unit}
+                      {showStock(currentStock)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between py-1 border-b border-slate-100 text-emerald-700 font-medium">
                     <span>{isNewProduct ? 'Stok Pertama:' : 'Jumlah Masuk:'}</span>
                     <span className="font-bold text-sm">
-                      +{parsedQty} {selectedProduct.unit}
+                      +{showStock(parsedQty)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between py-2 bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
                     <span className="font-semibold text-emerald-900">Stok Sesudah Transaksi:</span>
                     <span className="font-extrabold text-base text-emerald-800">
-                      {projectedStock} {selectedProduct.unit}
+                      {showStock(projectedStock)}
                     </span>
                   </div>
                 </div>

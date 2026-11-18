@@ -3,6 +3,7 @@
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import dynamic from 'next/dynamic';
 import { UnitInput } from '@/components/products/UnitInput';
+import { formatStock } from '@/lib/product-units';
 import { cn } from '@/lib/cn';
 import { getStockGroup, type StockGroup } from '@/lib/stock-groups';
 
@@ -80,6 +81,8 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const [formName, setFormName] = useState('');
   const [formCategoryId, setFormCategoryId] = useState('');
   const [formUnit, setFormUnit] = useState('pcs');
+  const [formSubUnit, setFormSubUnit] = useState('');
+  const [formPackSize, setFormPackSize] = useState('');
   const [formMinStock, setFormMinStock] = useState('5');
   const [formDesc, setFormDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,6 +146,8 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
     setFormName(p.name);
     setFormCategoryId(p.categoryId || '');
     setFormUnit(p.unit);
+    setFormSubUnit('');
+    setFormPackSize('');
     setFormMinStock(String(p.minimumStock));
     setFormDesc(p.description || '');
   };
@@ -163,6 +168,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
           categoryId: formCategoryId || null,
           unit: formUnit.trim().toLowerCase(),
           minimumStock: Number(formMinStock),
+          ...(formSubUnit.trim() && { subUnit: formSubUnit.trim().toLowerCase(), packSize: Number(formPackSize) }),
         }),
       });
 
@@ -353,7 +359,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                       </td>
                       <td className="py-3.5 px-4 text-center font-bold text-sm">
                         <span className={isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'}>
-                          {p.currentStock}
+                          {p.packSize ? formatStock(p, p.currentStock) : p.currentStock}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center text-slate-500">
@@ -455,7 +461,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
       {/* Modal Edit Master Barang */}
       {editingProduct && (
         <ModalOverlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Edit2 className="w-5 h-5 text-maroon-800" />
@@ -529,7 +535,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                     id="edit-product-unit"
                     value={formUnit}
                     onChange={setFormUnit}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || Boolean(editingProduct.packSize)}
                   />
                 </div>
 
@@ -547,6 +553,40 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                   />
                 </div>
               </div>
+
+              {editingProduct.packSize ? (
+                <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                  Satuan kemasan: 1 <strong>{editingProduct.packUnit}</strong> = {editingProduct.packSize} <strong>{editingProduct.unit}</strong>.
+                  Stok dan batas minimum disimpan dalam {editingProduct.unit}.
+                </p>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                  <p className="mb-2 font-semibold text-slate-700">Bisa diambil per satuan kecil? (opsional)</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="edit-product-subunit" className="block text-[11px] text-slate-500 mb-1">Satuan kecil (mis. pcs, gram)</label>
+                      <UnitInput id="edit-product-subunit" value={formSubUnit} onChange={setFormSubUnit} disabled={isSubmitting} />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Isi per 1 {formUnit || 'satuan'}</label>
+                      <input
+                        type="number"
+                        min="2"
+                        step="1"
+                        value={formPackSize}
+                        onChange={(e) => setFormPackSize(e.target.value)}
+                        placeholder="mis. 24 atau 1000"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                      />
+                    </div>
+                  </div>
+                  {formSubUnit.trim() && (
+                    <p className="mt-2 text-[11px] text-amber-700">
+                      Stok, batas minimum, dan riwayat barang ini akan dikonversi ke {formSubUnit.trim()} (1 {formUnit} = {formPackSize || '?'} {formSubUnit.trim()}). Tidak bisa dibatalkan.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">

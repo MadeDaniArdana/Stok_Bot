@@ -43,7 +43,10 @@ model Product {
   description       String?
   categoryId        String?
   category          Category?                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  unit              String
+  unit              String // satuan dasar penyimpanan stok (mis. pcs, gram)
+  // Satuan kemasan opsional: 1 packUnit = packSize satuan dasar (mis. 1 krat = 24 pcs, 1 kg = 1000 gram).
+  packUnit          String?
+  packSize          Int?
   currentStock      Int                        @default(0)
   minimumStock      Int                        @default(0)
   isActive          Boolean                    @default(true)
