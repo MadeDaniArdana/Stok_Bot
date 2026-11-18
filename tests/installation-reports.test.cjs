@@ -17,6 +17,7 @@ function loadTypeScript(file, mocks = {}) {
 }
 
 const period = loadTypeScript('src/lib/report-period.ts');
+const deletedAccount = loadTypeScript('src/lib/deleted-account.ts');
 
 function task(id, overrides = {}) {
   return {
@@ -61,6 +62,7 @@ function createAPI(rows, distributions = []) {
     'next/server': { NextResponse: { json: (body, init) => ({ status: init?.status || 200, body }) } },
     '@/lib/report-period': { ...period, getCurrentReportMonth: () => '2026-02' },
     '@/lib/error-log': { apiError: (error) => { throw error; } },
+    '@/lib/deleted-account': deletedAccount,
     '@/lib/prisma': { prisma: { installationTask: {
       groupBy: async (args) => {
         calls.push({ method: 'groupBy', ...args });
@@ -228,4 +230,17 @@ test('paginasi gabungan tetap 24 kartu per halaman tanpa duplikat', async () => 
   assert.equal(seen.length, 60);
   assert.equal(new Set(seen).size, 60);
   assert.deepEqual(seen.slice(0, 2), ['d-29', 't-29']);
+});
+
+test('nama pembuat tetap tampil setelah akunnya dihapus', async () => {
+  const api = createAPI(
+    [
+      task('tele-live', { completedAt: new Date('2026-01-20T10:00:00Z'), creator: { name: 'Bimo' } }),
+      task('tele-deleted', { completedAt: new Date('2026-01-19T10:00:00Z'), creator: null, creatorName: 'Dani' }),
+    ],
+    [distribution('web-deleted', { proofUploadedAt: new Date('2026-01-18T10:00:00Z'), creator: null, creatorName: 'Sri' })]
+  );
+  const { body } = await api.get('month=2026-01');
+  assert.deepEqual(body.items.map((item) => item.creatorName), ['Bimo', 'Dani (akun dihapus)', 'Sri (akun dihapus)']);
+  assert.equal(deletedAccount.personName(null, null, 'Sistem'), 'Sistem');
 });

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
+import { personName } from '@/lib/deleted-account';
 
 export default function StockHistoryPage() {
   const { showToast } = useToast();
@@ -141,7 +142,7 @@ export default function StockHistoryPage() {
       `"${m.product?.unit || ''}"`,
       m.stockBefore,
       m.stockAfter,
-      `"${m.source === 'TELEGRAM' && m.actor?.telegram?.username ? '@' + m.actor.telegram.username : m.actor?.name || 'Sistem'}"`,
+      `"${m.source === 'TELEGRAM' && m.actor?.telegram?.username ? '@' + m.actor.telegram.username : personName(m.actor?.name, m.actorName, 'Sistem')}"`,
       `"${m.source}"`,
       `"${(m.notes || '').replace(/"/g, '""')}"`,
     ]);
@@ -345,7 +346,7 @@ export default function StockHistoryPage() {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <p className="font-medium text-slate-800">{isTelegram && m.actor?.telegram?.username ? `@${m.actor.telegram.username}` : m.actor?.name || 'Sistem'}</p>
+                        <p className="font-medium text-slate-800">{isTelegram && m.actor?.telegram?.username ? `@${m.actor.telegram.username}` : personName(m.actor?.name, m.actorName, 'Sistem')}</p>
                         {!isTelegram && m.actor?.email && (
                           <span className="text-[10px] text-slate-400">{m.actor.email}</span>
                         )}

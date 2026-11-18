@@ -26,6 +26,7 @@ import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/cn';
 import { getCurrentReportMonth } from '@/lib/report-period';
 import { getStockGroup, parseStockGroup, type StockGroup } from '@/lib/stock-groups';
+import { personName } from '@/lib/deleted-account';
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
@@ -427,7 +428,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                                 <div><dt className="inline font-semibold">{group.handoverLabel}: </dt><dd className="inline">{row.handoverName}</dd></div>
                                 {row.receiverName && <div><dt className="inline font-semibold">Penerima: </dt><dd className="inline">{row.receiverName}</dd></div>}
                                 {row.notes && <div><dt className="inline font-semibold">Catatan: </dt><dd className="inline">{row.notes}</dd></div>}
-                                {row.creator && <div><dt className="inline font-semibold">Dicatat oleh: </dt><dd className="inline">{row.creator.name}</dd></div>}
+                                {(row.creator || row.creatorName) && <div><dt className="inline font-semibold">Dicatat oleh: </dt><dd className="inline">{personName(row.creator?.name, row.creatorName)}</dd></div>}
                                 {cancelled && <div className="text-rose-600"><dt className="inline font-semibold">Alasan batal: </dt><dd className="inline">{row.cancelReason}</dd></div>}
                               </dl>
                             </div>

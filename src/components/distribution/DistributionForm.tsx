@@ -120,6 +120,20 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
 
   const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
+  // Daftar pilihan per baris (tanpa barang yang sudah dipilih di baris lain) hanya dihitung ulang
+  // saat pilihan barang berubah, bukan setiap mengetik jumlah. Referensi array yang stabil membuat
+  // ProductPicker tidak membangun ulang indeks pencariannya di setiap ketukan tombol.
+  const selectionKey = rows.map((row) => `${row.key}:${row.productId}`).join('|');
+  const optionsByRow = useMemo(() => {
+    const map = new Map<number, ProductOption[]>();
+    for (const row of rows) {
+      const takenElsewhere = new Set(rows.filter((other) => other.key !== row.key && other.productId).map((other) => other.productId));
+      map.set(row.key, takenElsewhere.size ? products.filter((option) => !takenElsewhere.has(option.id)) : products);
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, selectionKey]);
+
   const rowState = rows.map((row) => {
     const product = productById.get(row.productId);
     const quantity = Number(row.quantity);
@@ -507,8 +521,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
 
         <div className="divide-y divide-slate-100">
           {rowState.map(({ row, product, overStock, validQuantity }, index) => {
-            const takenElsewhere = new Set(rows.filter((other) => other.key !== row.key).map((other) => other.productId));
-            const options = products.filter((option) => !takenElsewhere.has(option.id));
+            const options = optionsByRow.get(row.key) ?? products;
             return (
               <div key={row.key} className="grid grid-cols-[auto_1fr_auto] items-start gap-3 px-5 py-3 sm:grid-cols-[2rem_1fr_9rem_2.5rem]">
                 <span className="pt-2.5 text-xs font-bold text-slate-400">{index + 1}</span>

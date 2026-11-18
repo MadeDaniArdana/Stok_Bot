@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAIProvider, ToolsNotSupportedError, type AITool, type ChatTurn, type ToolCall } from '@/lib/ai';
 import { getStockGroup } from '@/lib/stock-groups';
+import { personName } from '@/lib/deleted-account';
 
 /**
  * Asisten AI StockFlow: menjawab pertanyaan tentang stok, tugas pemasangan, dan riwayat stok.
@@ -179,7 +180,7 @@ async function riwayatStok(args: Record<string, unknown>) {
       jenis: label[movement.type] ?? movement.type,
       jumlah: `${movement.quantity} ${movement.product.unit}`,
       stok_sesudah: movement.stockAfter,
-      oleh: movement.actor?.name ?? '-',
+      oleh: personName(movement.actor?.name, movement.actorName),
       catatan: movement.notes,
     })),
   };
@@ -222,7 +223,7 @@ function systemPrompt() {
 }
 
 const WEB_MENUS =
-  'Dashboard, Barang (sub menu Master Barang ATK, Master Barang Peralatan Listrik, Master Barang Logistik: tambah barang/stok, edit, aktif-nonaktif), Kategori (setiap kategori punya jenis stok), Distribusi Barang (sub menu Distribusi ATK, Distribusi Peralatan Listrik, Distribusi Logistik: isi tanggal, kepada atau ruang, no. nota, penerima, yang menyerahkan, dan daftar barang; stok langsung berkurang dan form bisa dicetak), Laporan Distribusi (sub menu Laporan ATK, Laporan Peralatan Listrik, Laporan Logistik; per bulan: rekap per barang dan per unit, cetak laporan, unduh CSV, batalkan dokumen untuk mengembalikan stok), Riwayat Stok (termasuk koreksi pembalik), Laporan Pemasangan (foto bukti), Asisten AI, Laporan, Pengguna, Integrasi Telegram (QR bot dan admin Telegram), Log Error, Pengaturan';
+  'Menu Utama: Dashboard; Barang (sub menu Master Barang ATK, Master Barang Peralatan Listrik, Master Barang Logistik: tambah barang/stok, edit, aktif-nonaktif; dan Kategori, setiap kategori punya jenis stok). Transaksi: Distribusi Barang (sub menu Distribusi ATK, Distribusi Peralatan Listrik, Distribusi Logistik: isi tanggal, kepada atau ruang, no. nota, penerima, yang menyerahkan, dan daftar barang; ATK dan Logistik bisa memakai paket per unit; stok langsung berkurang dan form bisa dicetak; Peralatan Listrik membuat link foto bukti untuk petugas) dan Riwayat Stok (termasuk koreksi pembalik). Laporan (sub menu Laporan Distribusi ATK, Laporan Distribusi Listrik, Laporan Distribusi Logistik: rekap per barang dan per unit, cetak laporan, unduh CSV, batalkan dokumen untuk mengembalikan stok; Laporan Pemasangan: foto bukti dari Telegram dan web; Ringkasan Persediaan: grafik dan barang kritis). Sistem (sub menu Pengguna, Integrasi Telegram, Log Error, Pengaturan untuk mengganti nama admin). Asisten AI dibuka dari tombol di header';
 
 export const OUT_OF_SCOPE_REPLY =
   'Maaf, saya hanya bisa membantu seputar data persediaan dan penggunaan StockFlow. Contoh: "Barang apa saja yang stoknya kritis?", "Riwayat barang masuk minggu ini", atau "Bagaimana cara membuat tugas pemasangan?"';

@@ -149,7 +149,8 @@ export class InstallationTaskService {
         });
       }
 
-      try {
+      // Akun admin pembuat tugas bisa sudah dihapus; kalau begitu tidak ada yang perlu dikabari.
+      if (result.task.creatorUserId) try {
         await NotificationService.notifyTaskCompleted({
           creatorUserId: result.task.creatorUserId,
           productName: result.task.product.name,

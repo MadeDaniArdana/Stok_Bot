@@ -34,6 +34,7 @@ interface SidebarProps {
 interface NavChild {
   name: string;
   href: string;
+  adminOnly?: boolean;
 }
 
 interface NavItem {
@@ -43,7 +44,6 @@ interface NavItem {
   children?: NavChild[];
   icon: any;
   badge?: string;
-  highlight?: boolean;
   adminOnly?: boolean;
 }
 
@@ -57,6 +57,8 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
 
+  // Dikelompokkan menurut kegiatan: data barang, transaksi harian, laporan, lalu urusan sistem.
+  // Asisten AI dipindah ke tombol di header.
   const navItems: NavSection[] = [
     {
       title: 'Menu Utama',
@@ -70,13 +72,13 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
             { name: 'Master Barang ATK', href: '/products/atk' },
             { name: 'Master Barang Peralatan Listrik', href: '/products/listrik' },
             { name: 'Master Barang Logistik', href: '/products/logistik' },
+            { name: 'Kategori', href: '/categories' },
           ],
         },
-        { name: 'Kategori', href: '/categories', icon: Tags },
       ],
     },
     {
-      title: 'Distribusi Barang',
+      title: 'Transaksi',
       items: [
         {
           name: 'Distribusi Barang',
@@ -88,34 +90,35 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
             { name: 'Distribusi Logistik', href: '/distribution/logistik' },
           ],
         },
+        { name: 'Riwayat Stok', href: '/stock/history', icon: History },
+      ],
+    },
+    {
+      title: 'Laporan & Sistem',
+      items: [
         {
-          name: 'Laporan Distribusi',
-          href: '/distribution-reports',
-          icon: ClipboardList,
+          name: 'Laporan',
+          href: '#laporan',
+          icon: BarChart3,
           children: [
-            { name: 'Laporan ATK', href: '/distribution-reports/atk' },
-            { name: 'Laporan Peralatan Listrik', href: '/distribution-reports/listrik' },
-            { name: 'Laporan Logistik', href: '/distribution-reports/logistik' },
+            { name: 'Laporan Distribusi ATK', href: '/distribution-reports/atk' },
+            { name: 'Laporan Distribusi Listrik', href: '/distribution-reports/listrik' },
+            { name: 'Laporan Distribusi Logistik', href: '/distribution-reports/logistik' },
+            { name: 'Laporan Pemasangan', href: '/tasks' },
+            { name: 'Ringkasan Persediaan', href: '/reports' },
           ],
         },
-      ],
-    },
-    {
-      title: 'Inventori & Mutasi',
-      items: [
-        { name: 'Riwayat Stok', href: '/stock/history', icon: History },
-        { name: 'Laporan Pemasangan', href: '/tasks', icon: Camera },
-      ],
-    },
-    {
-      title: 'Analitik & Sistem',
-      items: [
-        { name: 'Asisten AI', href: '/assistant', icon: Bot, badge: 'BETA' },
-        { name: 'Laporan', href: '/reports', icon: BarChart3 },
-        { name: 'Pengguna', href: '/users', icon: Users, adminOnly: true },
-        { name: 'Integrasi Telegram', href: '/telegram', icon: Send, highlight: true },
-        { name: 'Log Error', href: '/logs', icon: Bug },
-        { name: 'Pengaturan', href: '/settings', icon: Settings },
+        {
+          name: 'Sistem',
+          href: '#sistem',
+          icon: Settings,
+          children: [
+            { name: 'Pengguna', href: '/users', adminOnly: true },
+            { name: 'Integrasi Telegram', href: '/telegram' },
+            { name: 'Log Error', href: '/logs' },
+            { name: 'Pengaturan', href: '/settings' },
+          ],
+        },
       ],
     },
   ];
@@ -193,7 +196,8 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                 const Icon = item.icon;
 
                 if (item.children) {
-                  const childActive = item.children.some((child) => matches(child.href));
+                  const children = item.children.filter((child) => !child.adminOnly || isAdmin);
+                  const childActive = children.some((child) => matches(child.href));
                   const open = openMenus.has(item.href);
                   const menuId = `submenu-${item.href.replace(/\W+/g, '-')}`;
                   return (
@@ -215,7 +219,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                       </button>
                       {open && (
                         <div id={menuId} className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-3">
-                          {item.children.map((child) => {
+                          {children.map((child) => {
                             const active = matches(child.href);
                             return (
                               <Link
@@ -270,13 +274,6 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                         }`}
                       >
                         {item.badge}
-                      </span>
-                    )}
-
-                    {item.highlight && (
-                      <span className="flex h-2 w-2 relative">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-maroon-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-maroon-700"></span>
                       </span>
                     )}
                   </Link>

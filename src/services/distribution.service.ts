@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getReportMonthRange } from '@/lib/report-period';
@@ -154,7 +154,6 @@ export class DistributionService {
             },
           });
 
-          const stockAfter: { productId: string; stock: number }[] = [];
           for (const item of items) {
             const product = byId.get(item.productId);
             if (!product) throw new Error('Salah satu barang tidak ditemukan.');
@@ -162,53 +161,64 @@ export class DistributionService {
             if ((product.category?.stockGroup ?? 'ATK') !== group.id) {
               throw new Error(`Barang "${product.name}" bukan termasuk jenis ${group.label}.`);
             }
-
-            // Pengurangan bersyarat: aman jika dua admin mengambil barang yang sama bersamaan.
-            const updated = await tx.product.updateMany({
-              where: { id: product.id, currentStock: { gte: item.quantity } },
-              data: { currentStock: { decrement: item.quantity } },
-            });
-            if (updated.count === 0) {
-              const fresh = await tx.product.findUnique({ where: { id: product.id }, select: { currentStock: true } });
-              throw new Error(
-                `Stok "${product.name}" tidak cukup: diminta ${item.quantity} ${product.unit}, tersedia ${fresh?.currentStock ?? 0} ${product.unit}.`
-              );
-            }
-            const after = (await tx.product.findUnique({ where: { id: product.id }, select: { currentStock: true } }))!.currentStock;
-
-            const movement = await tx.stockMovement.create({
-              data: {
-                productId: product.id,
-                actorUserId: input.actorUserId || null,
-                type: 'OUT',
-                quantity: item.quantity,
-                stockBefore: after + item.quantity,
-                stockAfter: after,
-                source: 'WEB',
-                referenceId: distribution.id,
-                notes: `Distribusi ${number} ke ${recipientUnit}`,
-              },
-            });
-
-            await tx.distributionItem.create({
-              data: {
-                distributionId: distribution.id,
-                productId: product.id,
-                quantity: item.quantity,
-                unit: product.unit,
-                movementId: movement.id,
-              },
-            });
-            stockAfter.push({ productId: product.id, stock: after });
           }
+
+          // Satu query untuk semua barang: stok hanya dikurangi jika cukup (aman bila dua admin
+          // mengambil barang yang sama bersamaan), dan stok sesudahnya langsung dikembalikan.
+          const updatedRows = await tx.$queryRaw<{ id: string; currentStock: number }[]>`
+            UPDATE "Product" AS p
+            SET "currentStock" = p."currentStock" - v.qty, "updatedAt" = NOW()
+            FROM (VALUES ${Prisma.join(items.map((item) => Prisma.sql`(${item.productId}::text, ${item.quantity}::int)`))}) AS v(id, qty)
+            WHERE p.id = v.id AND p."currentStock" >= v.qty
+            RETURNING p.id, p."currentStock"`;
+          const afterById = new Map(updatedRows.map((row) => [row.id, Number(row.currentStock)]));
+          const short = items.find((item) => !afterById.has(item.productId));
+          if (short) {
+            const product = byId.get(short.productId)!;
+            const fresh = await tx.product.findUnique({ where: { id: product.id }, select: { currentStock: true } });
+            // Melempar error membatalkan seluruh transaksi, termasuk barang lain yang sudah dikurangi.
+            throw new Error(
+              `Stok "${product.name}" tidak cukup: diminta ${short.quantity} ${product.unit}, tersedia ${fresh?.currentStock ?? 0} ${product.unit}.`
+            );
+          }
+
+          // ID transaksi dibuat di sini agar item distribusi bisa langsung merujuknya (createMany tidak mengembalikan ID).
+          const lines = items.map((item) => ({ item, product: byId.get(item.productId)!, movementId: randomUUID(), after: afterById.get(item.productId)! }));
+          await tx.stockMovement.createMany({
+            data: lines.map(({ item, product, movementId, after }) => ({
+              id: movementId,
+              productId: product.id,
+              actorUserId: input.actorUserId || null,
+              type: 'OUT',
+              quantity: item.quantity,
+              stockBefore: after + item.quantity,
+              stockAfter: after,
+              source: 'WEB',
+              referenceId: distribution.id,
+              notes: `Distribusi ${number} ke ${recipientUnit}`,
+            })),
+          });
+          await tx.distributionItem.createMany({
+            data: lines.map(({ item, product, movementId }) => ({
+              distributionId: distribution.id,
+              productId: product.id,
+              quantity: item.quantity,
+              unit: product.unit,
+              movementId,
+            })),
+          });
+          const stockAfter = lines.map(({ product, after }) => ({ productId: product.id, stock: after }));
 
           const full = await tx.distribution.findUniqueOrThrow({ where: { id: distribution.id }, include: itemInclude });
           return { distribution: full, stockAfter };
         }, TX_OPTIONS);
 
-        for (const { productId, stock } of result.stockAfter) {
-          await NotificationService.checkStockLevelAndAlert(productId, stock, input.actorUserId).catch(() => undefined);
-        }
+        // Cek stok menipis untuk semua barang sekaligus (tidak menahan respons per barang).
+        await Promise.all(
+          result.stockAfter.map(({ productId, stock }) =>
+            NotificationService.checkStockLevelAndAlert(productId, stock, input.actorUserId).catch(() => undefined)
+          )
+        );
         return { distribution: result.distribution, proofToken };
       } catch (error) {
         // Nomor dokumen bentrok karena dua form disimpan bersamaan: coba lagi dengan nomor berikutnya.
@@ -225,7 +235,7 @@ export class DistributionService {
     if (!cleanReason) throw new Error('Alasan pembatalan wajib diisi.');
 
     const result = await prisma.$transaction(async (tx) => {
-      const distribution = await tx.distribution.findUnique({ where: { id }, include: { items: { include: { product: true } } } });
+      const distribution = await tx.distribution.findUnique({ where: { id }, include: { items: true } });
       if (!distribution) throw new Error('Dokumen distribusi tidak ditemukan.');
       if (distribution.status === 'CANCELLED') throw new Error('Dokumen distribusi ini sudah dibatalkan.');
 
@@ -235,28 +245,31 @@ export class DistributionService {
         throw new Error('Sebagian barang pada dokumen ini sudah dikoreksi lewat Riwayat Stok, sehingga dokumen tidak dapat dibatalkan otomatis.');
       }
 
-      const stockAfter: { productId: string; stock: number }[] = [];
-      for (const item of distribution.items) {
-        const updated = await tx.product.update({
-          where: { id: item.productId },
-          data: { currentStock: { increment: item.quantity } },
-          select: { currentStock: true },
-        });
-        await tx.stockMovement.create({
-          data: {
+      // Kembalikan stok semua barang dalam satu query, lalu catat transaksi pembalik sekaligus.
+      const restored = await tx.$queryRaw<{ id: string; currentStock: number }[]>`
+        UPDATE "Product" AS p
+        SET "currentStock" = p."currentStock" + v.qty, "updatedAt" = NOW()
+        FROM (VALUES ${Prisma.join(distribution.items.map((item) => Prisma.sql`(${item.productId}::text, ${item.quantity}::int)`))}) AS v(id, qty)
+        WHERE p.id = v.id
+        RETURNING p.id, p."currentStock"`;
+      const afterById = new Map(restored.map((row) => [row.id, Number(row.currentStock)]));
+      await tx.stockMovement.createMany({
+        data: distribution.items.map((item) => {
+          const after = afterById.get(item.productId) ?? 0;
+          return {
             productId: item.productId,
             actorUserId: actorUserId || null,
             type: 'REVERSAL',
             quantity: item.quantity,
-            stockBefore: updated.currentStock - item.quantity,
-            stockAfter: updated.currentStock,
+            stockBefore: after - item.quantity,
+            stockAfter: after,
             source: 'WEB',
             referenceId: item.movementId,
             notes: `Pembatalan distribusi ${distribution.number}. Alasan: ${cleanReason}`,
-          },
-        });
-        stockAfter.push({ productId: item.productId, stock: updated.currentStock });
-      }
+          };
+        }),
+      });
+      const stockAfter = distribution.items.map((item) => ({ productId: item.productId, stock: afterById.get(item.productId) ?? 0 }));
 
       await tx.distribution.update({
         where: { id },
@@ -265,9 +278,11 @@ export class DistributionService {
       return stockAfter;
     }, TX_OPTIONS);
 
-    for (const { productId, stock } of result) {
-      await NotificationService.checkStockLevelAndAlert(productId, stock, actorUserId).catch(() => undefined);
-    }
+    await Promise.all(
+      result.map(({ productId, stock }) =>
+        NotificationService.checkStockLevelAndAlert(productId, stock, actorUserId).catch(() => undefined)
+      )
+    );
   }
 
   /** Buat link foto baru (link lama tidak berlaku lagi), selama foto belum dikirim. */

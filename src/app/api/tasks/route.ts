@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { apiError } from '@/lib/error-log';
 import { getCurrentReportMonth, getReportMonthRange } from '@/lib/report-period';
 import type { Prisma } from '@prisma/client';
+import { personName } from '@/lib/deleted-account';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -153,7 +154,7 @@ export async function GET(req: NextRequest) {
         location: task.location,
         notes: task.notes,
         status: task.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
-        creatorName: task.creator.name,
+        creatorName: personName(task.creator?.name, task.creatorName),
         createdAt: task.createdAt,
         completedAt: task.completedAt,
         photoUrl: task.proofFileName ? `/api/tasks/${task.id}/photo` : null,
@@ -174,7 +175,7 @@ export async function GET(req: NextRequest) {
           location: distribution.recipientUnit,
           notes: distribution.notes,
           status: distribution.proofFileName ? 'COMPLETED' : 'PENDING',
-          creatorName: distribution.creator?.name ?? '-',
+          creatorName: personName(distribution.creator?.name, distribution.creatorName),
           createdAt: distribution.createdAt,
           completedAt: distribution.proofUploadedAt,
           photoUrl: distribution.proofFileName ? `/api/distributions/${distribution.id}/photo` : null,

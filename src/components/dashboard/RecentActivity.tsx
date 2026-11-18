@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowDownLeft, ArrowUpRight, RotateCcw, Send, Globe, ArrowRight } from 'lucide-react';
+import { personName } from '@/lib/deleted-account';
 
 interface Movement {
   id: string;
@@ -22,6 +23,8 @@ interface Movement {
     name: string;
     role: string;
   } | null;
+  /** Nama pelaku yang disalin saat akunnya dihapus */
+  actorName?: string | null;
 }
 
 interface RecentActivityProps {
@@ -110,7 +113,7 @@ export function RecentActivity({ movements }: RecentActivityProps) {
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[10px] text-slate-400">
                   <span>{timeLabel}</span>
                   <span>•</span>
-                  <span className="font-medium text-slate-600">{m.actor?.name || 'Sistem'}</span>
+                  <span className="font-medium text-slate-600">{personName(m.actor?.name, m.actorName, 'Sistem')}</span>
                   <span>•</span>
                   <span className="inline-flex items-center gap-1">
                     {isTelegram ? (

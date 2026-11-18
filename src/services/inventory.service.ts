@@ -208,7 +208,7 @@ export class InventoryService {
         });
         if (distribution) {
           throw new Error(
-            `Barang keluar ini bagian dari dokumen distribusi ${distribution.number}. Batalkan dokumennya di menu Laporan Distribusi.`
+            `Barang keluar ini bagian dari dokumen distribusi ${distribution.number}. Batalkan dokumennya di menu Laporan > Laporan Distribusi.`
           );
         }
       }

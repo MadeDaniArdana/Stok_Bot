@@ -65,6 +65,8 @@ model StockMovement {
   product          Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
   actorUserId      String?
   actor            User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  // Nama pelaku disalin saat akunnya dihapus agar riwayat tetap menunjukkan siapa pelakunya.
+  actorName        String?
   type             String // IN, OUT, ADJUSTMENT, REVERSAL
   quantity         Int
   stockBefore      Int
@@ -78,6 +80,8 @@ model StockMovement {
   @@index([productId, createdAt])
   @@index([actorUserId, createdAt])
   @@index([createdAt])
+  // Mencari transaksi milik dokumen distribusi/tugas dan transaksi pembalik.
+  @@index([referenceId])
 }
 
 model TelegramUser {
@@ -142,8 +146,10 @@ model InstallationTask {
   id            String    @id @default(uuid())
   productId     String
   product       Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
-  creatorUserId String
-  creator       User      @relation("TaskCreator", fields: [creatorUserId], references: [id], onDelete: Restrict)
+  // Null jika akun admin pembuatnya dihapus; riwayat tugas tetap tersimpan.
+  creatorUserId String?
+  creator       User?     @relation("TaskCreator", fields: [creatorUserId], references: [id], onDelete: SetNull)
+  creatorName   String? // nama pembuat, disalin saat akunnya dihapus
   quantity      Int
   assigneeName  String
   location      String
@@ -200,6 +206,7 @@ model Distribution {
   proofUploadedAt DateTime?
   creatorUserId   String?
   creator         User?              @relation(fields: [creatorUserId], references: [id], onDelete: SetNull)
+  creatorName     String? // nama pencatat, disalin saat akunnya dihapus
   items           DistributionItem[]
   createdAt       DateTime           @default(now())
 

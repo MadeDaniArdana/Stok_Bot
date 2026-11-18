@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   PackageX,
   ExternalLink,
+  Bot,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useToast } from '../ui/Toast';
@@ -120,6 +121,17 @@ export function Header({ onToggleMobile }: HeaderProps) {
       {/* Right Controls */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Telegram Quick Launch Button */}
+        {/* Asisten AI dipindah dari sidebar ke sini agar menu tetap ringkas. */}
+        <Link
+          href="/assistant"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-colors shadow-sm"
+          title="Buka Asisten AI"
+          aria-label="Asisten AI"
+        >
+          <Bot className="w-3.5 h-3.5 text-maroon-700" />
+          <span className="hidden md:inline">Asisten AI</span>
+        </Link>
+
         <Link
           href="/telegram"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-maroon-50 text-maroon-800 hover:bg-maroon-100 border border-maroon-200 transition-colors shadow-sm"

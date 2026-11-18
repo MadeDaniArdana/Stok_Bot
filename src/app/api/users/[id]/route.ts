@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEnvAdminIds } from '@/lib/telegram-admins';
+import { getCurrentUser } from '@/lib/auth-server';
+import { apiError } from '@/lib/error-log';
+import { isUserFacingError } from '@/lib/api-errors';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -62,5 +65,52 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ success: true, user: finalUser });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}
+
+/**
+ * Hapus akun secara permanen (web + Telegram).
+ * Riwayat tetap utuh: transaksi stok, dokumen distribusi, dan tugas pemasangan yang dibuat akun ini
+ * tetap tersimpan, dan nama akun disalin ke catatan tersebut (tampil "Nama (akun dihapus)").
+ * Ikut dihapus: tautan Telegram, status admin bot, percakapan bot, dan notifikasi milik akun ini.
+ */
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) return NextResponse.json({ error: 'Silakan login terlebih dahulu.' }, { status: 401 });
+    if (currentUser.id === params.id) {
+      return NextResponse.json({ error: 'Anda tidak dapat menghapus akun yang sedang dipakai login.' }, { status: 400 });
+    }
+
+    const target = await prisma.user.findUnique({ where: { id: params.id }, include: { telegram: true } });
+    if (!target) return NextResponse.json({ error: 'Akun tidak ditemukan atau sudah dihapus.' }, { status: 404 });
+
+    const telegramId = target.telegram?.telegramUserId;
+    // Admin dari env otomatis dibuat ulang oleh bot, jadi penghapusan tidak akan permanen.
+    if (telegramId && getEnvAdminIds().includes(telegramId)) {
+      return NextResponse.json(
+        { error: 'ID Telegram akun ini ada di TELEGRAM_ADMIN_IDS (Vercel). Hapus dari sana dulu, lalu hapus akunnya di sini.' },
+        { status: 400 }
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (telegramId) {
+        await tx.telegramAdmin.deleteMany({ where: { telegramUserId: telegramId } });
+        await tx.telegramConversation.deleteMany({ where: { telegramUserId: telegramId } });
+      }
+      await tx.telegramUser.deleteMany({ where: { userId: target.id } });
+      // Salin nama ke catatan yang dibuat akun ini agar riwayat tetap menunjukkan pelakunya.
+      await tx.stockMovement.updateMany({ where: { actorUserId: target.id }, data: { actorName: target.name } });
+      await tx.installationTask.updateMany({ where: { creatorUserId: target.id }, data: { creatorName: target.name } });
+      await tx.distribution.updateMany({ where: { creatorUserId: target.id }, data: { creatorName: target.name } });
+      // Notifikasi ikut terhapus (cascade); tautan akun pada catatan di atas menjadi kosong, namanya tetap tersimpan.
+      await tx.user.delete({ where: { id: target.id } });
+    });
+
+    return NextResponse.json({ success: true, message: `Akun ${target.name} telah dihapus.` });
+  } catch (error) {
+    if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiError(error, 'DELETE /api/users/[id]', req, 'Akun gagal dihapus. Detail tercatat di menu Log Error.');
   }
 }

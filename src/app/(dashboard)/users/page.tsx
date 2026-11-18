@@ -15,6 +15,8 @@ import {
   X,
   Link as LinkIcon,
   Unlink,
+  Trash2,
+  LoaderCircle,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
@@ -30,6 +32,8 @@ export default function UsersPage() {
   // Modals
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Form State
   const [formName, setFormName] = useState('');
@@ -154,6 +158,23 @@ export default function UsersPage() {
       fetchUsers();
     } catch (err: any) {
       showToast('Gagal', err.message, 'error');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/users/${deleteTarget.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Akun gagal dihapus.');
+      showToast('Akun Dihapus', `Akun ${deleteTarget.name} (web${deleteTarget.telegram ? ' + Telegram' : ''}) telah dihapus permanen.`);
+      setDeleteTarget(null);
+      fetchUsers();
+    } catch (err: any) {
+      showToast('Gagal Menghapus', err.message, 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -319,6 +340,17 @@ export default function UsersPage() {
                                 <Power className="w-4 h-4" />
                               </button>
                             )}
+
+                            {!isCur && (
+                              <button
+                                onClick={() => setDeleteTarget(u)}
+                                className="action-button action-icon action-danger"
+                                aria-label={`Hapus akun ${u.name}`}
+                                title="Hapus Akun Permanen"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
@@ -453,6 +485,50 @@ export default function UsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Konfirmasi hapus akun permanen */}
+      {deleteTarget && (
+        <ModalOverlay role="alertdialog" aria-modal="true" aria-labelledby="delete-user-title" className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 text-sm">
+            <h3 id="delete-user-title" className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-rose-600" /> Hapus akun {deleteTarget.name}?
+            </h3>
+            <p className="mt-3 text-xs text-slate-600 leading-relaxed">
+              Akun ini akan dihapus <strong>permanen</strong> dan tidak bisa login ke web
+              {deleteTarget.telegram ? <> maupun memakai bot Telegram (@{deleteTarget.telegram.username || deleteTarget.telegram.telegramUserId})</> : null}.
+              Jika hanya ingin memblokir sementara, gunakan tombol <strong>Nonaktifkan</strong>.
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-2">
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
+                <p className="font-bold">Ikut terhapus</p>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                  <li>Akun login web</li>
+                  {deleteTarget.telegram && <li>Tautan &amp; akses admin bot Telegram</li>}
+                  <li>Notifikasi milik akun ini</li>
+                </ul>
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
+                <p className="font-bold">Tetap tersimpan</p>
+                <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                  <li>Riwayat stok ({deleteTarget._count?.movements ?? 0} transaksi)</li>
+                  <li>Dokumen distribusi</li>
+                  <li>Tugas &amp; foto pemasangan</li>
+                </ul>
+                <p className="mt-1 opacity-80">Nama {deleteTarget.name} tetap tercatat, ditandai &quot;(akun dihapus)&quot;.</p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={deleting} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-xs">
+                Batal
+              </button>
+              <button type="button" onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs disabled:opacity-50">
+                {deleting ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                {deleting ? 'Menghapus...' : 'Hapus Permanen'}
+              </button>
+            </div>
           </div>
         </ModalOverlay>
       )}
