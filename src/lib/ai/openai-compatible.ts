@@ -64,7 +64,8 @@ export class OpenAICompatibleProvider implements AIProvider {
       model: this.model,
       messages,
       temperature: 0.2,
-      max_tokens: 1024,
+      max_tokens: 2048,
+      stream: false,
     };
     if (tools.length) {
       body.tools = tools.map((tool) => ({ type: 'function', function: tool }));
