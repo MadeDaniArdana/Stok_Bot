@@ -299,7 +299,7 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
                   <input
                     id="stock-in-quantity"
                     type="number"
-                    min={isNewProduct ? 0 : 0.01}
+                    min={isNewProduct ? 0 : packUnit ? 0.01 : 1}
                     step={packUnit ? 'any' : '1'}
                     required
                     value={quantity}
