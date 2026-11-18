@@ -6,6 +6,19 @@ import remarkGfm from "remark-gfm";
 
 // Konstanta di luar komponen agar referensinya stabil antar-render.
 const REMARK_PLUGINS = [remarkGfm];
+function isProofPhoto(src: unknown) {
+  if (typeof src !== "string") return false;
+  try {
+    const url = new URL(src, window.location.origin);
+    return (
+      url.origin === window.location.origin &&
+      /^\/api\/(tasks|distributions)\/[\w-]+\/photo$/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 const MARKDOWN_COMPONENTS: Components = {
   a: ({ children, href }) => (
     <a
@@ -17,7 +30,23 @@ const MARKDOWN_COMPONENTS: Components = {
       {children}
     </a>
   ),
-  img: ({ alt }) => <span className="text-neutral-500">{alt || "Image"}</span>,
+  // Hanya foto bukti milik sendiri yang ditampilkan; gambar eksternal tidak dimuat.
+  img: ({ alt, src }) =>
+    isProofPhoto(src) ? (
+      <a href={src} target="_blank" rel="noopener noreferrer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt || "Foto bukti"}
+          loading="lazy"
+          className="my-3 max-h-80 rounded-xl border border-neutral-200 object-contain"
+        />
+      </a>
+    ) : (
+      <span className="text-neutral-500" title={typeof src === "string" ? src : undefined}>
+        {alt || "Image"}
+      </span>
+    ),
   table: ({ children }) => (
     <div className="my-5 overflow-x-auto rounded-xl border border-neutral-200">
       <table className="w-full border-collapse text-left text-sm tabular-nums">

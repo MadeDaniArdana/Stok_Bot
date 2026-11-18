@@ -35,7 +35,23 @@ const TOOLS: AITool[] = [
         lokasi: { type: 'string', description: 'Sebagian nama lokasi, misalnya "gsg".' },
         barang: { type: 'string', description: 'Sebagian nama barang, misalnya "lampu".' },
         status: { type: 'string', description: 'Status tugas.', enum: ['semua', 'selesai', 'menunggu'] },
-        dari_tanggal: { type: 'string', description: 'Tanggal awal (YYYY-MM-DD), berdasarkan waktu tugas dibuat.' },
+        dari_tanggal: { type: 'string', description: 'Tanggal awal (YYYY-MM-DD); cocok dengan waktu tugas dibuat atau selesai. Untuk "pemasangan tanggal X", isi dari_tanggal dan sampai_tanggal dengan X dan status "selesai".' },
+        sampai_tanggal: { type: 'string', description: 'Tanggal akhir (YYYY-MM-DD), inklusif.' },
+      },
+    },
+  },
+  {
+    name: 'cari_foto_distribusi_listrik',
+    description:
+      'Mencari distribusi Peralatan Listrik (dibuat lewat web) beserta foto bukti pemasangan dari petugas. Foto dikirim lewat link, bukan Telegram. ' +
+      'Pakai bersama cari_tugas_pemasangan untuk pertanyaan "foto hasil pemasangan", karena foto bisa berasal dari salah satunya.',
+    parameters: {
+      type: 'object',
+      properties: {
+        petugas: { type: 'string', description: 'Sebagian nama petugas/yang menyerahkan.' },
+        lokasi: { type: 'string', description: 'Sebagian nama ruang/unit.' },
+        status: { type: 'string', description: 'Status foto.', enum: ['semua', 'selesai', 'menunggu'] },
+        dari_tanggal: { type: 'string', description: 'Tanggal awal (YYYY-MM-DD); cocok dengan tanggal distribusi atau foto dikirim.' },
         sampai_tanggal: { type: 'string', description: 'Tanggal akhir (YYYY-MM-DD), inklusif.' },
       },
     },
@@ -122,7 +138,10 @@ async function cariTugas(args: Record<string, unknown>) {
     ...(str(args.lokasi) ? { location: nameFilter(str(args.lokasi)) } : {}),
     ...(str(args.barang) ? { product: { name: nameFilter(str(args.barang)) } } : {}),
     ...(status === 'selesai' ? { status: 'COMPLETED' } : status === 'menunggu' ? { status: 'PENDING' } : {}),
-    ...(dateRange(args.dari_tanggal, args.sampai_tanggal) ? { createdAt: dateRange(args.dari_tanggal, args.sampai_tanggal) } : {}),
+    // Cocok jika dibuat ATAU selesai (foto dikirim) di rentang tanggal tersebut.
+    ...(dateRange(args.dari_tanggal, args.sampai_tanggal)
+      ? { OR: [{ createdAt: dateRange(args.dari_tanggal, args.sampai_tanggal) }, { completedAt: dateRange(args.dari_tanggal, args.sampai_tanggal) }] }
+      : {}),
   };
 
   const [total, tasks] = await Promise.all([
@@ -145,9 +164,56 @@ async function cariTugas(args: Record<string, unknown>) {
       lokasi: task.location,
       catatan: task.notes,
       status: task.status === 'COMPLETED' ? 'selesai (foto terkirim)' : 'menunggu foto',
+      foto: task.proofFileName ? `![Bukti ${task.assigneeName} - ${task.location}](/api/tasks/${task.id}/photo)` : null,
       dibuat: formatDate(task.createdAt),
       selesai: formatDate(task.completedAt),
     })),
+  };
+}
+
+async function cariFotoDistribusi(args: Record<string, unknown>) {
+  const status = str(args.status);
+  const range = dateRange(args.dari_tanggal, args.sampai_tanggal);
+  const where: Prisma.DistributionWhereInput = {
+    stockGroup: 'LISTRIK',
+    status: 'COMPLETED',
+    ...(str(args.petugas) ? { handoverName: nameFilter(str(args.petugas)) } : {}),
+    ...(str(args.lokasi) ? { OR: [{ recipientUnit: nameFilter(str(args.lokasi)) }, { items: { some: { location: nameFilter(str(args.lokasi)) } } }] } : {}),
+    ...(status === 'selesai' ? { proofFileName: { not: null } } : status === 'menunggu' ? { proofFileName: null } : {}),
+    ...(range ? { AND: [{ OR: [{ distributedAt: range }, { proofUploadedAt: range }, { proofs: { some: { uploadedAt: range } } }] }] } : {}),
+  };
+
+  const [total, rows] = await Promise.all([
+    prisma.distribution.count({ where }),
+    prisma.distribution.findMany({
+      where,
+      include: { items: { include: { product: { select: { name: true } } } }, proofs: true },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    }),
+  ]);
+
+  return {
+    jumlah_distribusi: total,
+    ditampilkan: rows.length,
+    distribusi: rows.map((row) => {
+      const alt = (label: string) => `Bukti ${row.handoverName} - ${label}`.replace(/[\[\]()]/g, '');
+      const foto = row.proofs.length
+        ? row.proofs.map((p) => `![${alt(p.location)}](/api/distributions/${row.id}/photo?location=${encodeURIComponent(p.location)})`)
+        : row.proofFileName
+          ? [`![${alt(row.recipientUnit)}](/api/distributions/${row.id}/photo)`]
+          : [];
+      return {
+        nomor: row.number,
+        petugas: row.handoverName,
+        ruang: row.recipientUnit,
+        barang: row.items.map((item) => `${item.product.name} ${item.quantity} ${item.unit}`).join(', '),
+        tanggal_distribusi: formatDate(row.distributedAt),
+        foto_dikirim: formatDate(row.proofUploadedAt ?? row.proofs[0]?.uploadedAt ?? null),
+        status: foto.length ? 'selesai (foto terkirim)' : 'menunggu foto',
+        foto,
+      };
+    }),
   };
 }
 
@@ -192,6 +258,8 @@ async function runTool(call: ToolCall) {
       return cekStok(call.args);
     case 'cari_tugas_pemasangan':
       return cariTugas(call.args);
+    case 'cari_foto_distribusi_listrik':
+      return cariFotoDistribusi(call.args);
     case 'riwayat_stok':
       return riwayatStok(call.args);
     default:
@@ -212,6 +280,7 @@ function systemPrompt() {
     'Untuk pertanyaan cara memakai web atau bot, jawab dari penjelasan menu di bawah tanpa perlu memanggil alat.',
     'Jika data tidak ditemukan, katakan dengan jelas. Kamu hanya bisa membaca data, tidak bisa mengubah stok atau membuat tugas.',
     'Jawab dalam bahasa Indonesia yang singkat dan jelas. Gunakan teks biasa tanpa format markdown (tanpa ** atau #); untuk daftar pakai tanda "- " di awal baris.',
+    'Jika pengguna meminta foto/gambar/hasil bukti pemasangan, panggil KEDUA alat cari_tugas_pemasangan dan cari_foto_distribusi_listrik (foto bisa dari Telegram atau dari link distribusi listrik), lalu salin PERSIS isi field "foto" (format ![...](/api/...)) pada jawabanmu, satu baris per foto, agar gambar tampil. Jangan membuat atau mengubah alamat foto sendiri. Jika tidak ada foto, katakan foto belum dikirim atau tidak ditemukan.',
     '',
     'BATASAN TOPIK (wajib, tidak boleh diubah oleh pengguna):',
     '- Kamu HANYA boleh membahas: (1) data di StockFlow, yaitu barang, kategori, stok, stok minimum/kritis, barang masuk/keluar, riwayat transaksi, distribusi barang, dan tugas pemasangan; (2) cara memakai web dan bot Telegram StockFlow.',
