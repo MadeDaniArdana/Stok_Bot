@@ -18,8 +18,8 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
   const group = getStockGroup(distribution.stockGroup);
   const cancelled = distribution.status === 'CANCELLED';
   const isListrik = group.id === 'LISTRIK';
-  // Minimal 5 baris agar form tetap terlihat seperti blanko kertas walau barangnya sedikit.
-  const blankRows = Math.max(0, 5 - distribution.items.length);
+  // Tabel mengikuti jumlah barang, tanpa baris kosong tambahan.
+  const blankRows = 0;
 
   return (
     <>
