@@ -16,6 +16,8 @@ interface TaskDetails {
   photoUrl: string | null;
   /** Ringkasan beberapa barang (distribusi); jika ada, dipakai menggantikan nama + jumlah. */
   itemsSummary?: string;
+  /** Lokasi pemasangan (distribusi listrik); tiap lokasi butuh foto sendiri jika lebih dari satu. */
+  locations?: { location: string; items: string; done: boolean; photoUrl: string | null }[];
 }
 
 const MAX_DIMENSION = 1600;
@@ -59,6 +61,7 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
   const [submitting, setSubmitting] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [sizeInfo, setSizeInfo] = useState('');
+  const [activeLocation, setActiveLocation] = useState('');
 
   const [cameraOn, setCameraOn] = useState(false);
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
@@ -168,6 +171,7 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Tugas tidak dapat dimuat.');
         setTask(data);
+        setActiveLocation(data.locations?.find((l: { done: boolean }) => !l.done)?.location ?? '');
       })
       .catch((requestError: Error) => setError(requestError.message))
       .finally(() => setLoading(false));
@@ -194,18 +198,26 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
     try {
       const body = new FormData();
       body.append('photo', photo);
+      if (multi) body.append('location', activeLocation);
       const response = await fetch(`${apiBase}/${encodeURIComponent(token)}`, {
         method: 'POST',
         body,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Foto gagal dikirim.');
+      const locations = task?.locations?.map((l) =>
+        l.location === data.location
+          ? { ...l, done: true, photoUrl: `${apiBase}/${encodeURIComponent(token)}/photo?location=${encodeURIComponent(l.location)}&t=${Date.now()}` }
+          : l
+      );
       setTask((current) => current ? {
         ...current,
         status: data.status,
         completedAt: data.completedAt,
-        photoUrl: `${apiBase}/${encodeURIComponent(token)}/photo`,
+        locations,
+        photoUrl: multi ? null : `${apiBase}/${encodeURIComponent(token)}/photo`,
       } : current);
+      setActiveLocation(locations?.find((l) => !l.done)?.location ?? '');
       setPhoto(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Foto gagal dikirim.');
@@ -213,6 +225,9 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
       setSubmitting(false);
     }
   };
+
+  const multi = (task?.locations?.length ?? 0) > 1;
+  const pendingCount = task?.locations?.filter((l) => !l.done).length ?? 0;
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10">
@@ -250,6 +265,35 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
                 {task.notes && <p className="border-t border-slate-200 pt-3 text-sm text-slate-600">{task.notes}</p>}
               </div>
 
+              {multi && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-slate-700">
+                    Lokasi pemasangan ({task.locations!.length - pendingCount}/{task.locations!.length} sudah difoto)
+                  </p>
+                  {task.locations!.map((l) => (
+                    <button
+                      key={l.location}
+                      type="button"
+                      disabled={l.done || task.status === 'COMPLETED'}
+                      onClick={() => { setActiveLocation(l.location); setPhoto(null); setError(''); }}
+                      className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left ${
+                        l.done ? 'border-emerald-200 bg-emerald-50' : l.location === activeLocation ? 'border-maroon-700 bg-maroon-50' : 'border-slate-200'
+                      }`}
+                    >
+                      {l.done ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /> : <MapPin className="h-5 w-5 shrink-0 text-maroon-800" />}
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-slate-900">{l.location}</span>
+                        <span className="block text-xs text-slate-500">{l.items}</span>
+                        <span className={`block text-[11px] font-semibold ${l.done ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {l.done ? 'Foto sudah diterima' : l.location === activeLocation ? 'Ambil foto di bawah' : 'Ketuk untuk memilih'}
+                        </span>
+                      </span>
+                      {l.done && l.photoUrl && <img src={l.photoUrl} alt={`Bukti ${l.location}`} className="h-14 w-14 shrink-0 rounded-lg object-cover" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {task.status === 'COMPLETED' ? (
                 <div className="space-y-3 text-center">
                   <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
@@ -266,7 +310,9 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
               ) : (
                 <>
                   <div>
-                    <p className="mb-2 text-sm font-semibold text-slate-700">Foto bukti pemasangan</p>
+                    <p className="mb-2 text-sm font-semibold text-slate-700">
+                      Foto bukti pemasangan{multi && activeLocation ? `: ${activeLocation}` : ''}
+                    </p>
                     {cameraOn ? (
                       <div className="space-y-2">
                         <video ref={videoRef} playsInline muted autoPlay className={`w-full rounded-xl bg-black ${facing === 'user' ? '-scale-x-100' : ''}`} />
@@ -320,7 +366,7 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-maroon-800 px-4 py-3 text-sm font-semibold text-white hover:bg-maroon-900 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                    {submitting ? 'Mengirim bukti...' : 'Kirim Bukti Pemasangan'}
+                    {submitting ? 'Mengirim bukti...' : multi ? `Kirim Foto ${activeLocation}` : 'Kirim Bukti Pemasangan'}
                   </button>
                 </>
               )}

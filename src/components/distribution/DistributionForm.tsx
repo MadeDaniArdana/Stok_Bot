@@ -28,6 +28,8 @@ interface Row {
   quantity: string;
   /** Satuan input; kosong = satuan dasar. Hanya relevan untuk barang berkemasan. */
   unit?: string;
+  /** Lokasi pemasangan (khusus listrik); kosong = sama dengan isian Ruang di atas. */
+  location?: string;
 }
 
 interface Template {
@@ -132,7 +134,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const optionsByRow = useMemo(() => {
     const map = new Map<number, ProductOption[]>();
     for (const row of rows) {
-      const takenElsewhere = new Set(rows.filter((other) => other.key !== row.key && other.productId).map((other) => other.productId));
+      // Peralatan listrik: barang yang sama boleh dipakai lagi di lokasi lain, jadi tidak disembunyikan.
+      const takenElsewhere = new Set(isListrik ? [] : rows.filter((other) => other.key !== row.key && other.productId).map((other) => other.productId));
       map.set(row.key, takenElsewhere.size ? products.filter((option) => !takenElsewhere.has(option.id)) : products);
     }
     return map;
@@ -283,7 +286,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
           handoverName,
           officerPhone: isListrik ? officerPhone : '',
           notes,
-          items: filledRows.map((state) => ({ productId: state.row.productId, quantity: state.quantity })),
+          items: filledRows.map((state) => ({
+            productId: state.row.productId,
+            quantity: state.quantity,
+            ...(isListrik && state.row.location?.trim() && { location: state.row.location.trim() }),
+          })),
         }),
       });
       const data = await res.json();
@@ -544,6 +551,16 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                     required={rows.length === 1}
                     placeholder={isListrik ? 'Cari alat, contoh: lampu LED' : 'Cari barang, contoh: kertas A4'}
                   />
+                  {isListrik && (
+                    <input
+                      aria-label={`Lokasi pemasangan baris ${index + 1}`}
+                      value={row.location ?? ''}
+                      onChange={(e) => updateRow(row.key, { location: e.target.value })}
+                      placeholder={recipientUnit ? `Lokasi pemasangan (kosong = ${recipientUnit})` : 'Lokasi pemasangan (opsional)'}
+                      maxLength={150}
+                      className={cn(inputClass, 'mt-1.5')}
+                    />
+                  )}
                   {product && (
                     <p className={cn('mt-1 text-[11px]', product.currentStock === 0 ? 'text-rose-600' : 'text-slate-500')}>
                       Stok tersedia: {formatStock(product, product.currentStock)}

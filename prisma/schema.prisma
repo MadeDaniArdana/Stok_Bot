@@ -211,6 +211,8 @@ model Distribution {
   creator         User?              @relation(fields: [creatorUserId], references: [id], onDelete: SetNull)
   creatorName     String? // nama pencatat, disalin saat akunnya dihapus
   items           DistributionItem[]
+  // Foto bukti per lokasi pemasangan (Peralatan Listrik dengan lebih dari satu ruang).
+  proofs          DistributionProof[]
   createdAt       DateTime           @default(now())
 
   @@index([stockGroup, distributedAt])
@@ -227,10 +229,25 @@ model DistributionItem {
   product        Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity       Int
   unit           String // satuan saat distribusi dibuat
+  // Lokasi pemasangan item ini (Peralatan Listrik); kosong = sama dengan recipientUnit dokumen.
+  location       String?
   movementId     String?      @unique
 
   @@index([distributionId])
   @@index([productId])
+}
+
+// Satu foto bukti untuk tiap lokasi pemasangan dalam satu dokumen distribusi.
+model DistributionProof {
+  id             String       @id @default(uuid())
+  distributionId String
+  distribution   Distribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  location       String
+  fileName       String
+  mimeType       String
+  uploadedAt     DateTime     @default(now())
+
+  @@unique([distributionId, location])
 }
 
 // Paket distribusi: template tabel barang per unit (mis. BAAK FSIP, LPPM, Prodi FTIK)

@@ -17,7 +17,24 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       return NextResponse.json({ error: 'Link foto tidak valid, sudah diganti, atau distribusinya dibatalkan.' }, { status: 404 });
     }
     const first = distribution.items[0];
+    // Daftar lokasi pemasangan; tiap lokasi punya foto sendiri. Dokumen lama (foto di level dokumen) dianggap satu lokasi.
+    const base = `/api/distributions/proof/${params.token}/photo`;
+    const locations = DistributionService.locationsOf(distribution).map((location) => {
+      const proof = distribution.proofs.find((p) => p.location === location);
+      const legacy = Boolean(distribution.proofFileName) && distribution.proofs.length === 0;
+      return {
+        location,
+        items: distribution.items
+          .filter((item) => (item.location || distribution.recipientUnit) === location)
+          .map((item) => `${item.product.name} - ${item.quantity} ${item.unit}`)
+          .join(', '),
+        done: Boolean(proof) || legacy,
+        photoUrl: proof || legacy ? `${base}?location=${encodeURIComponent(location)}` : null,
+      };
+    });
+    const multi = locations.length > 1;
     return NextResponse.json({
+      locations,
       productName: first?.product.name ?? '-',
       quantity: first?.quantity ?? 0,
       unit: first?.unit ?? '',
@@ -27,7 +44,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       notes: distribution.notes,
       status: distribution.proofFileName ? 'COMPLETED' : 'PENDING',
       completedAt: distribution.proofUploadedAt,
-      photoUrl: distribution.proofFileName ? `/api/distributions/proof/${params.token}/photo` : null,
+      photoUrl: !multi && distribution.proofFileName ? base : null,
     });
   } catch (error) {
     await logError({ source: 'UPLOAD', error, location: 'Buka link foto distribusi (GET /api/distributions/proof)' });
@@ -43,8 +60,13 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
     if (!(photo instanceof File)) return NextResponse.json({ error: 'Foto bukti wajib dipilih.' }, { status: 400 });
     context = { foto: { jenis: photo.type, ukuranKB: Math.round(photo.size / 1024) } };
 
-    const { uploadedAt } = await DistributionService.attachProof(params.token, photo);
-    return NextResponse.json({ success: true, status: 'COMPLETED', completedAt: uploadedAt });
+    const location = formData.get('location');
+    const { uploadedAt, completed, location: savedLocation } = await DistributionService.attachProof(
+      params.token,
+      photo,
+      typeof location === 'string' ? location : null
+    );
+    return NextResponse.json({ success: true, status: completed ? 'COMPLETED' : 'PENDING', completedAt: uploadedAt, location: savedLocation });
   } catch (error) {
     // Petugas hanya melihat pesan validasi (format foto, sudah dikirim, dll.), bukan detail database.
     const message = isUserFacingError(error) ? error.message : 'Foto gagal disimpan. Silakan coba lagi atau hubungi admin.';

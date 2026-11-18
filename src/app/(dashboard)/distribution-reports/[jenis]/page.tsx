@@ -344,20 +344,36 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                           ) : (
                             <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Selesai</span>
                           )}
-                          {group.id === 'LISTRIK' && !cancelled && (
-                            row.proofFileName ? (
+                          {group.id === 'LISTRIK' && !cancelled && (() => {
+                            const locations = Array.from(new Set<string>((row.items || []).map((item: any) => item.location || row.recipientUnit)));
+                            const proofs: { location: string }[] = row.proofs || [];
+                            const photoLink = (query: string, label: string) => (
                               <a
-                                href={`/api/distributions/${row.id}/photo`}
+                                key={label}
+                                href={`/api/distributions/${row.id}/photo${query}`}
                                 target="_blank"
                                 rel="noopener"
                                 className="mt-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-emerald-700 hover:underline"
                               >
-                                <Camera className="h-3 w-3" /> Lihat foto
+                                <Camera className="h-3 w-3" /> {label}
                               </a>
-                            ) : (
-                              <span className="mt-1 block text-[10px] font-semibold text-amber-700">Menunggu foto</span>
-                            )
-                          )}
+                            );
+                            // Dokumen lama: satu foto di level dokumen.
+                            if (row.proofFileName && proofs.length === 0) return photoLink('', 'Lihat foto');
+                            if (locations.length <= 1) {
+                              return row.proofFileName ? photoLink(proofs[0] ? `?location=${encodeURIComponent(proofs[0].location)}` : '', 'Lihat foto') : (
+                                <span className="mt-1 block text-[10px] font-semibold text-amber-700">Menunggu foto</span>
+                              );
+                            }
+                            return (
+                              <>
+                                {proofs.map((proof) => photoLink(`?location=${encodeURIComponent(proof.location)}`, `Foto ${proof.location}`))}
+                                {proofs.length < locations.length && (
+                                  <span className="mt-1 block text-[10px] font-semibold text-amber-700">Menunggu foto ({proofs.length}/{locations.length})</span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right">
                           <div className="flex justify-end gap-1">

@@ -20,6 +20,8 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 export interface DistributionItemInput {
   productId: string;
   quantity: number;
+  /** Lokasi pemasangan (khusus Peralatan Listrik); kosong = tujuan dokumen. */
+  location?: string | null;
 }
 
 export interface CreateDistributionInput {
@@ -53,6 +55,7 @@ const itemInclude = {
     orderBy: { id: 'asc' as const },
   },
   creator: { select: { id: true, name: true } },
+  proofs: { orderBy: { uploadedAt: 'asc' as const } },
 } satisfies Prisma.DistributionInclude;
 
 export type DistributionWithItems = Prisma.DistributionGetPayload<{ include: typeof itemInclude }>;
@@ -111,9 +114,12 @@ export class DistributionService {
       if (!Number.isSafeInteger(quantity) || quantity <= 0) {
         throw new Error(`Jumlah pada baris ${index + 1} harus bilangan bulat lebih dari nol.`);
       }
-      if (seen.has(item.productId)) throw new Error(`Barang pada baris ${index + 1} sudah ada di baris lain. Gabungkan jumlahnya.`);
-      seen.add(item.productId);
-      return { productId: item.productId, quantity };
+      const location = usesProofLink(group.id) ? cleanText(item.location, 'Lokasi pemasangan') : null;
+      // Barang yang sama boleh muncul lagi hanya jika lokasinya berbeda.
+      const key = `${item.productId}|${location ?? recipientUnit}`;
+      if (seen.has(key)) throw new Error(`Barang pada baris ${index + 1} sudah ada di baris lain${location ? ' untuk lokasi yang sama' : ''}. Gabungkan jumlahnya.`);
+      seen.add(key);
+      return { productId: item.productId, quantity, location: location && location !== recipientUnit ? location : null };
     });
 
     const prefix = `${group.numberPrefix}-${monthKey(distributedAt)}-`;
@@ -165,14 +171,18 @@ export class DistributionService {
 
           // Satu query untuk semua barang: stok hanya dikurangi jika cukup (aman bila dua admin
           // mengambil barang yang sama bersamaan), dan stok sesudahnya langsung dikembalikan.
+          // Barang yang sama di beberapa lokasi dijumlahkan dulu; riwayat per baris dihitung berurutan di bawah.
+          const totalByProduct = new Map<string, number>();
+          for (const item of items) totalByProduct.set(item.productId, (totalByProduct.get(item.productId) ?? 0) + item.quantity);
+          const totals = Array.from(totalByProduct, ([productId, quantity]) => ({ productId, quantity }));
           const updatedRows = await tx.$queryRaw<{ id: string; currentStock: number }[]>`
             UPDATE "Product" AS p
             SET "currentStock" = p."currentStock" - v.qty, "updatedAt" = NOW()
-            FROM (VALUES ${Prisma.join(items.map((item) => Prisma.sql`(${item.productId}::text, ${item.quantity}::int)`))}) AS v(id, qty)
+            FROM (VALUES ${Prisma.join(totals.map((item) => Prisma.sql`(${item.productId}::text, ${item.quantity}::int)`))}) AS v(id, qty)
             WHERE p.id = v.id AND p."currentStock" >= v.qty
             RETURNING p.id, p."currentStock"`;
           const afterById = new Map(updatedRows.map((row) => [row.id, Number(row.currentStock)]));
-          const short = items.find((item) => !afterById.has(item.productId));
+          const short = totals.find((item) => !afterById.has(item.productId));
           if (short) {
             const product = byId.get(short.productId)!;
             const fresh = await tx.product.findUnique({ where: { id: product.id }, select: { currentStock: true } });
@@ -183,15 +193,21 @@ export class DistributionService {
           }
 
           // ID transaksi dibuat di sini agar item distribusi bisa langsung merujuknya (createMany tidak mengembalikan ID).
-          const lines = items.map((item) => ({ item, product: byId.get(item.productId)!, movementId: randomUUID(), after: afterById.get(item.productId)! }));
+          const running = new Map(afterById);
+          totalByProduct.forEach((total, productId) => running.set(productId, (afterById.get(productId) ?? 0) + total));
+          const lines = items.map((item) => {
+            const before = running.get(item.productId)!;
+            running.set(item.productId, before - item.quantity);
+            return { item, product: byId.get(item.productId)!, movementId: randomUUID(), before, after: before - item.quantity };
+          });
           await tx.stockMovement.createMany({
-            data: lines.map(({ item, product, movementId, after }) => ({
+            data: lines.map(({ item, product, movementId, before, after }) => ({
               id: movementId,
               productId: product.id,
               actorUserId: input.actorUserId || null,
               type: 'OUT',
               quantity: item.quantity,
-              stockBefore: after + item.quantity,
+              stockBefore: before,
               stockAfter: after,
               source: 'WEB',
               referenceId: distribution.id,
@@ -204,10 +220,11 @@ export class DistributionService {
               productId: product.id,
               quantity: item.quantity,
               unit: product.unit,
+              location: item.location,
               movementId,
             })),
           });
-          const stockAfter = lines.map(({ product, after }) => ({ productId: product.id, stock: after }));
+          const stockAfter = totals.map(({ productId }) => ({ productId, stock: afterById.get(productId)! }));
 
           const full = await tx.distribution.findUniqueOrThrow({ where: { id: distribution.id }, include: itemInclude });
           return { distribution: full, stockAfter };
@@ -246,22 +263,29 @@ export class DistributionService {
       }
 
       // Kembalikan stok semua barang dalam satu query, lalu catat transaksi pembalik sekaligus.
+      // Barang yang sama di beberapa lokasi dijumlahkan dulu (satu baris per barang di UPDATE).
+      const totalByProduct = new Map<string, number>();
+      for (const item of distribution.items) totalByProduct.set(item.productId, (totalByProduct.get(item.productId) ?? 0) + item.quantity);
       const restored = await tx.$queryRaw<{ id: string; currentStock: number }[]>`
         UPDATE "Product" AS p
         SET "currentStock" = p."currentStock" + v.qty, "updatedAt" = NOW()
-        FROM (VALUES ${Prisma.join(distribution.items.map((item) => Prisma.sql`(${item.productId}::text, ${item.quantity}::int)`))}) AS v(id, qty)
+        FROM (VALUES ${Prisma.join(Array.from(totalByProduct, ([productId, quantity]) => Prisma.sql`(${productId}::text, ${quantity}::int)`))}) AS v(id, qty)
         WHERE p.id = v.id
         RETURNING p.id, p."currentStock"`;
       const afterById = new Map(restored.map((row) => [row.id, Number(row.currentStock)]));
+      // Riwayat pembalik dihitung berurutan: stok awal = stok akhir dikurangi seluruh jumlah yang dikembalikan.
+      const running = new Map(Array.from(totalByProduct, ([productId, total]) => [productId, (afterById.get(productId) ?? 0) - total]));
       await tx.stockMovement.createMany({
         data: distribution.items.map((item) => {
-          const after = afterById.get(item.productId) ?? 0;
+          const before = running.get(item.productId)!;
+          const after = before + item.quantity;
+          running.set(item.productId, after);
           return {
             productId: item.productId,
             actorUserId: actorUserId || null,
             type: 'REVERSAL',
             quantity: item.quantity,
-            stockBefore: after - item.quantity,
+            stockBefore: before,
             stockAfter: after,
             source: 'WEB',
             referenceId: item.movementId,
@@ -269,7 +293,7 @@ export class DistributionService {
           };
         }),
       });
-      const stockAfter = distribution.items.map((item) => ({ productId: item.productId, stock: afterById.get(item.productId) ?? 0 }));
+      const stockAfter = Array.from(totalByProduct.keys(), (productId) => ({ productId, stock: afterById.get(productId) ?? 0 }));
 
       await tx.distribution.update({
         where: { id },
@@ -302,25 +326,51 @@ export class DistributionService {
     return prisma.distribution.findFirst({ where: { proofTokenHash: hashProofToken(token) }, include: itemInclude });
   }
 
-  /** Simpan foto bukti dari petugas. Stok sudah dikurangi saat form disimpan, jadi di sini hanya foto. */
-  static async attachProof(token: string, file: File) {
+  /** Lokasi pemasangan dalam satu dokumen (item tanpa lokasi memakai tujuan dokumen), urut kemunculan. */
+  static locationsOf(distribution: { recipientUnit: string; items: { location: string | null }[] }) {
+    return Array.from(new Set(distribution.items.map((item) => item.location || distribution.recipientUnit)));
+  }
+
+  /**
+   * Simpan foto bukti dari petugas untuk satu lokasi. Stok sudah dikurangi saat form disimpan, jadi di sini hanya foto.
+   * Dokumen dianggap selesai (proofFileName terisi) saat semua lokasinya sudah punya foto.
+   */
+  static async attachProof(token: string, file: File, location?: string | null) {
     const distribution = await this.getByProofToken(token);
     if (!distribution) throw new Error('Link foto tidak valid atau sudah diganti.');
     if (distribution.status === 'CANCELLED') throw new Error('Distribusi ini sudah dibatalkan.');
     if (distribution.proofFileName) throw new Error('Foto bukti untuk distribusi ini sudah pernah dikirim.');
 
-    const proofFileName = await saveTaskProof(file);
-    const uploadedAt = new Date();
-    // Bersyarat agar dua kiriman bersamaan tidak saling menimpa.
-    const updated = await prisma.distribution.updateMany({
-      where: { id: distribution.id, proofFileName: null, status: 'COMPLETED' },
-      data: { proofFileName, proofMimeType: file.type, proofUploadedAt: uploadedAt },
-    });
-    if (updated.count !== 1) {
-      await deleteTaskProof(proofFileName).catch(() => undefined);
-      throw new Error('Foto bukti untuk distribusi ini sudah pernah dikirim.');
+    const locations = this.locationsOf(distribution);
+    const target = location?.trim() || (locations.length === 1 ? locations[0] : '');
+    if (!target) throw new Error('Pilih lokasi pemasangan untuk foto ini.');
+    if (!locations.includes(target)) throw new Error('Lokasi tidak dikenal pada distribusi ini.');
+    if (distribution.proofs.some((proof) => proof.location === target)) {
+      throw new Error(`Foto untuk lokasi "${target}" sudah pernah dikirim.`);
     }
-    return { uploadedAt };
+
+    const fileName = await saveTaskProof(file);
+    const uploadedAt = new Date();
+    try {
+      // Unique (distributionId, location) mencegah dua kiriman bersamaan untuk lokasi yang sama.
+      await prisma.distributionProof.create({
+        data: { distributionId: distribution.id, location: target, fileName, mimeType: file.type, uploadedAt },
+      });
+    } catch {
+      await deleteTaskProof(fileName).catch(() => undefined);
+      throw new Error(`Foto untuk lokasi "${target}" sudah pernah dikirim.`);
+    }
+
+    const done = await prisma.distributionProof.count({ where: { distributionId: distribution.id } });
+    const completed = done >= locations.length;
+    if (completed) {
+      // Penanda selesai di level dokumen; sekaligus menjaga tampilan lama yang membaca proofFileName.
+      await prisma.distribution.updateMany({
+        where: { id: distribution.id, proofFileName: null },
+        data: { proofFileName: fileName, proofMimeType: file.type, proofUploadedAt: uploadedAt },
+      });
+    }
+    return { uploadedAt, completed, location: target, remaining: Math.max(0, locations.length - done) };
   }
 
   static async getById(id: string) {
