@@ -479,13 +479,35 @@ export class DistributionService {
 
   /** Daftar unit/ruang tujuan yang pernah dipakai, untuk saran isian form. */
   static async recentRecipients(stockGroup: StockGroup) {
-    const rows = await prisma.distribution.findMany({
-      where: { stockGroup },
-      distinct: ['recipientUnit'],
-      orderBy: { createdAt: 'desc' },
-      select: { recipientUnit: true },
-      take: 50,
-    });
-    return rows.map((row) => row.recipientUnit);
+    // Tujuan, penyerah, dan penerima yang pernah dipakai (terbaru dulu) untuk saran isian form.
+    const distinctRecent = (field: 'recipientUnit' | 'handoverName' | 'receiverName') =>
+      prisma.distribution.findMany({
+        where: {
+          stockGroup,
+          ...(field === 'receiverName'
+            ? {
+                receiverName: { not: null },
+                // Abaikan dokumen contoh lama (seed) agar saran penerima memakai daftar petugas terbaru.
+                OR: [{ notes: null }, { NOT: { notes: { startsWith: 'Contoh dari formulir kertas' } } }],
+              }
+            : {}),
+        },
+        distinct: [field],
+        orderBy: { createdAt: 'desc' },
+        select: { [field]: true } as Record<typeof field, true>,
+        take: 50,
+      }) as Promise<Record<string, string | null>[]>;
+    const [recipients, handovers, receivers] = await Promise.all([
+      distinctRecent('recipientUnit'),
+      distinctRecent('handoverName'),
+      distinctRecent('receiverName'),
+    ]);
+    const pick = (rows: Record<string, string | null>[], field: string) =>
+      rows.map((row) => row[field]).filter((value): value is string => Boolean(value));
+    return {
+      recipients: pick(recipients, 'recipientUnit'),
+      handoverNames: pick(handovers, 'handoverName'),
+      receiverNames: pick(receivers, 'receiverName'),
+    };
   }
 }

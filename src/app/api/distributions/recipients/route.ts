@@ -5,12 +5,12 @@ import { DistributionService } from '@/services/distribution.service';
 
 export const dynamic = 'force-dynamic';
 
-/** Unit/ruang tujuan yang pernah dipakai, untuk saran isian di form distribusi. */
+/** Tujuan, nama penyerah, dan nama penerima yang pernah dipakai, untuk saran isian di form distribusi. */
 export async function GET(req: NextRequest) {
   try {
     const stockGroup = parseStockGroup(new URL(req.url).searchParams.get('jenis'));
     if (!stockGroup) return NextResponse.json({ error: 'Jenis stok tidak valid.' }, { status: 400 });
-    return NextResponse.json({ recipients: await DistributionService.recentRecipients(stockGroup) });
+    return NextResponse.json(await DistributionService.recentRecipients(stockGroup));
   } catch (error) {
     return apiError(error, 'GET /api/distributions/recipients', req, 'Terjadi kesalahan pada server. Detail tercatat di menu Log Error.');
   }

@@ -3,7 +3,7 @@ import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { getStockGroup } from '@/lib/stock-groups';
 import { DistributionService } from '@/services/distribution.service';
 
-const TIMES = { fontFamily: '"Times New Roman", Times, serif' };
+const FONT = { fontFamily: 'Arial, Helvetica, sans-serif' };
 
 const longDate = (date: Date) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
@@ -27,7 +27,7 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
       <PrintToolbar backHref={`/distribution-reports/${group.slug}`} backLabel="Kembali ke Riwayat" />
 
       <article
-        style={TIMES}
+        style={FONT}
         className={`relative mx-auto bg-white p-8 shadow-lg print:max-w-none print:p-0 print:shadow-none ${isListrik ? 'max-w-[277mm]' : 'max-w-[148mm]'}`}
       >
         {cancelled && (
@@ -40,17 +40,17 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
         <header className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-teknokrat.png" alt="" className="h-10 w-10" />
-            <div className="leading-tight">
+            <img src="/logo-yayasan.png" alt="" className="h-11 w-11 object-contain" />
+            <div>
               {isListrik ? (
                 <>
-                  <p className="text-[13px] font-bold uppercase">Universitas Teknokrat Indonesia</p>
-                  <p className="text-[10px] italic">Bagian Rumah Tangga</p>
+                  <p className="text-[13px] font-bold uppercase leading-none">Universitas <span className="text-[#800020]">Teknokrat</span> Indonesia</p>
+                  <p className="mt-0.5 text-[10px] italic leading-none">Bagian Rumah Tangga</p>
                 </>
               ) : (
                 <>
-                  <p className="text-[9px] font-bold uppercase tracking-wide">Yayasan Pendidikan</p>
-                  <p className="text-[17px] font-black uppercase tracking-tight">Teknokrat</p>
+                  <p style={{ fontFamily: '"Times New Roman", Times, serif' }} className="text-[10px] font-bold uppercase leading-none tracking-wide">Yayasan Pendidikan</p>
+                  <p className="text-[18px] font-black uppercase leading-none tracking-tight text-[#800020]">Teknokrat</p>
                 </>
               )}
             </div>
@@ -101,7 +101,9 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
             <table className="mt-4 text-[12px] font-bold">
               <tbody>
                 <tr><td className="w-32 py-0.5">Kepada</td><td>: {distribution.recipientUnit}</td></tr>
-                <tr><td className="py-0.5">No. Nota Pesanan</td><td>: {distribution.orderNumber || '-'}</td></tr>
+                {group.id !== 'LOGISTIK' && (
+                  <tr><td className="py-0.5">No. Nota Pesanan</td><td>: {distribution.orderNumber || '-'}</td></tr>
+                )}
                 <tr><td className="py-0.5">Tgl Pesanan</td><td>: {longDate(distribution.distributedAt)}</td></tr>
               </tbody>
             </table>

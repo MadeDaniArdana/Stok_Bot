@@ -35,7 +35,9 @@ function distribution(id, overrides = {}) {
     id, number: `LST-${id}`, stockGroup: 'LISTRIK', status: 'COMPLETED',
     createdAt: new Date('2025-12-20T10:00:00Z'), proofUploadedAt: new Date('2026-01-15T10:00:00Z'),
     proofFileName: `${id}.jpg`, handoverName: 'Riki', recipientUnit: 'Perpustakaan', notes: null,
-    items: [{ id: `${id}-1`, quantity: 2, unit: 'pcs', product: { name: 'Lampu LED 12 Watt', sku: 'EL-001' } }],
+    items: [{ id: `${id}-1`, quantity: 2, unit: 'pcs', location: null, product: { name: 'Lampu LED 12 Watt', sku: 'EL-001' } }],
+    // Foto per lokasi (fitur foto multi-lokasi); kosong = dokumen lama dengan satu foto di level dokumen.
+    proofs: [],
     creator: { name: 'Admin' },
     ...overrides,
   };
@@ -200,6 +202,7 @@ test('distribusi listrik dari web digabung dengan tugas Telegram dalam satu lapo
   assert.equal(web.assigneeName, 'Riki');
   assert.equal(web.location, 'Perpustakaan');
   assert.equal(web.quantityLabel, '2 pcs');
+  assert.deepEqual(web.photos, [{ url: '/api/distributions/web-photo/photo', label: 'Perpustakaan' }]);
   assert.equal(all.body.items[2].photoUrl, null);
   assert.equal(all.body.items[2].status, 'PENDING');
 
@@ -243,4 +246,20 @@ test('nama pembuat tetap tampil setelah akunnya dihapus', async () => {
   const { body } = await api.get('month=2026-01');
   assert.deepEqual(body.items.map((item) => item.creatorName), ['Bimo', 'Dani (akun dihapus)', 'Sri (akun dihapus)']);
   assert.equal(deletedAccount.personName(null, null, 'Sistem'), 'Sistem');
+});
+
+test('distribusi multi-lokasi menampilkan satu foto per lokasi', async () => {
+  const api = createAPI([], [
+    distribution('multi', {
+      items: [
+        { id: 'm-1', quantity: 1, unit: 'pcs', location: 'Gedung A', product: { name: 'Lampu LED 12 Watt', sku: 'EL-001' } },
+        { id: 'm-2', quantity: 1, unit: 'pcs', location: 'Gedung B', product: { name: 'Lampu LED 12 Watt', sku: 'EL-001' } },
+      ],
+      proofs: [{ location: 'Gedung A' }, { location: 'Gedung B' }],
+    }),
+  ]);
+  const [item] = (await api.get('month=2026-01')).body.items;
+  assert.equal(item.photoSlots, 2);
+  assert.deepEqual(item.photos.map((photo) => photo.label), ['Gedung A', 'Gedung B']);
+  assert.equal(item.photos[1].url, '/api/distributions/multi/photo?location=Gedung%20B');
 });

@@ -385,7 +385,8 @@ async function seedTemplates() {
         name,
         recipientUnit: recipient,
         storageLocation: storage,
-        receiverName: receiver,
+        // Penerima logistik dipilih saat distribusi dari daftar petugas, jadi paket tidak menyimpannya.
+        receiverName: group === 'LOGISTIK' ? null : receiver,
         items: { create: rows.map(([key, quantity], index) => ({ productId: productIdByKey[key], quantity, sortOrder: index })) },
       },
     });

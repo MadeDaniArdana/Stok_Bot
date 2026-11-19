@@ -12,7 +12,6 @@ import {
   Users,
   Send,
   Settings,
-  Boxes,
   X,
   ChevronRight,
   ChevronDown,
@@ -164,9 +163,8 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
         {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-gradient-to-r from-white via-white to-maroon-50/40">
           <Link href="/dashboard" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-maroon-700 via-maroon-800 to-maroon-950 flex items-center justify-center text-white shadow-maroon shadow-sm group-hover:scale-105 transition-transform">
-              <Boxes className="w-5 h-5 text-white" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-yayasan.png" alt="Logo Yayasan Pendidikan Teknokrat" width={40} height={40} className="h-10 w-10 object-contain group-hover:scale-105 transition-transform" />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-lg tracking-tight text-slate-900">Stock</span>

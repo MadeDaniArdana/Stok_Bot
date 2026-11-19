@@ -2,7 +2,7 @@
 
 import React, { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Boxes, Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -40,9 +40,8 @@ function LoginForm() {
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200/80 p-6 sm:p-8">
           <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-maroon-700 via-maroon-800 to-maroon-950 text-white flex items-center justify-center mx-auto shadow-maroon shadow-md mb-3">
-              <Boxes className="w-6 h-6" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-yayasan.png" alt="Logo Yayasan Pendidikan Teknokrat" width={64} height={64} className="mx-auto mb-3 h-16 w-16 object-contain" />
             <h1 className="text-2xl font-semibold text-slate-900 tracking-tight text-balance">
               Masuk ke <span className="text-maroon-800">StockFlow</span>
             </h1>

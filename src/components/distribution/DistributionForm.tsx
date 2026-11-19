@@ -69,6 +69,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [recipients, setRecipients] = useState<string[]>([]);
+  const [handoverNames, setHandoverNames] = useState<string[]>([]);
+  const [receiverNames, setReceiverNames] = useState<string[]>([]);
 
   const [date, setDate] = useState(todayInJakarta);
   const [recipientUnit, setRecipientUnit] = useState('');
@@ -94,9 +96,13 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   // Selama belum diubah manual di form ini, kolom selalu mengikuti nama admin terbaru
   // (mis. setelah nama diganti di Pengaturan).
   const handoverTouched = useRef(false);
+  // ATK: nama admin yang login. Logistik: nama terakhir yang dipakai (penanda tangannya bisa orang lain).
+  const defaultHandover =
+    group.handoverDefault === 'last' ? handoverNames[0] || currentUser?.name || '' : currentUser?.name || '';
+  const receiverSuggestions = Array.from(new Set([...(group.receiverOptions ?? []), ...receiverNames]));
   useEffect(() => {
-    if (!isListrik && currentUser?.name && !handoverTouched.current) setHandoverName(currentUser.name);
-  }, [currentUser?.name, isListrik]);
+    if (!isListrik && defaultHandover && !handoverTouched.current) setHandoverName(defaultHandover);
+  }, [defaultHandover, isListrik]);
 
   const loadProducts = () => {
     setProductsLoading(true);
@@ -119,8 +125,12 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     loadProducts();
     loadTemplates();
     fetch(`/api/distributions/recipients?jenis=${group.id}`)
-      .then((res) => (res.ok ? res.json() : { recipients: [] }))
-      .then((data) => setRecipients(data.recipients || []))
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((data: { recipients?: string[]; handoverNames?: string[]; receiverNames?: string[] }) => {
+        setRecipients(data.recipients || []);
+        setHandoverNames(data.handoverNames || []);
+        setReceiverNames(data.receiverNames || []);
+      })
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group.id]);
@@ -262,7 +272,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     setOfficerPhone('');
     setNotes('');
     handoverTouched.current = false;
-    setHandoverName(isListrik ? '' : currentUser?.name || '');
+    setHandoverName(isListrik ? '' : defaultHandover);
     setActiveTemplateId(null);
     setNewTemplateName(null);
     setRows([{ key: nextKey.current++, productId: '', quantity: '' }]);
@@ -299,6 +309,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
       showToast('Distribusi Tersimpan', `${data.distribution.number}: stok ${data.distribution.items.length} barang telah dikurangi.`);
       loadProducts();
       if (!recipients.includes(recipientUnit.trim())) setRecipients((current) => [recipientUnit.trim(), ...current]);
+      // Ingat nama yang baru dipakai agar jadi pilihan (dan isian awal Logistik) pada form berikutnya.
+      const usedHandover = handoverName.trim();
+      setHandoverNames((current) => [usedHandover, ...current.filter((name) => name !== usedHandover)]);
+      const usedReceiver = receiverName.trim();
+      if (usedReceiver) setReceiverNames((current) => [usedReceiver, ...current.filter((name) => name !== usedReceiver)]);
     } catch (error: any) {
       showToast('Gagal Menyimpan', error.message, 'error');
     } finally {
@@ -499,10 +514,21 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                 <label htmlFor="dist-handover" className="mb-1 block text-xs font-semibold text-slate-700">
                   {group.handoverLabel} <span className="text-rose-500">*</span>
                 </label>
-                <input id="dist-handover" required value={handoverName} onChange={(e) => { handoverTouched.current = true; setHandoverName(e.target.value); }} maxLength={150} aria-describedby="dist-handover-hint" className={inputClass} />
+                <input id="dist-handover" required list="dist-handover-options" value={handoverName} onChange={(e) => { handoverTouched.current = true; setHandoverName(e.target.value); }} maxLength={150} aria-describedby="dist-handover-hint" placeholder="Contoh: Muntasiroh, S.Kom." className={inputClass} />
+                <datalist id="dist-handover-options">
+                  {Array.from(new Set([...handoverNames, ...(currentUser?.name ? [currentUser.name] : [])])).map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
                 <p id="dist-handover-hint" className="mt-1 text-[11px] text-slate-500">
-                  Otomatis nama admin yang login. Ubah untuk form ini saja, atau ganti permanen di{' '}
-                  <Link href="/settings" className="font-semibold text-maroon-800 underline">Pengaturan</Link>.
+                  {group.handoverDefault === 'last' ? (
+                    <>Otomatis nama terakhir yang dipakai di {group.label}. Ketik nama lain (mis. Muntasiroh, S.Kom.) dan nama itu akan diingat.</>
+                  ) : (
+                    <>
+                      Otomatis nama admin yang login. Ubah untuk form ini saja, atau ganti permanen di{' '}
+                      <Link href="/settings" className="font-semibold text-maroon-800 underline">Pengaturan</Link>.
+                    </>
+                  )}
                 </p>
               </div>
             </>
@@ -512,7 +538,12 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             <label htmlFor="dist-receiver" className="mb-1 block text-xs font-semibold text-slate-700">
               Penerima <span className="font-normal text-slate-400">(opsional)</span>
             </label>
-            <input id="dist-receiver" value={receiverName} onChange={(e) => setReceiverName(e.target.value)} placeholder={isListrik ? 'Boleh dikosongkan' : 'Nama penerima (boleh diisi saat tanda tangan)'} maxLength={150} className={inputClass} />
+            <input id="dist-receiver" list={isListrik ? undefined : 'dist-receiver-options'} value={receiverName} onChange={(e) => setReceiverName(e.target.value)} placeholder={isListrik ? 'Boleh dikosongkan' : group.receiverOptions ? 'Pilih dari daftar atau ketik nama lain' : 'Nama penerima (boleh diisi saat tanda tangan)'} maxLength={150} className={inputClass} />
+            {!isListrik && (
+              <datalist id="dist-receiver-options">
+                {receiverSuggestions.map((name) => <option key={name} value={name} />)}
+              </datalist>
+            )}
           </div>
 
           <div className={isListrik ? 'sm:col-span-2' : 'sm:col-span-2 lg:col-span-1'}>

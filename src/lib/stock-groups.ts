@@ -25,6 +25,13 @@ export interface StockGroupConfig {
   numberPrefix: string;
   /** Kelas warna Tailwind untuk badge/tab */
   badgeClass: string;
+  /**
+   * Isian awal "Yang Menyerahkan": 'admin' = nama admin yang login,
+   * 'last' = nama terakhir yang dipakai di jenis ini (penanda tangan bisa orang lain, mis. Logistik).
+   */
+  handoverDefault?: 'admin' | 'last';
+  /** Daftar pilihan nama penerima tetap untuk jenis ini (nama lain tetap bisa diketik). */
+  receiverOptions?: string[];
 }
 
 export const STOCK_GROUPS: StockGroupConfig[] = [
@@ -55,6 +62,11 @@ export const STOCK_GROUPS: StockGroupConfig[] = [
     handoverLabel: 'Yang Menyerahkan',
     numberPrefix: 'LOG',
     badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    handoverDefault: 'last',
+    receiverOptions: [
+      'Aswindra', 'Erna', 'Erni', 'Hendrik', 'Maida', 'Mala Dewi', 'Mastoni',
+      'Murlina', 'Neneng', 'Riki', 'Rumlah', 'Uli', 'Vicky', 'Wilyati',
+    ],
   },
   {
     id: 'ATK',
@@ -70,6 +82,7 @@ export const STOCK_GROUPS: StockGroupConfig[] = [
     handoverLabel: 'Yang Menyerahkan',
     numberPrefix: 'ATK',
     badgeClass: 'bg-sky-50 text-sky-800 border-sky-200',
+    handoverDefault: 'admin',
   },
 ];
 
