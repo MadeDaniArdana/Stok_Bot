@@ -1,27 +1,19 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
-  Tags,
   History,
   BarChart3,
-  Users,
-  Send,
   Settings,
   X,
-  ChevronRight,
   ChevronDown,
   ShieldCheck,
   UserCheck,
-  Camera,
-  Bug,
-  Bot,
   Truck,
-  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -51,76 +43,76 @@ interface NavSection {
   items: NavItem[];
 }
 
-export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
+// Dikelompokkan menurut kegiatan: data barang, transaksi harian, laporan, lalu urusan sistem.
+// Asisten AI dipindah ke tombol di header.
+const NAV_ITEMS: NavSection[] = [
+  {
+    title: 'Menu Utama',
+    items: [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      {
+        name: 'Barang',
+        href: '/products',
+        icon: Package,
+        children: [
+          { name: 'Master Barang ATK', href: '/products/atk' },
+          { name: 'Master Barang Peralatan Listrik', href: '/products/listrik' },
+          { name: 'Master Barang Logistik', href: '/products/logistik' },
+          { name: 'Kategori', href: '/categories' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Transaksi',
+    items: [
+      {
+        name: 'Distribusi Barang',
+        href: '/distribution',
+        icon: Truck,
+        children: [
+          { name: 'Distribusi ATK', href: '/distribution/atk' },
+          { name: 'Distribusi Peralatan Listrik', href: '/distribution/listrik' },
+          { name: 'Distribusi Logistik', href: '/distribution/logistik' },
+        ],
+      },
+      { name: 'Riwayat Stok', href: '/stock/history', icon: History },
+    ],
+  },
+  {
+    title: 'Laporan & Sistem',
+    items: [
+      {
+        name: 'Laporan',
+        href: '#laporan',
+        icon: BarChart3,
+        children: [
+          { name: 'Laporan Distribusi ATK', href: '/distribution-reports/atk' },
+          { name: 'Laporan Distribusi Listrik', href: '/distribution-reports/listrik' },
+          { name: 'Laporan Distribusi Logistik', href: '/distribution-reports/logistik' },
+          { name: 'Laporan Pemasangan', href: '/tasks' },
+          { name: 'Ringkasan Persediaan', href: '/reports' },
+        ],
+      },
+      {
+        name: 'Sistem',
+        href: '#sistem',
+        icon: Settings,
+        children: [
+          { name: 'Pengguna', href: '/users', adminOnly: true },
+          { name: 'Integrasi Telegram', href: '/telegram' },
+          { name: 'Log Error', href: '/logs' },
+          { name: 'Pengaturan', href: '/settings' },
+        ],
+      },
+    ],
+  },
+];
+
+export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
-
-  // Dikelompokkan menurut kegiatan: data barang, transaksi harian, laporan, lalu urusan sistem.
-  // Asisten AI dipindah ke tombol di header.
-  const navItems: NavSection[] = [
-    {
-      title: 'Menu Utama',
-      items: [
-        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-        {
-          name: 'Barang',
-          href: '/products',
-          icon: Package,
-          children: [
-            { name: 'Master Barang ATK', href: '/products/atk' },
-            { name: 'Master Barang Peralatan Listrik', href: '/products/listrik' },
-            { name: 'Master Barang Logistik', href: '/products/logistik' },
-            { name: 'Kategori', href: '/categories' },
-          ],
-        },
-      ],
-    },
-    {
-      title: 'Transaksi',
-      items: [
-        {
-          name: 'Distribusi Barang',
-          href: '/distribution',
-          icon: Truck,
-          children: [
-            { name: 'Distribusi ATK', href: '/distribution/atk' },
-            { name: 'Distribusi Peralatan Listrik', href: '/distribution/listrik' },
-            { name: 'Distribusi Logistik', href: '/distribution/logistik' },
-          ],
-        },
-        { name: 'Riwayat Stok', href: '/stock/history', icon: History },
-      ],
-    },
-    {
-      title: 'Laporan & Sistem',
-      items: [
-        {
-          name: 'Laporan',
-          href: '#laporan',
-          icon: BarChart3,
-          children: [
-            { name: 'Laporan Distribusi ATK', href: '/distribution-reports/atk' },
-            { name: 'Laporan Distribusi Listrik', href: '/distribution-reports/listrik' },
-            { name: 'Laporan Distribusi Logistik', href: '/distribution-reports/logistik' },
-            { name: 'Laporan Pemasangan', href: '/tasks' },
-            { name: 'Ringkasan Persediaan', href: '/reports' },
-          ],
-        },
-        {
-          name: 'Sistem',
-          href: '#sistem',
-          icon: Settings,
-          children: [
-            { name: 'Pengguna', href: '/users', adminOnly: true },
-            { name: 'Integrasi Telegram', href: '/telegram' },
-            { name: 'Log Error', href: '/logs' },
-            { name: 'Pengaturan', href: '/settings' },
-          ],
-        },
-      ],
-    },
-  ];
 
   // Cocok persis atau sub-halaman (/stock/history/...), bukan sekadar awalan teks:
   // /distribution tidak boleh ikut aktif saat membuka /distribution-reports.
@@ -129,7 +121,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   // Menu induk terbuka otomatis bila salah satu sub menunya sedang dibuka.
   const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
   useEffect(() => {
-    const activeParent = navItems
+    const activeParent = NAV_ITEMS
       .flatMap((section) => section.items)
       .find((item) => item.children?.some((child) => matches(child.href)));
     if (activeParent) setOpenMenus((current) => (current.has(activeParent.href) ? current : new Set(current).add(activeParent.href)));
@@ -184,7 +176,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-          {navItems.map((section, idx) => (
+          {NAV_ITEMS.map((section, idx) => (
             <div key={idx} className="space-y-1">
               <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
                 {section.title}
@@ -319,4 +311,4 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
       </aside>
     </>
   );
-}
+});

@@ -1,46 +1,36 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
-  BarChart3,
-  Calendar,
-  Download,
   TrendingUp,
-  TrendingDown,
   ArrowDownToLine,
   ArrowUpFromLine,
-  Package,
-  Layers,
   AlertTriangle,
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
-import { StockChart } from '@/components/dashboard/StockChart';
-import { useToast } from '@/components/ui/Toast';
+
+// Grafik Recharts dimuat terpisah agar ringkasan angka & tabel tampil lebih cepat.
+const StockChart = dynamic(
+  () => import('@/components/dashboard/StockChart').then((mod) => mod.StockChart),
+  { ssr: false, loading: () => <div className="h-72 w-full animate-pulse rounded-lg bg-slate-100" /> }
+);
 
 export default function ReportsPage() {
-  const { showToast } = useToast();
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
-  const fetchReports = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/reports/summary?days=${days}`);
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchReports();
+    const controller = new AbortController();
+    fetch(`/api/reports/summary?days=${days}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json && !controller.signal.aborted) setData(json);
+      })
+      .catch((e: any) => {
+        if (e?.name !== 'AbortError') console.error(e);
+      });
+    return () => controller.abort();
   }, [days]);
 
   return (

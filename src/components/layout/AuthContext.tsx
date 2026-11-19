@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 
 interface AuthContextType {
   currentUser: any | null;
@@ -15,7 +15,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/session');
       if (res.status === 401) {
@@ -31,22 +31,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
       window.location.href = '/login';
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshSession();
-  }, []);
+  }, [refreshSession]);
+
+  const value = useMemo(
+    () => ({ currentUser, isLoading, refreshSession, logout }),
+    [currentUser, isLoading, refreshSession, logout]
+  );
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, refreshSession, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

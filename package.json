@@ -12,6 +12,8 @@
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "db:seed-distribusi": "node --env-file=.env prisma/seed-distribusi.js",
+    "db:seed-pdf": "node --env-file=.env prisma/seed-from-pdf.js",
+    "db:seed-templates": "node --env-file=.env prisma/seed-listrik-and-templates.js",
     "admin:reset": "node --env-file=.env prisma/reset-admin.js",
     "db:studio": "prisma studio"
   },

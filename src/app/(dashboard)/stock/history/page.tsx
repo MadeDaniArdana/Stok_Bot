@@ -2,7 +2,7 @@
 
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   History,
   Search,
@@ -43,7 +43,12 @@ export default function StockHistoryPage() {
   const [reversalReason, setReversalReason] = useState('');
   const [isReversing, setIsReversing] = useState(false);
 
+  const movementsAbortRef = useRef<AbortController | null>(null);
+
   const fetchMovements = async () => {
+    movementsAbortRef.current?.abort();
+    const controller = new AbortController();
+    movementsAbortRef.current = controller;
     try {
       setLoading(true);
       const query = new URLSearchParams({
@@ -56,26 +61,39 @@ export default function StockHistoryPage() {
         limit: '100',
       }).toString();
 
-      const res = await fetch(`/api/stock/movements?${query}`);
+      const res = await fetch(`/api/stock/movements?${query}`, { signal: controller.signal });
       if (res.ok) {
         const data = await res.json();
-        setMovements(data.items || []);
+        if (!controller.signal.aborted) setMovements(data.items || []);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') console.error(e);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Load products and users for filter dropdowns
-    fetch('/api/products?limit=100').then((r) => r.json()).then((d) => setProducts(d.items || []));
-    fetch('/api/users').then((r) => r.json()).then((d) => setUsers(d || []));
+    // Muat daftar barang dan pengguna secara paralel untuk dropdown filter.
+    const controller = new AbortController();
+    Promise.all([
+      fetch('/api/products?limit=500', { signal: controller.signal }).then((r) => (r.ok ? r.json() : { items: [] })),
+      fetch('/api/users', { signal: controller.signal }).then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([prodData, usersData]) => {
+        if (controller.signal.aborted) return;
+        setProducts(prodData.items || []);
+        setUsers(usersData || []);
+      })
+      .catch((e: any) => {
+        if (e?.name !== 'AbortError') console.error(e);
+      });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
     fetchMovements();
+    return () => movementsAbortRef.current?.abort();
   }, [productId, type, source, actorUserId, startDate, endDate]);
 
   // Handle Reversal / Correction

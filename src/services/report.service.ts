@@ -63,14 +63,20 @@ export class ReportService {
     const totalInQuantity = totalsByType.find((t) => t.type === 'IN')?._sum.quantity ?? 0;
     const totalOutQuantity = totalsByType.find((t) => t.type === 'OUT')?._sum.quantity ?? 0;
 
-    // 2. Barang paling banyak keluar
-    const topProducts = topOutGroups.length
-      ? await prisma.product.findMany({
-          where: { id: { in: topOutGroups.map((g) => g.productId) } },
-          select: { id: true, name: true, sku: true, unit: true },
-        })
-      : [];
-    const productById = new Map(topProducts.map((p) => [p.id, p]));
+    // 2. Barang paling banyak keluar: pakai ulang activeProducts agar tidak menambah query DB bila semuanya aktif.
+    const productById = new Map(
+      activeProducts.map((p) => [p.id, { id: p.id, name: p.name, sku: p.sku, unit: p.unit }])
+    );
+    const missingProductIds = topOutGroups
+      .map((g) => g.productId)
+      .filter((id) => !productById.has(id));
+    if (missingProductIds.length > 0) {
+      const inactiveTopProducts = await prisma.product.findMany({
+        where: { id: { in: missingProductIds } },
+        select: { id: true, name: true, sku: true, unit: true },
+      });
+      for (const p of inactiveTopProducts) productById.set(p.id, p);
+    }
     const topConsumed = topOutGroups.map((g) => {
       const { id: _id, ...product } = productById.get(g.productId) ?? { id: '', name: '-', sku: '-', unit: '' };
       return { product, totalOut: g._sum.quantity ?? 0, txCount: g._count._all };

@@ -56,34 +56,42 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
   const [proofLink, setProofLink] = useState<{ row: any; token: string } | null>(null);
   const [linkBusyId, setLinkBusyId] = useState<string | null>(null);
   const latestRequest = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => setPage(1), [group.id, month, debouncedSearch, status]);
-
   const load = async () => {
     if (!/^\d{4}-\d{2}$/.test(month)) return;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const requestId = ++latestRequest.current;
     setLoading(true);
     try {
       const query = new URLSearchParams({ jenis: group.id, month, status, page: String(page) });
       if (debouncedSearch) query.set('search', debouncedSearch);
-      const res = await fetch(`/api/distributions?${query}`);
+      const res = await fetch(`/api/distributions?${query}`, { signal: controller.signal });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Gagal memuat riwayat distribusi.');
       if (requestId === latestRequest.current) setData(json);
     } catch (error: any) {
-      if (requestId === latestRequest.current) showToast('Gagal Memuat', error.message, 'error');
+      if (error?.name !== 'AbortError' && requestId === latestRequest.current) {
+        showToast('Gagal Memuat', error.message, 'error');
+      }
     } finally {
-      if (requestId === latestRequest.current) setLoading(false);
+      if (requestId === latestRequest.current && !controller.signal.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
     load();
+    return () => abortRef.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group.id, month, debouncedSearch, status, page]);
 
@@ -168,7 +176,11 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
             id="report-month"
             type="month"
             value={month}
-            onChange={(e) => e.target.value && setMonth(e.target.value)}
+            onChange={(e) => {
+              if (!e.target.value) return;
+              setMonth(e.target.value);
+              setPage(1);
+            }}
             className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-xs focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500/20"
           />
         </div>
@@ -188,7 +200,10 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
           <select
             id="report-status"
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500/20"
           >
             <option value="all">Semua Status</option>
@@ -205,7 +220,10 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
             <button
               key={option.month}
               type="button"
-              onClick={() => setMonth(option.month)}
+              onClick={() => {
+                setMonth(option.month);
+                setPage(1);
+              }}
               className={cn(
                 'rounded-full border px-2.5 py-0.5 font-semibold transition-colors',
                 option.month === month ? 'border-maroon-700 bg-maroon-800 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-maroon-300 hover:text-maroon-900'

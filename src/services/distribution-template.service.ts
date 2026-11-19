@@ -16,7 +16,11 @@ export interface TemplateInput {
 const templateInclude = {
   items: {
     orderBy: { sortOrder: 'asc' as const },
-    include: { product: { select: { id: true, name: true, sku: true, unit: true, currentStock: true, isActive: true } } },
+    select: {
+      productId: true,
+      quantity: true,
+      product: { select: { isActive: true } },
+    },
   },
 } satisfies Prisma.DistributionTemplateInclude;
 
@@ -49,25 +53,26 @@ export class DistributionTemplateService {
     const receiverName = text(input.receiverName, 'Nama penerima');
 
     const items = Array.isArray(input.items) ? input.items : [];
-    if (items.length === 0) throw new Error('Paket harus berisi minimal satu barang.');
     if (items.length > MAX_ITEMS) throw new Error(`Maksimal ${MAX_ITEMS} barang per paket.`);
     const seen = new Set<string>();
     const clean = items.map((item, index) => {
       const quantity = Number(item?.quantity);
       if (!item?.productId) throw new Error(`Barang pada baris ${index + 1} belum dipilih.`);
-      if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error(`Jumlah pada baris ${index + 1} harus lebih dari nol.`);
+      if (!Number.isSafeInteger(quantity) || quantity < 0) throw new Error(`Jumlah pada baris ${index + 1} tidak boleh negatif.`);
       if (seen.has(item.productId)) throw new Error(`Barang pada baris ${index + 1} dobel.`);
       seen.add(item.productId);
       return { productId: item.productId, quantity, sortOrder: index };
     });
 
-    const products = await prisma.product.findMany({
-      where: { id: { in: clean.map((item) => item.productId) } },
-      select: { id: true, name: true, category: { select: { stockGroup: true } } },
-    });
-    if (products.length !== clean.length) throw new Error('Salah satu barang tidak ditemukan.');
-    const wrong = products.find((product) => (product.category?.stockGroup ?? 'ATK') !== group.id);
-    if (wrong) throw new Error(`Barang "${wrong.name}" bukan termasuk jenis ${group.label}.`);
+    if (clean.length > 0) {
+      const products = await prisma.product.findMany({
+        where: { id: { in: clean.map((item) => item.productId) } },
+        select: { id: true, name: true, category: { select: { stockGroup: true } } },
+      });
+      if (products.length !== clean.length) throw new Error('Salah satu barang tidak ditemukan.');
+      const wrong = products.find((product) => (product.category?.stockGroup ?? 'ATK') !== group.id);
+      if (wrong) throw new Error(`Barang "${wrong.name}" bukan termasuk jenis ${group.label}.`);
+    }
 
     return { stockGroup: group.id, name, recipientUnit, storageLocation, receiverName, items: clean };
   }
@@ -80,7 +85,14 @@ export class DistributionTemplateService {
     const data = await this.validate(input);
     try {
       return await prisma.distributionTemplate.create({
-        data: { ...data, items: { create: data.items } },
+        data: {
+          stockGroup: data.stockGroup,
+          name: data.name,
+          recipientUnit: data.recipientUnit,
+          storageLocation: data.storageLocation,
+          receiverName: data.receiverName,
+          ...(data.items.length > 0 ? { items: { create: data.items } } : {}),
+        },
         include: templateInclude,
       });
     } catch (error) {
@@ -105,7 +117,7 @@ export class DistributionTemplateService {
             recipientUnit: data.recipientUnit,
             storageLocation: data.storageLocation,
             receiverName: data.receiverName,
-            items: { create: data.items },
+            ...(data.items.length > 0 ? { items: { create: data.items } } : {}),
           },
           include: templateInclude,
         });

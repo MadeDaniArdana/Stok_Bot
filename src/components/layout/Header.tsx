@@ -1,14 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Menu,
   Bell,
   Send,
-  UserCheck,
-  ShieldCheck,
-  Check,
   Clock,
   AlertTriangle,
   PackageX,
@@ -53,8 +50,13 @@ export function Header({ onToggleMobile }: HeaderProps) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch notifications
-  const loadNotifications = async () => {
+  const lastFetchedRef = useRef(0);
+
+  // Fetch notifications (dibatasi agar perpindahan tab cepat tidak memicu query berulang).
+  const loadNotifications = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFetchedRef.current < 15000) return;
+    lastFetchedRef.current = now;
     try {
       const res = await fetch('/api/notifications');
       if (res.ok) {
@@ -65,23 +67,23 @@ export function Header({ onToggleMobile }: HeaderProps) {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadNotifications();
-    // Cek notifikasi tiap 30 detik, hanya saat tab sedang dilihat; langsung cek saat tab dibuka lagi.
+    loadNotifications(true);
+    // Cek notifikasi tiap 30 detik, hanya saat tab sedang dilihat; cek saat tab dibuka lagi (minimal jeda 15 detik).
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') loadNotifications();
+      if (document.visibilityState === 'visible') loadNotifications(true);
     }, 30000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') loadNotifications();
+      if (document.visibilityState === 'visible') loadNotifications(false);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [loadNotifications]);
 
   const handleMarkAllRead = async () => {
     try {

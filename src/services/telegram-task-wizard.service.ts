@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getStockGroup } from '@/lib/stock-groups';
 import { buildCancelKeyboard, buildMainMenuKeyboard } from '@/lib/telegram-keyboards';
 import type { TelegramInlineKeyboardMarkup } from '@/lib/telegram-client';
 import { InstallationTaskService } from './installation-task.service';
@@ -30,6 +31,7 @@ interface WizardResult {
 }
 
 const PRODUCT_PAGE_SIZE = 8;
+const LISTRIK_OFFICERS = getStockGroup('LISTRIK').handoverOptions ?? [];
 
 export class TelegramTaskWizardService {
   static async start(telegramUserId: string, chatId: string): Promise<WizardResult> {
@@ -199,6 +201,35 @@ export class TelegramTaskWizardService {
         const quantity = Number(parts[2]);
         if (!Number.isSafeInteger(quantity)) return this.invalidAction();
         return this.setQuantity(telegramUserId, quantity);
+      }
+
+      if (parts[1] === 'assignee' && parts[2] === 'custom') {
+        const conversation = await this.getConversation(telegramUserId, 'ENTER_ASSIGNEE');
+        if (!conversation) return this.staleAction(isAllowedAdmin);
+        return {
+          replyText: 'Ketik nama pemasang secara manual:',
+          success: true,
+          actionTaken: 'TASK_ASSIGNEE_CUSTOM_PROMPT',
+          replyMarkup: buildCancelKeyboard(),
+        };
+      }
+
+      if (parts[1] === 'assignee' && parts[2] !== undefined) {
+        const conversation = await this.getConversation(telegramUserId, 'ENTER_ASSIGNEE');
+        if (!conversation) return this.staleAction(isAllowedAdmin);
+        const idx = Number(parts[2]);
+        if (!Number.isSafeInteger(idx) || idx < 0 || idx >= LISTRIK_OFFICERS.length) return this.invalidAction();
+        const assigneeName = LISTRIK_OFFICERS[idx];
+        await this.saveConversation(telegramUserId, conversation.chatId, 'ENTER_LOCATION', {
+          ...this.readData(conversation.data),
+          assigneeName,
+        });
+        return {
+          replyText: `Pemasang dicatat: ${assigneeName}.\n\nSekarang ketik lokasi pemasangan.`,
+          success: true,
+          actionTaken: 'TASK_LOCATION_PROMPT',
+          replyMarkup: buildCancelKeyboard(),
+        };
       }
 
       if (parts[1] === 'notes' && parts[2] === 'skip') {
@@ -512,11 +543,26 @@ export class TelegramTaskWizardService {
       quantity,
     });
     return {
-      replyText: `Jumlah: ${quantity} ${product.unit}.\n\nKetik nama pemasang.`,
+      replyText: `Jumlah: ${quantity} ${product.unit}.\n\nPilih nama pemasang atau ketik nama secara manual:`,
       success: true,
       actionTaken: 'TASK_ASSIGNEE_PROMPT',
-      replyMarkup: buildCancelKeyboard(),
+      replyMarkup: this.assigneeKeyboard(),
     };
+  }
+
+  private static assigneeKeyboard(): TelegramInlineKeyboardMarkup {
+    const keyboard: TelegramInlineKeyboardMarkup['inline_keyboard'] = [];
+    for (let index = 0; index < LISTRIK_OFFICERS.length; index += 2) {
+      keyboard.push(
+        LISTRIK_OFFICERS.slice(index, index + 2).map((name, offset) => ({
+          text: name,
+          callback_data: `task:assignee:${index + offset}`,
+        }))
+      );
+    }
+    keyboard.push([{ text: '✏️ Lainnya (ketik manual)', callback_data: 'task:assignee:custom' }]);
+    keyboard.push([{ text: '✖️ Batal', callback_data: 'task:cancel' }]);
+    return { inline_keyboard: keyboard };
   }
 
   private static async confirm(

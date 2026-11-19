@@ -1,7 +1,7 @@
 'use client';
 
 import { formatStock } from '@/lib/product-units';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 
 const MAX_VISIBLE_OPTIONS = 50;
@@ -29,28 +29,31 @@ interface ProductPickerProps {
   required?: boolean;
 }
 
-export function ProductPicker({ id, products, value, onChange, disabled = false, loading = false, showHint = true, placeholder, required = true }: ProductPickerProps) {
+export const ProductPicker = memo(function ProductPicker({ id, products, value, onChange, disabled = false, loading = false, showHint = true, placeholder, required = true }: ProductPickerProps) {
   const [query, setQuery] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const selected = products.find((product) => product.id === value);
+  const selected = useMemo(() => (value ? products.find((product) => product.id === value) : undefined), [products, value]);
   const expanded = open && !disabled;
   const listId = `${id}-options`;
-  // Teks pencarian per barang dihitung sekali, bukan di setiap ketukan tombol.
+  // Indeks pencarian & filter hanya dihitung saat dropdown benar-benar dibuka
+  // agar tabel checklist puluhan baris tidak memproses toLocaleLowerCase saat tertutup.
   const searchIndex = useMemo(
-    () => products.map((product) => ({ product, text: `${product.name} ${product.sku}`.toLocaleLowerCase('id-ID') })),
-    [products]
+    () => (expanded ? products.map((product) => ({ product, text: `${product.name} ${product.sku}`.toLocaleLowerCase('id-ID') })) : []),
+    [products, expanded]
   );
   const matches = useMemo(() => {
+    if (!expanded) return [];
     const words = (query || '').trim().toLocaleLowerCase('id-ID').split(/\s+/).filter(Boolean);
+    if (words.length === 0) return products;
     return searchIndex.filter(({ text }) => words.every((word) => text.includes(word))).map(({ product }) => product);
-  }, [searchIndex, query]);
+  }, [expanded, products, searchIndex, query]);
   // Hanya sebagian hasil yang dirender agar dropdown tetap ringan walau barangnya ratusan.
-  const filtered = useMemo(() => matches.slice(0, MAX_VISIBLE_OPTIONS), [matches]);
-  const hiddenCount = matches.length - filtered.length;
-  const activeOption = filtered[activeIndex];
+  const filtered = useMemo(() => (expanded ? matches.slice(0, MAX_VISIBLE_OPTIONS) : []), [expanded, matches]);
+  const hiddenCount = expanded ? matches.length - filtered.length : 0;
+  const activeOption = expanded ? filtered[activeIndex] : undefined;
 
   useEffect(() => {
     if (expanded && activeOption) {
@@ -178,4 +181,4 @@ export function ProductPicker({ id, products, value, onChange, disabled = false,
       )}
     </div>
   );
-}
+});

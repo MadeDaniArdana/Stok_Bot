@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
   Package,
@@ -11,35 +12,45 @@ import {
   Send,
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
-import { StockChart } from '@/components/dashboard/StockChart';
 import { CriticalTable } from '@/components/dashboard/CriticalTable';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { useAuth } from '@/components/layout/AuthContext';
+
+// Grafik Recharts dimuat terpisah agar KPI cards & tabel kritis tampil dan interaktif lebih cepat.
+const StockChart = dynamic(
+  () => import('@/components/dashboard/StockChart').then((mod) => mod.StockChart),
+  { ssr: false, loading: () => <div className="h-72 w-full animate-pulse rounded-lg bg-slate-100" /> }
+);
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async (periodDays = days) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       setLoading(true);
-      const res = await fetch(`/api/reports/summary?days=${days}`);
+      const res = await fetch(`/api/reports/summary?days=${periodDays}`, { signal: controller.signal });
       if (res.ok) {
         const json = await res.json();
-        setData(json);
+        if (!controller.signal.aborted) setData(json);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') console.error(e);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  };
+  }, [days]);
 
   useEffect(() => {
-    fetchSummary();
-  }, [days]);
+    fetchSummary(days);
+    return () => abortRef.current?.abort();
+  }, [days, fetchSummary]);
 
   return (
     <div className="space-y-6">
@@ -69,7 +80,7 @@ export default function DashboardPage() {
             <span>Telegram Bot</span>
           </Link>
           <button
-            onClick={fetchSummary}
+            onClick={() => fetchSummary(days)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 focus-visible:ring-offset-2"
             aria-label="Muat ulang data dashboard"
             title="Muat ulang data"

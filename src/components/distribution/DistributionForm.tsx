@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, ClipboardList, LoaderCircle, PackageOpen, Plus, Printer, Save, Send, Trash2, X } from 'lucide-react';
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
@@ -38,7 +38,7 @@ interface Template {
   recipientUnit: string;
   storageLocation: string | null;
   receiverName: string | null;
-  items: { productId: string; quantity: number; product: { name: string; isActive: boolean } }[];
+  items: { productId: string; quantity: number; product: { isActive: boolean } }[];
 }
 
 interface SavedDistribution {
@@ -57,8 +57,156 @@ function todayInJakarta() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 }
 
+const OFFICER_OTHER = '__OTHER__';
+
 const inputClass =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-800 focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500/20 disabled:bg-slate-50';
+
+interface DistributionRowProps {
+  row: Row;
+  index: number;
+  product: ProductOption | undefined;
+  options: ProductOption[];
+  invalidQuantity: boolean;
+  overStock: boolean;
+  inputUnit: string;
+  highlight: boolean;
+  qtyPlaceholder: string;
+  isSingleRow: boolean;
+  isListrik: boolean;
+  productsLoading: boolean;
+  recipientUnit: string;
+  onUpdateRow: (key: number, patch: Partial<Row>) => void;
+  onRemoveRow: (key: number) => void;
+}
+
+/** Baris item dimemoisasi agar mengetik jumlah di satu baris tidak merender ulang 35+ baris checklist lain. */
+const DistributionRow = memo(function DistributionRow({
+  row,
+  index,
+  product,
+  options,
+  invalidQuantity,
+  overStock,
+  inputUnit,
+  highlight,
+  qtyPlaceholder,
+  isSingleRow,
+  isListrik,
+  productsLoading,
+  recipientUnit,
+  onUpdateRow,
+  onRemoveRow,
+}: DistributionRowProps) {
+  const handleProductChange = useCallback(
+    (productId: string) => onUpdateRow(row.key, { productId, unit: '' }),
+    [onUpdateRow, row.key]
+  );
+
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-[auto_1fr_auto] items-start gap-3 px-5 py-3 sm:grid-cols-[2rem_1fr_9rem_2.5rem]',
+        highlight && 'bg-maroon-50/40'
+      )}
+    >
+      <span className="pt-2.5 text-xs font-bold text-slate-400">{index + 1}</span>
+      <div className="min-w-0">
+        <ProductPicker
+          id={`dist-product-${row.key}`}
+          products={options}
+          value={row.productId}
+          onChange={handleProductChange}
+          loading={productsLoading}
+          showHint={false}
+          required={isSingleRow}
+          placeholder={isListrik ? 'Cari alat, contoh: lampu LED' : 'Cari barang, contoh: kertas A4'}
+        />
+        {isListrik && (
+          <input
+            aria-label={`Lokasi pemasangan baris ${index + 1}`}
+            value={row.location ?? ''}
+            onChange={(e) => onUpdateRow(row.key, { location: e.target.value })}
+            placeholder={recipientUnit ? `Lokasi pemasangan (kosong = ${recipientUnit})` : 'Lokasi pemasangan (opsional)'}
+            maxLength={150}
+            className={cn(inputClass, 'mt-1.5')}
+          />
+        )}
+        {product && (
+          <p className={cn('mt-1 text-[11px]', product.currentStock === 0 ? 'text-rose-600' : 'text-slate-500')}>
+            Stok tersedia: {formatStock(product, product.currentStock)}
+          </p>
+        )}
+      </div>
+      <div className="col-span-2 col-start-2 flex items-start gap-2 sm:col-span-1 sm:col-start-auto">
+        <div className="flex-1">
+          <label htmlFor={`dist-qty-${row.key}`} className="sr-only">Jumlah baris {index + 1}</label>
+          <div className="relative">
+            <input
+              id={`dist-qty-${row.key}`}
+              type="number"
+              inputMode={product?.packUnit ? 'decimal' : 'numeric'}
+              min={0}
+              step={product?.packUnit ? 'any' : 1}
+              max={product?.packUnit || !product?.currentStock ? undefined : product.currentStock}
+              value={row.quantity}
+              onChange={(e) => onUpdateRow(row.key, { quantity: e.target.value })}
+              placeholder={qtyPlaceholder}
+              aria-invalid={overStock || invalidQuantity}
+              className={cn(inputClass, 'pr-14', overStock && 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20')}
+            />
+            {!product?.packUnit && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">{product?.unit || ''}</span>}
+          </div>
+          {product?.packUnit && (
+            <div className="mt-1 space-y-1">
+              <select
+                aria-label={`Satuan baris ${index + 1}`}
+                value={inputUnit}
+                onChange={(e) => onUpdateRow(row.key, { unit: e.target.value })}
+                className={cn(inputClass, 'py-1.5')}
+              >
+                <option value={product.packUnit}>{product.packUnit}</option>
+                <option value={product.unit}>{product.unit}</option>
+              </select>
+              {product.packUnit === 'kg' && (
+                <div className="flex flex-wrap gap-1">
+                  {[['¼', '0.25'], ['½', '0.5'], ['¾', '0.75'], ['1', '1']].map(([label, value]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => onUpdateRow(row.key, { unit: 'kg', quantity: value })}
+                      className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-maroon-50 hover:text-maroon-800"
+                    >
+                      {label} kg
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {invalidQuantity && <p className="mt-1 text-[11px] text-rose-600">Jumlah tidak valid (hasil harus bilangan bulat {product?.unit}).</p>}
+          {overStock && <p className="mt-1 text-[11px] text-rose-600">Melebihi stok.</p>}
+        </div>
+        <button
+          type="button"
+          onClick={() => onRemoveRow(row.key)}
+          aria-label={`Hapus baris ${index + 1}`}
+          className="action-button action-icon action-danger mt-0.5 sm:hidden"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => onRemoveRow(row.key)}
+        aria-label={`Hapus baris ${index + 1}`}
+        className="action-button action-icon action-danger mt-0.5 hidden sm:inline-flex"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+});
 
 export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const { showToast } = useToast();
@@ -79,6 +227,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const [receiverName, setReceiverName] = useState('');
   const [officerPhone, setOfficerPhone] = useState('');
   const [handoverName, setHandoverName] = useState('');
+  const [handoverSelect, setHandoverSelect] = useState('');
   const [notes, setNotes] = useState('');
   const [rows, setRows] = useState<Row[]>([{ key: 0, productId: '', quantity: '' }]);
   const [submitting, setSubmitting] = useState(false);
@@ -104,34 +253,48 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     if (!isListrik && defaultHandover && !handoverTouched.current) setHandoverName(defaultHandover);
   }, [defaultHandover, isListrik]);
 
-  const loadProducts = () => {
+  const loadProducts = (signal?: AbortSignal) => {
     setProductsLoading(true);
-    fetch(`/api/products?jenis=${group.id}&status=active&limit=500`)
+    fetch(`/api/products?jenis=${group.id}&status=active&limit=500`, { signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Gagal memuat barang'))))
-      .then((data) => setProducts(data.items || []))
-      .catch(() => showToast('Gagal Memuat', `Daftar barang ${group.label} tidak dapat dimuat.`, 'error'))
-      .finally(() => setProductsLoading(false));
+      .then((data) => {
+        if (!signal?.aborted) setProducts(data.items || []);
+      })
+      .catch((error: any) => {
+        if (error?.name !== 'AbortError') showToast('Gagal Memuat', `Daftar barang ${group.label} tidak dapat dimuat.`, 'error');
+      })
+      .finally(() => {
+        if (!signal?.aborted) setProductsLoading(false);
+      });
   };
 
-  const loadTemplates = () => {
+  const loadTemplates = (signal?: AbortSignal) => {
     if (!usesTemplates) return;
-    fetch(`/api/distribution-templates?jenis=${group.id}`)
+    fetch(`/api/distribution-templates?jenis=${group.id}`, { signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
-      .then((data) => setTemplates(data.templates || []))
-      .catch(() => showToast('Gagal Memuat', 'Daftar paket distribusi tidak dapat dimuat.', 'error'));
+      .then((data) => {
+        if (!signal?.aborted) setTemplates(data.templates || []);
+      })
+      .catch((error: any) => {
+        if (error?.name !== 'AbortError') showToast('Gagal Memuat', 'Daftar paket distribusi tidak dapat dimuat.', 'error');
+      });
   };
 
   useEffect(() => {
-    loadProducts();
-    loadTemplates();
-    fetch(`/api/distributions/recipients?jenis=${group.id}`)
+    const controller = new AbortController();
+    setHandoverSelect('');
+    loadProducts(controller.signal);
+    loadTemplates(controller.signal);
+    fetch(`/api/distributions/recipients?jenis=${group.id}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : {}))
       .then((data: { recipients?: string[]; handoverNames?: string[]; receiverNames?: string[] }) => {
+        if (controller.signal.aborted) return;
         setRecipients(data.recipients || []);
         setHandoverNames(data.handoverNames || []);
         setReceiverNames(data.receiverNames || []);
       })
       .catch(() => undefined);
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group.id]);
 
@@ -154,28 +317,35 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
 
   const rowState = rows.map((row) => {
     const product = productById.get(row.productId);
-    const typed = Number(row.quantity.replace(',', '.'));
+    const rawQty = row.quantity.trim();
+    const isBlankQty = rawQty === '' || rawQty === '0';
+    const typed = Number(rawQty.replace(',', '.'));
     const inputUnit = product?.packUnit && row.unit === product.packUnit ? product.packUnit : product?.unit ?? '';
     // Jumlah selalu dikirim dalam satuan dasar (pcs/gram); konversi kemasan dilakukan di sini.
-    const quantity = (product ? toBaseQuantity(product, typed, inputUnit) : Number.isSafeInteger(typed) && typed > 0 ? typed : null) ?? 0;
+    const quantity = isBlankQty
+      ? 0
+      : (product ? toBaseQuantity(product, typed, inputUnit) : Number.isSafeInteger(typed) && typed > 0 ? typed : null) ?? 0;
     const validQuantity = quantity > 0;
+    const invalidQuantity = !isBlankQty && !validQuantity;
     const overStock = Boolean(product && validQuantity && quantity > product.currentStock);
-    return { row, product, quantity, validQuantity, overStock, inputUnit };
+    return { row, product, quantity, validQuantity, isBlankQty, invalidQuantity, overStock, inputUnit };
   });
   const filledRows = rowState.filter((state) => state.row.productId);
+  const submittableRows = filledRows.filter((state) => state.validQuantity);
+  const hasInvalidFilledRow = filledRows.some((state) => state.invalidQuantity || state.overStock);
   const canSubmit =
     !submitting &&
     recipientUnit.trim() !== '' &&
     handoverName.trim() !== '' &&
-    filledRows.length > 0 &&
-    filledRows.every((state) => state.validQuantity && !state.overStock);
+    submittableRows.length > 0 &&
+    !hasInvalidFilledRow;
 
   // Tabel dianggap berubah dari paket bila ada barang/jumlah/isian kepala yang berbeda.
   const tableSignature = (items: { productId: string; quantity: number }[]) =>
     items.map((item) => `${item.productId}:${item.quantity}`).sort().join('|');
   const currentItems = filledRows
-    .filter((state) => state.validQuantity)
-    .map((state) => ({ productId: state.row.productId, quantity: state.quantity }));
+    .filter((state) => !state.invalidQuantity)
+    .map((state) => ({ productId: state.row.productId, quantity: state.validQuantity ? state.quantity : 0 }));
   const templateChanged = Boolean(
     activeTemplate &&
       (tableSignature(currentItems) !== tableSignature(activeTemplate.items) ||
@@ -184,10 +354,10 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
         (receiverName.trim() || null) !== activeTemplate.receiverName)
   );
   const tableValidForTemplate =
-    recipientUnit.trim() !== '' && filledRows.length > 0 && filledRows.every((state) => state.validQuantity);
+    recipientUnit.trim() !== '' && filledRows.every((state) => !state.invalidQuantity);
 
   const applyTemplate = (template: Template) => {
-    const hasData = filledRows.length > 0 && activeTemplateId !== template.id;
+    const hasData = (activeTemplateId ? submittableRows.length > 0 : filledRows.length > 0) && activeTemplateId !== template.id;
     if (hasData && !confirm(`Ganti isi tabel dengan paket "${template.name}"?`)) return;
     const usable = template.items.filter((item) => item.product.isActive);
     const skipped = template.items.length - usable.length;
@@ -198,7 +368,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     setReceiverName(template.receiverName || '');
     setRows(
       usable.length
-        ? usable.map((item) => ({ key: nextKey.current++, productId: item.productId, quantity: String(item.quantity) }))
+        ? usable.map((item) => ({ key: nextKey.current++, productId: item.productId, quantity: item.quantity > 0 ? String(item.quantity) : '' }))
         : [{ key: nextKey.current++, productId: '', quantity: '' }]
     );
     if (skipped > 0) showToast('Sebagian Dilewati', `${skipped} barang di paket ini sudah nonaktif dan tidak dimasukkan.`, 'error');
@@ -255,13 +425,17 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     }
   };
 
-  const updateRow = (key: number, patch: Partial<Row>) =>
+  const updateRow = useCallback((key: number, patch: Partial<Row>) => {
     setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }, []);
 
-  const addRow = () => setRows((current) => [...current, { key: nextKey.current++, productId: '', quantity: '' }]);
+  const addRow = useCallback(() => {
+    setRows((current) => [...current, { key: nextKey.current++, productId: '', quantity: '' }]);
+  }, []);
 
-  const removeRow = (key: number) =>
+  const removeRow = useCallback((key: number) => {
     setRows((current) => (current.length === 1 ? [{ key: nextKey.current++, productId: '', quantity: '' }] : current.filter((row) => row.key !== key)));
+  }, []);
 
   const resetForm = () => {
     setSaved(null);
@@ -272,6 +446,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     setOfficerPhone('');
     setNotes('');
     handoverTouched.current = false;
+    setHandoverSelect('');
     setHandoverName(isListrik ? '' : defaultHandover);
     setActiveTemplateId(null);
     setNewTemplateName(null);
@@ -296,7 +471,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
           handoverName,
           officerPhone: isListrik ? officerPhone : '',
           notes,
-          items: filledRows.map((state) => ({
+          items: submittableRows.map((state) => ({
             productId: state.row.productId,
             quantity: state.quantity,
             ...(isListrik && state.row.location?.trim() && { location: state.row.location.trim() }),
@@ -375,7 +550,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-maroon-800" aria-hidden="true" />
             <p className="mt-3 text-sm font-bold text-slate-900">Menyimpan distribusi...</p>
             <p className="mt-1 text-xs text-slate-500">
-              Mengurangi stok {filledRows.length} barang dan membuat dokumen. Jangan tutup halaman ini.
+              Mengurangi stok {submittableRows.length} barang dan membuat dokumen. Jangan tutup halaman ini.
             </p>
           </div>
         </ModalOverlay>
@@ -409,7 +584,9 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                     )}
                   >
                     <span className="block font-semibold">{template.name}</span>
-                    <span className="block text-[11px] text-slate-500">{template.items.length} barang</span>
+                    <span className="block text-[11px] text-slate-500">
+                      {template.items.length === 0 ? 'Belum ada barang' : `${template.items.length} barang`}
+                    </span>
                   </button>
                 );
               })}
@@ -472,10 +649,46 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
 
           {isListrik && (
             <div>
-              <label htmlFor="dist-handover" className="mb-1 block text-xs font-semibold text-slate-700">
+              <label htmlFor="dist-handover-select" className="mb-1 block text-xs font-semibold text-slate-700">
                 {group.handoverLabel} <span className="text-rose-500">*</span>
               </label>
-              <input id="dist-handover" required value={handoverName} onChange={(e) => setHandoverName(e.target.value)} placeholder="Petugas yang memasang/mengambil" maxLength={150} className={inputClass} />
+              <select
+                id="dist-handover-select"
+                required
+                value={handoverSelect}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setHandoverSelect(val);
+                  setHandoverName(val === OFFICER_OTHER ? '' : val);
+                }}
+                className={inputClass}
+              >
+                <option value="">Pilih nama petugas...</option>
+                {(group.handoverOptions ?? []).map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+                <option value={OFFICER_OTHER}>Lainnya (ketik manual)</option>
+              </select>
+              {handoverSelect === OFFICER_OTHER && (
+                <>
+                  <input
+                    id="dist-handover"
+                    required
+                    autoFocus
+                    list="dist-handover-options"
+                    value={handoverName}
+                    onChange={(e) => setHandoverName(e.target.value)}
+                    placeholder="Ketik nama petugas..."
+                    maxLength={150}
+                    className={cn(inputClass, 'mt-2')}
+                  />
+                  <datalist id="dist-handover-options">
+                    {handoverNames
+                      .filter((name) => !(group.handoverOptions ?? []).includes(name))
+                      .map((name) => <option key={name} value={name} />)}
+                  </datalist>
+                </>
+              )}
             </div>
           )}
 
@@ -560,114 +773,40 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900">{isListrik ? 'Alat yang Didistribusikan' : 'Daftar Barang'}</h3>
-            <p className="text-xs text-slate-500">Hanya barang aktif berjenis {group.label} yang bisa dipilih.</p>
+            <p className="text-xs text-slate-500">
+              {filledRows.length > submittableRows.length
+                ? 'Isi jumlah pada barang yang diambil saja; baris yang dikosongkan otomatis dilewati saat simpan.'
+                : `Hanya barang aktif berjenis ${group.label} yang bisa dipilih.`}
+            </p>
           </div>
-          <span className="text-xs font-semibold text-slate-500">{filledRows.length} barang</span>
+          <span className="text-xs font-semibold text-slate-500">
+            {submittableRows.length === filledRows.length
+              ? `${filledRows.length} barang`
+              : `${submittableRows.length} dari ${filledRows.length} barang diisi`}
+          </span>
         </div>
 
         <div className="divide-y divide-slate-100">
-          {rowState.map(({ row, product, overStock, validQuantity, inputUnit }, index) => {
-            const options = optionsByRow.get(row.key) ?? products;
-            return (
-              <div key={row.key} className="grid grid-cols-[auto_1fr_auto] items-start gap-3 px-5 py-3 sm:grid-cols-[2rem_1fr_9rem_2.5rem]">
-                <span className="pt-2.5 text-xs font-bold text-slate-400">{index + 1}</span>
-                <div className="min-w-0">
-                  <ProductPicker
-                    id={`dist-product-${row.key}`}
-                    products={options}
-                    value={row.productId}
-                    onChange={(productId) => updateRow(row.key, { productId, unit: '' })}
-                    loading={productsLoading}
-                    showHint={false}
-                    required={rows.length === 1}
-                    placeholder={isListrik ? 'Cari alat, contoh: lampu LED' : 'Cari barang, contoh: kertas A4'}
-                  />
-                  {isListrik && (
-                    <input
-                      aria-label={`Lokasi pemasangan baris ${index + 1}`}
-                      value={row.location ?? ''}
-                      onChange={(e) => updateRow(row.key, { location: e.target.value })}
-                      placeholder={recipientUnit ? `Lokasi pemasangan (kosong = ${recipientUnit})` : 'Lokasi pemasangan (opsional)'}
-                      maxLength={150}
-                      className={cn(inputClass, 'mt-1.5')}
-                    />
-                  )}
-                  {product && (
-                    <p className={cn('mt-1 text-[11px]', product.currentStock === 0 ? 'text-rose-600' : 'text-slate-500')}>
-                      Stok tersedia: {formatStock(product, product.currentStock)}
-                    </p>
-                  )}
-                </div>
-                <div className="col-span-2 col-start-2 flex items-start gap-2 sm:col-span-1 sm:col-start-auto">
-                  <div className="flex-1">
-                    <label htmlFor={`dist-qty-${row.key}`} className="sr-only">Jumlah baris {index + 1}</label>
-                    <div className="relative">
-                      <input
-                        id={`dist-qty-${row.key}`}
-                        type="number"
-                        inputMode={product?.packUnit ? 'decimal' : 'numeric'}
-                        min={product?.packUnit ? 0.01 : 1}
-                        step={product?.packUnit ? 'any' : 1}
-                        max={product?.packUnit ? undefined : product?.currentStock}
-                        required={Boolean(row.productId)}
-                        value={row.quantity}
-                        onChange={(e) => updateRow(row.key, { quantity: e.target.value })}
-                        placeholder="Jumlah"
-                        aria-invalid={overStock || (Boolean(row.quantity) && !validQuantity)}
-                        className={cn(inputClass, 'pr-14', overStock && 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20')}
-                      />
-                      {!product?.packUnit && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">{product?.unit || ''}</span>}
-                    </div>
-                    {product?.packUnit && (
-                      <div className="mt-1 space-y-1">
-                        <select
-                          aria-label={`Satuan baris ${index + 1}`}
-                          value={inputUnit}
-                          onChange={(e) => updateRow(row.key, { unit: e.target.value })}
-                          className={cn(inputClass, 'py-1.5')}
-                        >
-                          <option value={product.packUnit}>{product.packUnit}</option>
-                          <option value={product.unit}>{product.unit}</option>
-                        </select>
-                        {product.packUnit === 'kg' && (
-                          <div className="flex flex-wrap gap-1">
-                            {[['¼', '0.25'], ['½', '0.5'], ['¾', '0.75'], ['1', '1']].map(([label, value]) => (
-                              <button
-                                key={value}
-                                type="button"
-                                onClick={() => updateRow(row.key, { unit: 'kg', quantity: value })}
-                                className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-maroon-50 hover:text-maroon-800"
-                              >
-                                {label} kg
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {Boolean(row.quantity) && !validQuantity && <p className="mt-1 text-[11px] text-rose-600">Jumlah tidak valid (hasil harus bilangan bulat {product?.unit}).</p>}
-                    {overStock && <p className="mt-1 text-[11px] text-rose-600">Melebihi stok.</p>}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeRow(row.key)}
-                    aria-label={`Hapus baris ${index + 1}`}
-                    className="action-button action-icon action-danger mt-0.5 sm:hidden"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeRow(row.key)}
-                  aria-label={`Hapus baris ${index + 1}`}
-                  className="action-button action-icon action-danger mt-0.5 hidden sm:inline-flex"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
+          {rowState.map(({ row, product, validQuantity, invalidQuantity, overStock, inputUnit }, index) => (
+            <DistributionRow
+              key={row.key}
+              row={row}
+              index={index}
+              product={product}
+              options={optionsByRow.get(row.key) ?? products}
+              invalidQuantity={invalidQuantity}
+              overStock={overStock}
+              inputUnit={inputUnit}
+              highlight={validQuantity && !overStock && filledRows.length !== submittableRows.length}
+              qtyPlaceholder={filledRows.length > 1 ? '0' : 'Jumlah'}
+              isSingleRow={rows.length === 1}
+              isListrik={isListrik}
+              productsLoading={productsLoading}
+              recipientUnit={recipientUnit}
+              onUpdateRow={updateRow}
+              onRemoveRow={removeRow}
+            />
+          ))}
         </div>
 
         {usesTemplates && (
@@ -763,7 +902,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-maroon-800 px-5 py-2.5 text-xs font-semibold text-white shadow-soft hover:bg-maroon-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {submitting ? 'Menyimpan...' : 'Simpan & Kurangi Stok'}
+            {submitting
+              ? 'Menyimpan...'
+              : submittableRows.length > 0 && submittableRows.length < filledRows.length
+                ? `Simpan & Kurangi Stok (${submittableRows.length} barang)`
+                : 'Simpan & Kurangi Stok'}
           </button>
         </div>
       </section>

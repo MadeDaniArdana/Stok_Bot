@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
@@ -11,6 +11,8 @@ import { BrowserErrorReporter } from "../BrowserErrorReporter";
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isAssistant = usePathname() === "/assistant";
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  const toggleMobile = useCallback(() => setMobileOpen((open) => !open), []);
 
   return (
     <AuthProvider>
@@ -25,12 +27,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Sidebar */}
           <Sidebar
             mobileOpen={mobileOpen}
-            onCloseMobile={() => setMobileOpen(false)}
+            onCloseMobile={closeMobile}
           />
 
           {/* Main Area */}
           <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-            <Header onToggleMobile={() => setMobileOpen(!mobileOpen)} />
+            <Header onToggleMobile={toggleMobile} />
             <main
               className={
                 isAssistant

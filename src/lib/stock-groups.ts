@@ -30,6 +30,8 @@ export interface StockGroupConfig {
    * 'last' = nama terakhir yang dipakai di jenis ini (penanda tangan bisa orang lain, mis. Logistik).
    */
   handoverDefault?: 'admin' | 'last';
+  /** Daftar pilihan nama petugas tetap untuk jenis ini (selain input manual). */
+  handoverOptions?: string[];
   /** Daftar pilihan nama penerima tetap untuk jenis ini (nama lain tetap bisa diketik). */
   receiverOptions?: string[];
 }
@@ -47,6 +49,7 @@ export const STOCK_GROUPS: StockGroupConfig[] = [
     handoverLabel: 'Nama Petugas',
     numberPrefix: 'LST',
     badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    handoverOptions: ['Aswindra', 'Hendrik', 'Mastoni', 'Riki', 'Vicky'],
   },
   {
     id: 'LOGISTIK',
@@ -66,6 +69,7 @@ export const STOCK_GROUPS: StockGroupConfig[] = [
     receiverOptions: [
       'Aswindra', 'Erna', 'Erni', 'Hendrik', 'Maida', 'Mala Dewi', 'Mastoni',
       'Murlina', 'Neneng', 'Riki', 'Rumlah', 'Uli', 'Vicky', 'Wilyati',
+      'AI CENTER', 'Satpam', 'Marbot Masjid Asmaul Yusuf',
     ],
   },
   {

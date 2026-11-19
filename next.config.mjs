@@ -1,8 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
+  images: {
+    formats: ['image/avif', 'image/webp'],
+  },
   // sharp adalah modul native; jangan di-bundle webpack.
-  experimental: { serverComponentsExternalPackages: ['sharp'] },
+  // optimizePackageImports memperkecil bundle ikon & chart via tree-shaking barrel exports.
+  experimental: {
+    serverComponentsExternalPackages: ['sharp'],
+    optimizePackageImports: ['lucide-react', 'recharts'],
+  },
+  async headers() {
+    return [
+      {
+        source: '/logo-yayasan.png',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
+      },
+    ];
+  },
   async redirects() {
     return [
       {

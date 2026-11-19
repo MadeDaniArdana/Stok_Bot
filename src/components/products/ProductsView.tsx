@@ -88,9 +88,13 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch products
-  // Penanda permintaan terbaru, agar respons lama tidak menimpa hasil filter terbaru.
+  // Penanda permintaan terbaru + AbortController agar respons lama tidak menimpa hasil filter terbaru.
   const latestRequest = useRef(0);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const fetchProducts = async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     const requestId = ++latestRequest.current;
     try {
       setLoading(true);
@@ -99,16 +103,17 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
         categoryId,
         stockStatus,
         status,
+        limit: '500',
         ...(stockGroup ? { jenis: stockGroup } : {}),
       }).toString();
 
-      const res = await fetch(`/api/products?${query}`);
+      const res = await fetch(`/api/products?${query}`, { signal: controller.signal });
       if (res.ok) {
         const data = await res.json();
         if (requestId === latestRequest.current) setProducts(data.items || []);
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') console.error(e);
     } finally {
       if (requestId === latestRequest.current) setLoading(false);
     }
@@ -138,6 +143,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
 
   useEffect(() => {
     fetchProducts();
+    return () => fetchAbortRef.current?.abort();
   }, [debouncedSearch, categoryId, stockStatus, status, stockGroup]);
 
   // Open Edit Modal
