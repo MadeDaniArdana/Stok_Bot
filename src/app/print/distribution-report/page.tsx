@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { getCurrentUser } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
@@ -10,7 +11,7 @@ const cell = 'border border-black px-2 py-0.5';
 const shortDate = (date: Date) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'numeric', year: 'numeric' }).format(date);
 
-export default async function PrintDistributionReportPage({ searchParams }: { searchParams: { jenis?: string; month?: string } }) {
+function resolveReportParams(searchParams: { jenis?: string; month?: string }) {
   const group = getStockGroup(parseStockGroup(searchParams.jenis) ?? DEFAULT_STOCK_GROUP);
   let month = searchParams.month || getCurrentReportMonth();
   let range;
@@ -22,6 +23,16 @@ export default async function PrintDistributionReportPage({ searchParams }: { se
   }
   const [year, monthNumber] = month.split('-').map(Number);
   const periodLabel = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthNumber - 1, 15)));
+  const documentTitle = `Laporan Distribusi ${group.shortLabel} - ${periodLabel}`;
+  return { group, month, range, periodLabel, documentTitle };
+}
+
+export function generateMetadata({ searchParams }: { searchParams: { jenis?: string; month?: string } }): Metadata {
+  return { title: resolveReportParams(searchParams).documentTitle };
+}
+
+export default async function PrintDistributionReportPage({ searchParams }: { searchParams: { jenis?: string; month?: string } }) {
+  const { group, month, range, periodLabel, documentTitle } = resolveReportParams(searchParams);
   const isListrik = group.id === 'LISTRIK';
 
   const [user, distributions] = await Promise.all([
@@ -47,7 +58,7 @@ export default async function PrintDistributionReportPage({ searchParams }: { se
   return (
     <>
       <style>{'@page { size: A4 portrait; margin: 12mm; }'}</style>
-      <PrintToolbar backHref={`/distribution-reports/${group.slug}?month=${month}`} backLabel="Kembali ke Laporan" />
+      <PrintToolbar backHref={`/distribution-reports/${group.slug}?month=${month}`} backLabel="Kembali ke Laporan" documentTitle={documentTitle} />
 
       <article style={FONT} className="mx-auto max-w-[210mm] bg-white p-10 shadow-lg print:max-w-none print:p-0 print:shadow-none">
         <header className="flex items-center gap-3 border-b-2 border-black pb-2">
