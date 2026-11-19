@@ -9,18 +9,17 @@ import { ProofLinkBox } from './ProofLinkBox';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
 import { cn } from '@/lib/cn';
+import {
+  fetchDistributionBootstrap,
+  getCachedDistributionBootstrap,
+  patchCachedDistributionBootstrap,
+  prefetchDistributionBootstrap,
+  type DistributionBootstrapData,
+  type DistributionProductOption as ProductOption,
+  type DistributionTemplateOption as Template,
+} from '@/lib/distribution-bootstrap';
 import { formatStock, toBaseQuantity } from '@/lib/product-units';
 import type { StockGroupConfig } from '@/lib/stock-groups';
-
-interface ProductOption {
-  id: string;
-  name: string;
-  sku: string;
-  currentStock: number;
-  unit: string;
-  packUnit?: string | null;
-  packSize?: number | null;
-}
 
 interface Row {
   key: number;
@@ -30,15 +29,6 @@ interface Row {
   unit?: string;
   /** Lokasi pemasangan (khusus listrik); kosong = sama dengan isian Ruang di atas. */
   location?: string;
-}
-
-interface Template {
-  id: string;
-  name: string;
-  recipientUnit: string;
-  storageLocation: string | null;
-  receiverName: string | null;
-  items: { productId: string; quantity: number; product: { isActive: boolean } }[];
 }
 
 interface SavedDistribution {
@@ -212,13 +202,16 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const { showToast } = useToast();
   const { currentUser } = useAuth();
   const isListrik = group.id === 'LISTRIK';
+  const usesTemplates = !isListrik;
   const nextKey = useRef(1);
+  // Baca cache memori secara sinkron saat mount agar pindah menu ATK <-> Logistik langsung tampil 0 ms.
+  const initialCache = getCachedDistributionBootstrap(group.id);
 
-  const [products, setProducts] = useState<ProductOption[]>([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [recipients, setRecipients] = useState<string[]>([]);
-  const [handoverNames, setHandoverNames] = useState<string[]>([]);
-  const [receiverNames, setReceiverNames] = useState<string[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>(() => initialCache?.products ?? []);
+  const [productsLoading, setProductsLoading] = useState(() => !initialCache);
+  const [recipients, setRecipients] = useState<string[]>(() => initialCache?.recipients ?? []);
+  const [handoverNames, setHandoverNames] = useState<string[]>(() => initialCache?.handoverNames ?? []);
+  const [receiverNames, setReceiverNames] = useState<string[]>(() => initialCache?.receiverNames ?? []);
 
   const [date, setDate] = useState(todayInJakarta);
   const [recipientUnit, setRecipientUnit] = useState('');
@@ -234,8 +227,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const [saved, setSaved] = useState<SavedDistribution | null>(null);
 
   // Paket distribusi (template tabel per unit), hanya untuk ATK & Logistik.
-  const usesTemplates = !isListrik;
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<Template[]>(() => initialCache?.templates ?? []);
+  const [templatesLoading, setTemplatesLoading] = useState(() => usesTemplates && !initialCache);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [templateBusy, setTemplateBusy] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState<string | null>(null);
@@ -253,67 +246,110 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     if (!isListrik && defaultHandover && !handoverTouched.current) setHandoverName(defaultHandover);
   }, [defaultHandover, isListrik]);
 
-  const loadProducts = (signal?: AbortSignal) => {
-    setProductsLoading(true);
-    fetch(`/api/products?jenis=${group.id}&status=active&limit=500`, { signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Gagal memuat barang'))))
-      .then((data) => {
-        if (!signal?.aborted) setProducts(data.items || []);
-      })
-      .catch((error: any) => {
-        if (error?.name !== 'AbortError') showToast('Gagal Memuat', `Daftar barang ${group.label} tidak dapat dimuat.`, 'error');
-      })
-      .finally(() => {
-        if (!signal?.aborted) setProductsLoading(false);
-      });
-  };
+  const applyBootstrap = useCallback((data: DistributionBootstrapData) => {
+    setProducts(data.products);
+    setTemplates(data.templates);
+    setRecipients(data.recipients);
+    setHandoverNames(data.handoverNames);
+    setReceiverNames(data.receiverNames);
+    setProductsLoading(false);
+    setTemplatesLoading(false);
+  }, []);
 
-  const loadTemplates = (signal?: AbortSignal) => {
-    if (!usesTemplates) return;
-    fetch(`/api/distribution-templates?jenis=${group.id}`, { signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
-      .then((data) => {
-        if (!signal?.aborted) setTemplates(data.templates || []);
-      })
-      .catch((error: any) => {
-        if (error?.name !== 'AbortError') showToast('Gagal Memuat', 'Daftar paket distribusi tidak dapat dimuat.', 'error');
-      });
-  };
+  const refreshBootstrap = useCallback(
+    (showError = true) =>
+      fetchDistributionBootstrap(group.id)
+        .then((data) => {
+          applyBootstrap(data);
+          return data;
+        })
+        .catch(() => {
+          if (showError) showToast('Gagal Memuat', `Data distribusi ${group.label} tidak dapat dimuat.`, 'error');
+          setProductsLoading(false);
+          setTemplatesLoading(false);
+          return null;
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [group.id, group.label, applyBootstrap]
+  );
 
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
+    const cached = getCachedDistributionBootstrap(group.id);
     setHandoverSelect('');
-    loadProducts(controller.signal);
-    loadTemplates(controller.signal);
-    fetch(`/api/distributions/recipients?jenis=${group.id}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : {}))
-      .then((data: { recipients?: string[]; handoverNames?: string[]; receiverNames?: string[] }) => {
-        if (controller.signal.aborted) return;
-        setRecipients(data.recipients || []);
-        setHandoverNames(data.handoverNames || []);
-        setReceiverNames(data.receiverNames || []);
+    if (cached) {
+      applyBootstrap(cached);
+    } else {
+      setProducts([]);
+      setTemplates([]);
+      setProductsLoading(true);
+      setTemplatesLoading(usesTemplates);
+    }
+
+    fetchDistributionBootstrap(group.id)
+      .then((data) => {
+        if (!active) return;
+        applyBootstrap(data);
+        // Hangatkan cache menu sebelah (ATK <-> Logistik) di latar belakang agar pindah menu pertama kali juga instan.
+        if (group.id === 'LOGISTIK') prefetchDistributionBootstrap('ATK', 60_000);
+        else if (group.id === 'ATK') prefetchDistributionBootstrap('LOGISTIK', 60_000);
       })
-      .catch(() => undefined);
-    return () => controller.abort();
+      .catch(() => {
+        if (!active) return;
+        if (!cached) showToast('Gagal Memuat', `Data distribusi ${group.label} tidak dapat dimuat.`, 'error');
+        setProductsLoading(false);
+        setTemplatesLoading(false);
+      });
+
+    // Sinkronisasi ulang diam-diam saat tab kembali aktif (jeda minimal 15 detik).
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const latest = getCachedDistributionBootstrap(group.id);
+      if (latest && Date.now() - latest.fetchedAt < 15_000) return;
+      fetchDistributionBootstrap(group.id)
+        .then((data) => {
+          if (active) applyBootstrap(data);
+        })
+        .catch(() => undefined);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group.id]);
+  }, [group.id, usesTemplates, applyBootstrap]);
 
   const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
-  // Daftar pilihan per baris (tanpa barang yang sudah dipilih di baris lain) hanya dihitung ulang
-  // saat pilihan barang berubah, bukan setiap mengetik jumlah. Referensi array yang stabil membuat
-  // ProductPicker tidak membangun ulang indeks pencariannya di setiap ketukan tombol.
+  // Daftar pilihan per baris (tanpa barang yang sudah dipilih di baris lain) dihitung dalam O(N)
+  // hanya saat pilihan barang berubah, bukan setiap mengetik jumlah.
   const selectionKey = rows.map((row) => `${row.key}:${row.productId}`).join('|');
   const optionsByRow = useMemo(() => {
     const map = new Map<number, ProductOption[]>();
-    for (const row of rows) {
+    if (isListrik) {
       // Peralatan listrik: barang yang sama boleh dipakai lagi di lokasi lain, jadi tidak disembunyikan.
-      const takenElsewhere = new Set(isListrik ? [] : rows.filter((other) => other.key !== row.key && other.productId).map((other) => other.productId));
-      map.set(row.key, takenElsewhere.size ? products.filter((option) => !takenElsewhere.has(option.id)) : products);
+      for (const row of rows) map.set(row.key, products);
+      return map;
+    }
+    const takenCounts = new Map<string, number>();
+    for (const row of rows) {
+      if (row.productId) takenCounts.set(row.productId, (takenCounts.get(row.productId) ?? 0) + 1);
+    }
+    for (const row of rows) {
+      if (takenCounts.size === 0 || (takenCounts.size === 1 && row.productId && takenCounts.get(row.productId) === 1)) {
+        map.set(row.key, products);
+      } else {
+        map.set(
+          row.key,
+          products.filter((option) => option.id === row.productId || !takenCounts.has(option.id))
+        );
+      }
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [products, selectionKey]);
+  }, [products, selectionKey, isListrik]);
 
   const rowState = rows.map((row) => {
     const product = productById.get(row.productId);
@@ -395,9 +431,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Paket gagal disimpan.');
-      setTemplates((current) =>
-        [...current.filter((template) => template.id !== data.template.id), data.template].sort((a, b) => a.name.localeCompare(b.name, 'id'))
-      );
+      setTemplates((current) => {
+        const next = [...current.filter((template) => template.id !== data.template.id), data.template].sort((a, b) => a.name.localeCompare(b.name, 'id'));
+        patchCachedDistributionBootstrap(group.id, (cached) => ({ ...cached, templates: next, fetchedAt: Date.now() }));
+        return next;
+      });
       setActiveTemplateId(data.template.id);
       setNewTemplateName(null);
       showToast('Paket Disimpan', mode === 'update' ? `Isi paket "${name}" diperbarui.` : `Paket "${name}" dibuat.`);
@@ -415,7 +453,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
       const res = await fetch(`/api/distribution-templates/${activeTemplate.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Paket gagal dihapus.');
-      setTemplates((current) => current.filter((template) => template.id !== activeTemplate.id));
+      setTemplates((current) => {
+        const next = current.filter((template) => template.id !== activeTemplate.id);
+        patchCachedDistributionBootstrap(group.id, (cached) => ({ ...cached, templates: next, fetchedAt: Date.now() }));
+        return next;
+      });
       setActiveTemplateId(null);
       showToast('Paket Dihapus', `Paket "${activeTemplate.name}" dihapus.`);
     } catch (error: any) {
@@ -482,13 +524,20 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
       if (!res.ok) throw new Error(data.error || 'Form distribusi gagal disimpan.');
       setSaved({ ...data.distribution, proofToken: data.proofToken });
       showToast('Distribusi Tersimpan', `${data.distribution.number}: stok ${data.distribution.items.length} barang telah dikurangi.`);
-      loadProducts();
-      if (!recipients.includes(recipientUnit.trim())) setRecipients((current) => [recipientUnit.trim(), ...current]);
-      // Ingat nama yang baru dipakai agar jadi pilihan (dan isian awal Logistik) pada form berikutnya.
+      refreshBootstrap(false);
+      const usedRecipient = recipientUnit.trim();
       const usedHandover = handoverName.trim();
-      setHandoverNames((current) => [usedHandover, ...current.filter((name) => name !== usedHandover)]);
       const usedReceiver = receiverName.trim();
+      if (!recipients.includes(usedRecipient)) setRecipients((current) => [usedRecipient, ...current]);
+      // Ingat nama yang baru dipakai agar jadi pilihan (dan isian awal Logistik) pada form berikutnya.
+      setHandoverNames((current) => [usedHandover, ...current.filter((name) => name !== usedHandover)]);
       if (usedReceiver) setReceiverNames((current) => [usedReceiver, ...current.filter((name) => name !== usedReceiver)]);
+      patchCachedDistributionBootstrap(group.id, (cached) => ({
+        ...cached,
+        recipients: cached.recipients.includes(usedRecipient) ? cached.recipients : [usedRecipient, ...cached.recipients],
+        handoverNames: [usedHandover, ...cached.handoverNames.filter((name) => name !== usedHandover)],
+        receiverNames: usedReceiver ? [usedReceiver, ...cached.receiverNames.filter((name) => name !== usedReceiver)] : cached.receiverNames,
+      }));
     } catch (error: any) {
       showToast('Gagal Menyimpan', error.message, 'error');
     } finally {
@@ -564,7 +613,13 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
           <p className="mt-0.5 text-xs text-slate-500">
             Paket berisi daftar barang tetap untuk setiap unit. Pilih paket, lalu ubah jumlah atau tambah/hapus barang di tabel bila perlu.
           </p>
-          {templates.length === 0 ? (
+          {templatesLoading && templates.length === 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2" aria-busy="true" aria-label="Memuat daftar paket distribusi">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} className="h-[52px] w-28 animate-pulse rounded-xl border border-slate-100 bg-slate-100/80" />
+              ))}
+            </div>
+          ) : templates.length === 0 ? (
             <p className="mt-3 text-xs text-slate-400">
               Belum ada paket. Isi tabel di bawah, lalu klik <strong>Simpan sebagai Paket Baru</strong>.
             </p>

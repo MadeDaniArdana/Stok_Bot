@@ -16,6 +16,8 @@ import {
   Truck,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { prefetchDistributionBootstrap } from '@/lib/distribution-bootstrap';
+import { parseStockGroup } from '@/lib/stock-groups';
 
 interface SidebarProps {
   mobileOpen: boolean;
@@ -211,11 +213,17 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
                         <div id={menuId} className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-3">
                           {children.map((child) => {
                             const active = matches(child.href);
+                            const distGroup = child.href.startsWith('/distribution/')
+                              ? parseStockGroup(child.href.slice('/distribution/'.length))
+                              : null;
+                            const warmDistribution = distGroup ? () => prefetchDistributionBootstrap(distGroup) : undefined;
                             return (
                               <Link
                                 key={child.href}
                                 href={child.href}
                                 onClick={onCloseMobile}
+                                onMouseEnter={warmDistribution}
+                                onFocus={warmDistribution}
                                 aria-current={active ? 'page' : undefined}
                                 className={`block rounded-lg px-3 py-2 text-[13px] leading-5 transition-colors ${
                                   active

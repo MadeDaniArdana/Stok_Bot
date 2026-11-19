@@ -36,12 +36,48 @@ function text(value: unknown, label: string, required = false) {
 
 /** Paket distribusi: template tabel barang per unit penerima (mis. BAAK FSIP, LPPM, Prodi FTIK). */
 export class DistributionTemplateService {
-  static list(stockGroup: StockGroup) {
-    return prisma.distributionTemplate.findMany({
-      where: { stockGroup },
-      orderBy: { name: 'asc' },
-      include: templateInclude,
-    });
+  /** Satu query SQL tunggal (LEFT JOIN + json_agg) untuk menghindari 3 round-trip berurutan Prisma ke database remote. */
+  static async list(stockGroup: StockGroup) {
+    return prisma.$queryRaw<
+      {
+        id: string;
+        stockGroup: string;
+        name: string;
+        recipientUnit: string;
+        storageLocation: string | null;
+        receiverName: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        items: { productId: string; quantity: number; product: { isActive: boolean } }[];
+      }[]
+    >`
+      SELECT
+        t.id,
+        t."stockGroup",
+        t.name,
+        t."recipientUnit",
+        t."storageLocation",
+        t."receiverName",
+        t."createdAt",
+        t."updatedAt",
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'productId', i."productId",
+              'quantity', i.quantity,
+              'product', json_build_object('isActive', p."isActive")
+            )
+            ORDER BY i."sortOrder" ASC
+          ) FILTER (WHERE i.id IS NOT NULL),
+          '[]'::json
+        ) AS items
+      FROM "DistributionTemplate" t
+      LEFT JOIN "DistributionTemplateItem" i ON i."templateId" = t.id
+      LEFT JOIN "Product" p ON p.id = i."productId"
+      WHERE t."stockGroup" = ${stockGroup}
+      GROUP BY t.id
+      ORDER BY t.name ASC
+    `;
   }
 
   private static async validate(input: TemplateInput) {

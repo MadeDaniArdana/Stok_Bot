@@ -39,7 +39,7 @@ export default function DistributionPage({ params }: { params: { jenis: string }
         </p>
       )}
 
-      <DistributionForm group={group} />
+      <DistributionForm key={group.id} group={group} />
     </div>
   );
 }
