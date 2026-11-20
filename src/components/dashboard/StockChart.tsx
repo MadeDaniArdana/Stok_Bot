@@ -35,6 +35,7 @@ export function StockChart({ data }: StockChartProps) {
             tick={{ fontSize: 11, fill: '#64748B' }}
             axisLine={{ stroke: '#E2E8F0' }}
             tickLine={false}
+            minTickGap={16}
           />
           <YAxis
             tick={{ fontSize: 11, fill: '#64748B' }}

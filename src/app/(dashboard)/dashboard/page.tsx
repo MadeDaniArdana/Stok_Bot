@@ -10,6 +10,7 @@ import {
   PackageX,
   RefreshCw,
   Send,
+  BarChart3,
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { CriticalTable } from '@/components/dashboard/CriticalTable';
@@ -23,58 +24,65 @@ const StockChart = dynamic(
   { ssr: false, loading: () => <div className="h-72 w-full animate-pulse rounded-lg bg-slate-100" /> }
 );
 
+const DASHBOARD_URL = '/api/reports/summary?days=7';
+
 export default function DashboardPage() {
   const { currentUser } = useAuth();
-  const [days, setDays] = useState(30);
-  const initialKey = `/api/reports/summary?days=${days}`;
-  const [data, setData] = useState<any>(() => getSwrCache(initialKey) ?? null);
-  const [loading, setLoading] = useState(() => !getSwrCache(initialKey));
+  const [data, setData] = useState<any>(() => getSwrCache(DASHBOARD_URL) ?? null);
+  const [loading, setLoading] = useState(() => !getSwrCache(DASHBOARD_URL));
   const abortRef = useRef<AbortController | null>(null);
 
-  const fetchSummary = useCallback(async (periodDays = days, force = false) => {
+  const fetchSummary = useCallback(async (force = false) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    const url = `/api/reports/summary?days=${periodDays}`;
-    const cached = getSwrCache<any>(url);
+    const cached = getSwrCache<any>(DASHBOARD_URL);
     if (cached && !force) {
       setData(cached);
     }
     try {
       setLoading(true);
-      const json = await fetchSwrJson<any>(url, { force, signal: controller.signal });
+      const json = await fetchSwrJson<any>(DASHBOARD_URL, { force, signal: controller.signal });
       if (!controller.signal.aborted) setData(json);
     } catch (e: any) {
       if (e?.name !== 'AbortError') console.error(e);
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [days]);
+  }, []);
 
   useEffect(() => {
-    fetchSummary(days);
+    fetchSummary(false);
     return () => abortRef.current?.abort();
-  }, [days, fetchSummary]);
+  }, [fetchSummary]);
 
   return (
     <div className="space-y-6">
-      {/* Ringkasan dashboard */}
+      {/* Header pantauan harian */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-[28px] font-semibold text-slate-900 tracking-tight text-balance">
-              Dashboard Ringkasan Stok
+              Dashboard Pantauan Stok
             </h1>
             <span className="text-xs bg-maroon-100 text-maroon-800 font-bold px-2 py-0.5 rounded-full border border-maroon-200">
               Live
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Selamat datang kembali, <strong className="text-slate-800">{currentUser?.name || 'Administrator'}</strong>. Pantau pergerakan gudang dan persediaan secara akurat.
+            Selamat datang kembali, <strong className="text-slate-800">{currentUser?.name || 'Administrator'}</strong>. Pantau kondisi gudang harian, barang kritis, dan aktivitas terakhir.
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-auto">
+          <Link
+            href="/reports"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 focus-visible:ring-offset-2"
+            title="Buka evaluasi periode dan daftar usulan pengadaan"
+          >
+            <BarChart3 className="h-4 w-4 text-maroon-700" aria-hidden="true" />
+            <span>Evaluasi & Pengadaan</span>
+          </Link>
           <Link
             href="/telegram"
             className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-maroon-200 bg-maroon-50 px-3 text-xs font-semibold text-maroon-800 transition-colors hover:border-maroon-300 hover:bg-maroon-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 focus-visible:ring-offset-2"
@@ -84,7 +92,7 @@ export default function DashboardPage() {
             <span>Telegram Bot</span>
           </Link>
           <button
-            onClick={() => fetchSummary(days, true)}
+            onClick={() => fetchSummary(true)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 focus-visible:ring-offset-2"
             aria-label="Muat ulang data dashboard"
             title="Muat ulang data"
@@ -94,7 +102,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* KPI Cards Grid (kondisi stok hari ini) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total SKU Aktif"
@@ -113,7 +121,7 @@ export default function DashboardPage() {
         />
 
         <KPICard
-          title="Stok Rendah"
+          title="Stok Menipis"
           value={data?.kpi?.lowStockCount ?? '...'}
           subtitle="Mencapai / di bawah minimum"
           icon={AlertTriangle}
@@ -124,43 +132,31 @@ export default function DashboardPage() {
         <KPICard
           title="Stok Habis"
           value={data?.kpi?.outOfStockCount ?? '...'}
-          subtitle="Segera lakukan restock / PO"
+          subtitle="Perlu segera diajukan pengadaan"
           icon={PackageX}
           variant="danger"
           badge={data?.kpi?.outOfStockCount > 0 ? 'Kritis' : 'Nol'}
         />
       </div>
 
-      {/* Movement Chart Section */}
+      {/* Movement Chart Section (7 hari terakhir — pantauan mingguan cepat) */}
       <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-soft">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-900">
-              Tren Mutasi Barang (Masuk vs Keluar)
+              Mutasi Barang 7 Hari Terakhir
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Volume kuantitas barang masuk (IN) dan keluar (OUT) per hari
+              Aktivitas masuk (IN) dan keluar (OUT) harian minggu ini
             </p>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg self-start sm:self-auto text-xs">
-            <button
-              onClick={() => setDays(7)}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                days === 7 ? 'bg-white text-maroon-900 font-bold shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              7 Hari
-            </button>
-            <button
-              onClick={() => setDays(30)}
-              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
-                days === 30 ? 'bg-white text-maroon-900 font-bold shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              30 Hari
-            </button>
-          </div>
+          <Link
+            href="/reports"
+            className="text-xs font-semibold text-maroon-800 hover:underline self-start sm:self-auto"
+          >
+            Lihat evaluasi 30 / 90 hari →
+          </Link>
         </div>
 
         <div className="pt-4">

@@ -141,7 +141,11 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
     });
 
   const warmHref = (href: string) => {
-    if (href === '/dashboard' || href === '/reports') {
+    if (href === '/dashboard') {
+      prefetchSwrJson('/api/reports/summary?days=7');
+      return;
+    }
+    if (href === '/reports') {
       prefetchSwrJson('/api/reports/summary?days=30');
       return;
     }
