@@ -27,6 +27,8 @@ import { cn } from '@/lib/cn';
 import { getCurrentReportMonth } from '@/lib/report-period';
 import { getStockGroup, parseStockGroup, type StockGroup } from '@/lib/stock-groups';
 import { personName } from '@/lib/deleted-account';
+import { fetchSwrJson, getSwrCache, invalidateSwrPrefix } from '@/lib/client-swr';
+import { clearDistributionBootstrapCache } from '@/lib/distribution-bootstrap';
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
@@ -41,13 +43,15 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
   const { showToast } = useToast();
   const group = getStockGroup(stockGroup);
 
-  const [month, setMonth] = useState(searchParams.get('month') || getCurrentReportMonth());
+  const initialMonth = searchParams.get('month') || getCurrentReportMonth();
+  const [month, setMonth] = useState(initialMonth);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const initialUrl = `/api/distributions?${new URLSearchParams({ jenis: group.id, month: initialMonth, status: 'all', page: '1' })}`;
+  const [data, setData] = useState<any>(() => getSwrCache(initialUrl) ?? null);
+  const [loading, setLoading] = useState(() => !getSwrCache(initialUrl));
   const [expanded, setExpanded] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<any | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -66,19 +70,24 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const load = async () => {
+  const load = async (force = false) => {
     if (!/^\d{4}-\d{2}$/.test(month)) return;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     const requestId = ++latestRequest.current;
-    setLoading(true);
+    const query = new URLSearchParams({ jenis: group.id, month, status, page: String(page) });
+    if (debouncedSearch) query.set('search', debouncedSearch);
+    const url = `/api/distributions?${query}`;
+    const cached = getSwrCache<any>(url);
+    if (cached && !force) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const query = new URLSearchParams({ jenis: group.id, month, status, page: String(page) });
-      if (debouncedSearch) query.set('search', debouncedSearch);
-      const res = await fetch(`/api/distributions?${query}`, { signal: controller.signal });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Gagal memuat riwayat distribusi.');
+      const json = await fetchSwrJson<any>(url, { force, signal: controller.signal });
       if (requestId === latestRequest.current) setData(json);
     } catch (error: any) {
       if (error?.name !== 'AbortError' && requestId === latestRequest.current) {
@@ -109,7 +118,11 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
       if (!res.ok) throw new Error(json.error || 'Gagal membatalkan distribusi.');
       showToast('Distribusi Dibatalkan', `${cancelTarget.number}: stok barang sudah dikembalikan.`);
       setCancelTarget(null);
-      load();
+      invalidateSwrPrefix('/api/distributions');
+      invalidateSwrPrefix('/api/products');
+      invalidateSwrPrefix('/api/reports/summary');
+      clearDistributionBootstrapCache();
+      load(true);
     } catch (error: any) {
       showToast('Gagal Membatalkan', error.message, 'error');
     } finally {

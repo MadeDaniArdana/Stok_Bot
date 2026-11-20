@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { TelegramService } from '@/services/telegram.service';
 import { logError } from '@/lib/error-log';
@@ -7,30 +8,47 @@ import {
   sendTelegramMessage,
 } from '@/lib/telegram-client';
 
+export const runtime = 'nodejs';
+
+function safeSecretEquals(received: string | null, expected: string): boolean {
+  if (!received) return false;
+  const receivedHash = createHash('sha256').update(received).digest();
+  const expectedHash = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(receivedHash, expectedHash);
+}
+
 export async function POST(req: NextRequest) {
   let chatId: string | number | undefined;
   let callbackQueryId: string | undefined;
 
   try {
-    const payload = await req.json();
-    const callback = payload?.callback_query;
-    chatId = payload?.message?.chat?.id ?? callback?.message?.chat?.id;
-    callbackQueryId = callback?.id;
-
-    // 1. Verifikasi secret token jika diset
-    const secretHeader = req.headers.get('x-telegram-bot-api-secret-token');
+    // 1. Fail-closed: wajib konfigurasi TELEGRAM_WEBHOOK_SECRET dan cocokkan sebelum parse payload
     const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (!expectedSecret) {
+      await logError({
+        source: 'TELEGRAM',
+        level: 'ERROR',
+        error: 'Webhook ditolak: TELEGRAM_WEBHOOK_SECRET belum dikonfigurasi',
+        location: 'POST /api/telegram/webhook',
+      });
+      return NextResponse.json({ error: 'Webhook belum dikonfigurasi.' }, { status: 500 });
+    }
 
-    if (expectedSecret && secretHeader !== expectedSecret) {
+    const secretHeader = req.headers.get('x-telegram-bot-api-secret-token');
+    if (!safeSecretEquals(secretHeader, expectedSecret)) {
       await logError({
         source: 'TELEGRAM',
         level: 'WARNING',
         error: 'Webhook ditolak: secret token tidak cocok',
         location: 'POST /api/telegram/webhook',
-        context: { chatId },
       });
-      return NextResponse.json({ error: 'Secret token tidak cocok' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const payload = await req.json();
+    const callback = payload?.callback_query;
+    chatId = payload?.message?.chat?.id ?? callback?.message?.chat?.id;
+    callbackQueryId = callback?.id;
 
     if (!payload || !payload.update_id) {
       return NextResponse.json({ error: 'Invalid payload: update_id missing' }, { status: 400 });
@@ -58,7 +76,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, result });
+    return NextResponse.json({ ok: true });
   } catch (error: any) {
     await logError({
       source: 'TELEGRAM',
@@ -76,6 +94,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

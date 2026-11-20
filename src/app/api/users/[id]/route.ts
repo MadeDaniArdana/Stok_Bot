@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEnvAdminIds } from '@/lib/telegram-admins';
-import { getCurrentUser } from '@/lib/auth-server';
+import { requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+    const currentUser = auth.user;
+
     const { name, role, isActive, telegramUserId, telegramUsername, unlinkTelegram } = await req.json();
+
+    if (role !== undefined && role !== 'ADMIN' && role !== 'USER') {
+      return NextResponse.json({ error: 'Peran pengguna tidak valid.' }, { status: 400 });
+    }
+    if (currentUser.id === params.id) {
+      if (isActive === false) {
+        return NextResponse.json({ error: 'Anda tidak dapat menonaktifkan akun yang sedang dipakai login.' }, { status: 400 });
+      }
+      if (role !== undefined && role !== 'ADMIN') {
+        return NextResponse.json({ error: 'Anda tidak dapat menurunkan peran akun yang sedang dipakai login.' }, { status: 400 });
+      }
+    }
 
     // ID admin Telegram otomatis tertaut ulang oleh bot, jadi hak admin-nya harus dicabut agar putusnya permanen.
     if (unlinkTelegram) {
@@ -24,14 +40,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
     }
 
-    const updated = await prisma.user.update({
+    await prisma.user.update({
       where: { id: params.id },
       data: {
-        name: name ? name.trim() : undefined,
-        role: role ? role : undefined,
+        name: typeof name === 'string' && name.trim() ? name.trim() : undefined,
+        role: role ?? undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
       },
-      include: { telegram: true },
+      select: { id: true },
     });
 
     if (unlinkTelegram) {
@@ -59,12 +75,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const finalUser = await prisma.user.findUnique({
       where: { id: params.id },
-      include: { telegram: true },
+      select: {
+        ...SAFE_USER_SELECT,
+        telegram: true,
+      },
     });
 
     return NextResponse.json({ success: true, user: finalUser });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiError(error, 'PATCH /api/users/[id]', req, 'Data pengguna gagal diperbarui. Detail tercatat di menu Log Error.');
   }
 }
 
@@ -76,8 +96,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
  */
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const currentUser = await getCurrentUser();
-    if (!currentUser) return NextResponse.json({ error: 'Silakan login terlebih dahulu.' }, { status: 401 });
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+    const currentUser = auth.user;
     if (currentUser.id === params.id) {
       return NextResponse.json({ error: 'Anda tidak dapat menghapus akun yang sedang dipakai login.' }, { status: 400 });
     }

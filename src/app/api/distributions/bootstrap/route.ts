@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
+import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { parseStockGroup } from '@/lib/stock-groups';
 import { DistributionService } from '@/services/distribution.service';
@@ -13,6 +14,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const stockGroup = parseStockGroup(new URL(req.url).searchParams.get('jenis'));
     if (!stockGroup) return NextResponse.json({ error: 'Jenis stok tidak valid.' }, { status: 400 });
 

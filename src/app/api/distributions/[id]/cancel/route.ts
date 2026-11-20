@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
-import { getCurrentUser } from '@/lib/auth-server';
+import { requireAdmin } from '@/lib/auth-server';
 import { DistributionService } from '@/services/distribution.service';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { reason } = await req.json().catch(() => ({ reason: '' }));
-    const user = await getCurrentUser();
-    await DistributionService.cancel(params.id, String(reason || ''), user?.id);
+    await DistributionService.cancel(params.id, String(reason || ''), auth.user.id);
     return NextResponse.json({ success: true, message: 'Distribusi dibatalkan dan stok telah dikembalikan.' });
   } catch (error: any) {
     if (isUserFacingError(error)) {

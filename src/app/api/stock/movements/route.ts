@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
+import { isUserFacingError } from '@/lib/api-errors';
+import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { InventoryService } from '@/services/inventory.service';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(req.url);
     const productId = searchParams.get('productId') || undefined;
     const type = searchParams.get('type') || undefined;
@@ -12,8 +17,10 @@ export async function GET(req: NextRequest) {
     const actorUserId = searchParams.get('actorUserId') || undefined;
     const startDate = searchParams.get('startDate') || undefined;
     const endDate = searchParams.get('endDate') || undefined;
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const rawPage = parseInt(searchParams.get('page') || '1', 10);
+    const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
+    const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 50;
 
     const where: any = {};
     if (productId && productId !== 'all') where.productId = productId;
@@ -23,9 +30,18 @@ export async function GET(req: NextRequest) {
 
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        if (Number.isNaN(start.getTime())) {
+          return NextResponse.json({ error: 'Format tanggal awal tidak valid.' }, { status: 400 });
+        }
+        where.createdAt.gte = start;
+      }
       if (endDate) {
         const end = new Date(endDate);
+        if (Number.isNaN(end.getTime())) {
+          return NextResponse.json({ error: 'Format tanggal akhir tidak valid.' }, { status: 400 });
+        }
         end.setHours(23, 59, 59, 999);
         where.createdAt.lte = end;
       }
@@ -57,16 +73,19 @@ export async function GET(req: NextRequest) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error: any) {
-    return apiError(error, '/api/stock/movements');
+    return apiError(error, 'GET /api/stock/movements', req);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { originalMovementId, actorUserId, reason } = await req.json();
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
+    const { originalMovementId, reason } = await req.json();
     const result = await InventoryService.reverseMovement({
       originalMovementId,
-      actorUserId,
+      actorUserId: auth.user.id,
       reason,
     });
 
@@ -76,6 +95,7 @@ export async function POST(req: NextRequest) {
       data: result,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiError(error, 'POST /api/stock/movements', req, 'Transaksi koreksi gagal dicatat. Detail tercatat di menu Log Error.');
   }
 }

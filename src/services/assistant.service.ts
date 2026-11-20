@@ -105,9 +105,16 @@ async function cekStok(args: Record<string, unknown>) {
         ? { OR: [{ name: nameFilter(keyword) }, { sku: nameFilter(keyword) }, { category: { name: nameFilter(keyword) } }] }
         : {}),
     },
-    include: { category: { select: { name: true, stockGroup: true } } },
+    select: {
+      name: true,
+      sku: true,
+      currentStock: true,
+      minimumStock: true,
+      unit: true,
+      category: { select: { name: true, stockGroup: true } },
+    },
     orderBy: { name: 'asc' },
-    take: 100,
+    take: 300,
   });
 
   const rows = products

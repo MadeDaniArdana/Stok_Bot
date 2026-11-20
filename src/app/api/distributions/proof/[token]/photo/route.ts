@@ -10,11 +10,14 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest, { params }: { params: { token: string } }) {
   try {
     const distribution = await DistributionService.getByProofToken(params.token);
+    if (!distribution || distribution.status === 'CANCELLED') {
+      return NextResponse.json({ error: 'Foto bukti tidak ditemukan.' }, { status: 404 });
+    }
     const location = request.nextUrl.searchParams.get('location');
     // Foto per lokasi; dokumen lama menyimpan satu foto di level dokumen.
-    const proof = distribution?.proofs.find((p) => p.location === location);
-    const fileName = proof?.fileName ?? distribution?.proofFileName;
-    const mimeType = proof?.mimeType ?? distribution?.proofMimeType;
+    const proof = distribution.proofs.find((p) => p.location === location);
+    const fileName = proof?.fileName ?? distribution.proofFileName;
+    const mimeType = proof?.mimeType ?? distribution.proofMimeType;
     if (!fileName || !mimeType) {
       return NextResponse.json({ error: 'Foto bukti tidak ditemukan.' }, { status: 404 });
     }

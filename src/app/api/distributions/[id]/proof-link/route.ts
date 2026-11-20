@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
+import { requireAdmin } from '@/lib/auth-server';
 import { DistributionService } from '@/services/distribution.service';
 
 export const runtime = 'nodejs';
@@ -8,6 +9,9 @@ export const runtime = 'nodejs';
 /** Buat ulang link foto bukti (link lama otomatis tidak berlaku). */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const token = await DistributionService.regenerateProofLink(params.id);
     return NextResponse.json({ success: true, token });
   } catch (error) {

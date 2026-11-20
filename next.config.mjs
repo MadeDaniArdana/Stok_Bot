@@ -3,8 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  // Aplikasi tidak memakai next/image (foto bukti diproses sharp lewat route API terautentikasi).
+  // Menonaktifkan /_next/image menutup seluruh permukaan serangan Image Optimization API.
   images: {
-    formats: ['image/avif', 'image/webp'],
+    unoptimized: true,
   },
   // sharp adalah modul native; jangan di-bundle webpack.
   // optimizePackageImports memperkecil bundle ikon & chart via tree-shaking barrel exports.
@@ -13,7 +15,22 @@ const nextConfig = {
     optimizePackageImports: ['lucide-react', 'recharts'],
   },
   async headers() {
+    const securityHeaders = [
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      // camera=(self) dipertahankan karena halaman /proof/[token] & /proof/uji-kamera memakai kamera perangkat.
+      { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
+      { key: 'X-DNS-Prefetch-Control', value: 'on' },
+      ...(process.env.NODE_ENV === 'production'
+        ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }]
+        : []),
+    ];
     return [
+      {
+        source: '/(.*)',
+        headers: securityHeaders,
+      },
       {
         source: '/logo-yayasan.png',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/auth-server';
 import { apiError } from '@/lib/error-log';
 import { getCurrentReportMonth, getReportMonthRange } from '@/lib/report-period';
 import type { Prisma } from '@prisma/client';
@@ -53,6 +54,9 @@ function compareItems(a: ReportItem, b: ReportItem) {
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
     const search = searchParams.get('search')?.trim();
@@ -125,7 +129,7 @@ export async function GET(req: NextRequest) {
         ? prisma.installationTask.findMany({
             where: taskWhere,
             orderBy: [{ completedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
-            take: requestedPage * pageSize,
+            take: Math.min(requestedPage, 1000) * pageSize,
             include: {
               product: { select: { name: true, sku: true, unit: true } },
               creator: { select: { name: true } },

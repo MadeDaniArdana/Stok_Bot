@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
+import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { getReportMonthRange } from '@/lib/report-period';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
@@ -17,6 +18,9 @@ function csvCell(value: unknown) {
 /** Unduh riwayat distribusi satu bulan sebagai CSV (satu baris per barang). */
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(req.url);
     const stockGroup = parseStockGroup(searchParams.get('jenis'));
     const month = searchParams.get('month') || '';

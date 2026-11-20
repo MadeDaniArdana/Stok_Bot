@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isUserFacingError } from '@/lib/api-errors';
 
 export type ErrorSource = 'WEB' | 'TELEGRAM' | 'AI' | 'UPLOAD' | 'NOTIFICATION' | 'BROWSER';
 export type ErrorLevel = 'ERROR' | 'WARNING';
@@ -74,6 +75,6 @@ export async function apiError(error: unknown, location: string, request?: Reque
     location,
     context: request ? { method: request.method, url: new URL(request.url).pathname + new URL(request.url).search } : undefined,
   });
-  const message = publicMessage || (error instanceof Error ? error.message : 'Terjadi kesalahan pada server.');
+  const message = publicMessage || (isUserFacingError(error) ? error.message : 'Terjadi kesalahan pada server.');
   return NextResponse.json({ error: message }, { status: 500 });
 }

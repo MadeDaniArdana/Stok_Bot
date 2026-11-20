@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
+import { requireAdmin } from '@/lib/auth-server';
 import { DistributionTemplateService } from '@/services/distribution-template.service';
 
 /** Perbarui isi paket (barang & jumlah) dengan tabel terbaru dari form. */
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const body = await req.json();
     const template = await DistributionTemplateService.update(params.id, body);
     return NextResponse.json({ success: true, template });
@@ -17,6 +21,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     await DistributionTemplateService.remove(params.id);
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -58,10 +58,17 @@ function matches(row, where) {
   });
 }
 
-function createAPI(rows, distributions = []) {
+function createAPI(rows, distributions = [], { authenticated = true } = {}) {
   const calls = [];
+  const NextResponse = { json: (body, init) => ({ status: init?.status || 200, body }) };
   const route = loadTypeScript('src/app/api/tasks/route.ts', {
-    'next/server': { NextResponse: { json: (body, init) => ({ status: init?.status || 200, body }) } },
+    'next/server': { NextResponse },
+    '@/lib/auth-server': {
+      requireAdmin: async () =>
+        authenticated
+          ? { user: { id: 'admin-test', name: 'Admin', role: 'ADMIN' }, error: null }
+          : { user: null, error: NextResponse.json({ error: 'Silakan login terlebih dahulu.' }, { status: 401 }) },
+    },
     '@/lib/report-period': { ...period, getCurrentReportMonth: () => '2026-02' },
     '@/lib/error-log': { apiError: (error) => { throw error; } },
     '@/lib/deleted-account': deletedAccount,
@@ -262,4 +269,11 @@ test('distribusi multi-lokasi menampilkan satu foto per lokasi', async () => {
   assert.equal(item.photoSlots, 2);
   assert.deepEqual(item.photos.map((photo) => photo.label), ['Gedung A', 'Gedung B']);
   assert.equal(item.photos[1].url, '/api/distributions/multi/photo?location=Gedung%20B');
+});
+
+test('permintaan tanpa sesi admin ditolak 401 sebelum menyentuh database', async () => {
+  const api = createAPI([task('secret')], [], { authenticated: false });
+  const res = await api.get('month=2026-01');
+  assert.equal(res.status, 401);
+  assert.equal(api.calls.length, 0);
 });

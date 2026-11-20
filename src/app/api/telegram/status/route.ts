@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth-server';
 import { apiError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
 
@@ -7,6 +8,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const [recentUpdates, totalUpdates, failedUpdates, linkedCount] = await Promise.all([
       prisma.telegramUpdate.findMany({
         orderBy: { receivedAt: 'desc' },

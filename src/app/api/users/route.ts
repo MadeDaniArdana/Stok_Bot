@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
+import { isUserFacingError } from '@/lib/api-errors';
+import { requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'asc' },
-      include: {
+      select: {
+        ...SAFE_USER_SELECT,
         telegram: true,
         _count: {
           select: { movements: true },
@@ -21,6 +27,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { name, email, role, telegramUserId, telegramUsername } = await req.json();
 
     if (!name || !name.trim() || !email || !email.trim()) {
@@ -29,6 +38,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
+      select: { id: true },
     });
 
     if (existing) {
@@ -54,11 +64,15 @@ export async function POST(req: NextRequest) {
             }
           : {}),
       },
-      include: { telegram: true },
+      select: {
+        ...SAFE_USER_SELECT,
+        telegram: true,
+      },
     });
 
     return NextResponse.json({ success: true, user }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiError(error, 'POST /api/users', req, 'Pengguna gagal ditambahkan. Detail tercatat di menu Log Error.');
   }
 }

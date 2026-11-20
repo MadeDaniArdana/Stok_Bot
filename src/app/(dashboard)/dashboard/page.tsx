@@ -15,6 +15,7 @@ import { KPICard } from '@/components/dashboard/KPICard';
 import { CriticalTable } from '@/components/dashboard/CriticalTable';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { useAuth } from '@/components/layout/AuthContext';
+import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 
 // Grafik Recharts dimuat terpisah agar KPI cards & tabel kritis tampil dan interaktif lebih cepat.
 const StockChart = dynamic(
@@ -24,22 +25,25 @@ const StockChart = dynamic(
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
+  const initialKey = `/api/reports/summary?days=${days}`;
+  const [data, setData] = useState<any>(() => getSwrCache(initialKey) ?? null);
+  const [loading, setLoading] = useState(() => !getSwrCache(initialKey));
   const abortRef = useRef<AbortController | null>(null);
 
-  const fetchSummary = useCallback(async (periodDays = days) => {
+  const fetchSummary = useCallback(async (periodDays = days, force = false) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    const url = `/api/reports/summary?days=${periodDays}`;
+    const cached = getSwrCache<any>(url);
+    if (cached && !force) {
+      setData(cached);
+    }
     try {
       setLoading(true);
-      const res = await fetch(`/api/reports/summary?days=${periodDays}`, { signal: controller.signal });
-      if (res.ok) {
-        const json = await res.json();
-        if (!controller.signal.aborted) setData(json);
-      }
+      const json = await fetchSwrJson<any>(url, { force, signal: controller.signal });
+      if (!controller.signal.aborted) setData(json);
     } catch (e: any) {
       if (e?.name !== 'AbortError') console.error(e);
     } finally {
@@ -80,7 +84,7 @@ export default function DashboardPage() {
             <span>Telegram Bot</span>
           </Link>
           <button
-            onClick={() => fetchSummary(days)}
+            onClick={() => fetchSummary(days, true)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-500 focus-visible:ring-offset-2"
             aria-label="Muat ulang data dashboard"
             title="Muat ulang data"

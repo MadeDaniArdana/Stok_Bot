@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
+import { requireAdmin } from '@/lib/auth-server';
+import { ReportService } from '@/services/report.service';
 
 export const dynamic = 'force-dynamic';
-import { ReportService } from '@/services/report.service';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(req.url);
-    const days = parseInt(searchParams.get('days') || '30', 10);
+    const rawDays = parseInt(searchParams.get('days') || '30', 10);
+    const days = Number.isFinite(rawDays) ? Math.min(Math.max(rawDays, 1), 365) : 30;
     const summary = await ReportService.getDashboardSummary(days);
     return NextResponse.json(summary);
   } catch (error: any) {
-    return apiError(error, 'GET /api/reports/summary');
+    return apiError(error, 'GET /api/reports/summary', req);
   }
 }

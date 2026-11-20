@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { prefetchDistributionBootstrap } from '@/lib/distribution-bootstrap';
+import { prefetchSwrJson } from '@/lib/client-swr';
+import { getCurrentReportMonth } from '@/lib/report-period';
 import { parseStockGroup } from '@/lib/stock-groups';
 
 interface SidebarProps {
@@ -138,6 +140,36 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
       return next;
     });
 
+  const warmHref = (href: string) => {
+    if (href === '/dashboard' || href === '/reports') {
+      prefetchSwrJson('/api/reports/summary?days=30');
+      return;
+    }
+    if (href.startsWith('/distribution/')) {
+      const group = parseStockGroup(href.slice('/distribution/'.length));
+      if (group) prefetchDistributionBootstrap(group);
+      return;
+    }
+    if (href.startsWith('/products/')) {
+      const group = parseStockGroup(href.slice('/products/'.length));
+      if (group) {
+        prefetchSwrJson('/api/categories', 60_000);
+        prefetchSwrJson(
+          `/api/products?${new URLSearchParams({ search: '', categoryId: 'all', stockStatus: 'all', status: 'all', limit: '500', jenis: group })}`
+        );
+      }
+      return;
+    }
+    if (href.startsWith('/distribution-reports/')) {
+      const group = parseStockGroup(href.slice('/distribution-reports/'.length));
+      if (group) {
+        prefetchSwrJson(
+          `/api/distributions?${new URLSearchParams({ jenis: group, month: getCurrentReportMonth(), status: 'all', page: '1' })}`
+        );
+      }
+    }
+  };
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -213,17 +245,14 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
                         <div id={menuId} className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-3">
                           {children.map((child) => {
                             const active = matches(child.href);
-                            const distGroup = child.href.startsWith('/distribution/')
-                              ? parseStockGroup(child.href.slice('/distribution/'.length))
-                              : null;
-                            const warmDistribution = distGroup ? () => prefetchDistributionBootstrap(distGroup) : undefined;
+                            const warm = () => warmHref(child.href);
                             return (
                               <Link
                                 key={child.href}
                                 href={child.href}
                                 onClick={onCloseMobile}
-                                onMouseEnter={warmDistribution}
-                                onFocus={warmDistribution}
+                                onMouseEnter={warm}
+                                onFocus={warm}
                                 aria-current={active ? 'page' : undefined}
                                 className={`block rounded-lg px-3 py-2 text-[13px] leading-5 transition-colors ${
                                   active
@@ -248,6 +277,8 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
                     key={item.href}
                     href={item.href}
                     onClick={onCloseMobile}
+                    onMouseEnter={() => warmHref(item.href)}
+                    onFocus={() => warmHref(item.href)}
                     className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm leading-6 font-medium transition-all group ${
                       isActive
                         ? 'bg-maroon-50 text-maroon-900 font-semibold shadow-sm'

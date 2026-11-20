@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
+import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -7,9 +8,11 @@ export const dynamic = 'force-dynamic';
 const SOURCES = ['WEB', 'TELEGRAM', 'AI', 'UPLOAD', 'NOTIFICATION', 'BROWSER'];
 const RETENTION_DAYS = 60;
 
-// Dilindungi middleware: hanya admin yang sudah login.
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(req.url);
     const source = searchParams.get('source');
     const status = searchParams.get('status') || 'open';
@@ -57,6 +60,9 @@ export async function GET(req: NextRequest) {
 /** Tandai selesai / buka lagi: { id, resolved } atau { all: true } untuk semua yang terbuka. */
 export async function PATCH(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const body = await req.json().catch(() => ({}));
     if (body?.all === true) {
       const result = await prisma.errorLog.updateMany({ where: { resolved: false }, data: { resolved: true } });
@@ -75,6 +81,9 @@ export async function PATCH(req: NextRequest) {
 /** Hapus semua log yang sudah ditandai selesai. */
 export async function DELETE() {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const result = await prisma.errorLog.deleteMany({ where: { resolved: true } });
     return NextResponse.json({ success: true, count: result.count });
   } catch (error) {

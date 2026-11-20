@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { readTaskProof } from '@/lib/task-proof-storage';
 import { proofResponse } from '@/lib/proof-response';
@@ -8,6 +9,9 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const task = await prisma.installationTask.findUnique({
       where: { id: params.id },
       select: { proofFileName: true, proofMimeType: true },

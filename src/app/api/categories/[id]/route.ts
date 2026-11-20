@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/error-log';
+import { isUserFacingError } from '@/lib/api-errors';
+import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { isStockGroup } from '@/lib/stock-groups';
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { name, description, stockGroup } = await req.json();
     if (stockGroup !== undefined && !isStockGroup(stockGroup)) {
       return NextResponse.json({ error: 'Jenis stok tidak valid.' }, { status: 400 });
@@ -18,12 +24,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
     return NextResponse.json({ success: true, category: updated });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiError(error, 'PATCH /api/categories/[id]', req, 'Kategori gagal diperbarui. Detail tercatat di menu Log Error.');
   }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const productCount = await prisma.product.count({
       where: { categoryId: params.id },
     });
@@ -41,6 +51,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
+    return apiError(error, 'DELETE /api/categories/[id]', req, 'Kategori gagal dihapus. Detail tercatat di menu Log Error.');
   }
 }

@@ -18,6 +18,7 @@ import {
   type DistributionProductOption as ProductOption,
   type DistributionTemplateOption as Template,
 } from '@/lib/distribution-bootstrap';
+import { invalidateSwrPrefix } from '@/lib/client-swr';
 import { formatStock, toBaseQuantity } from '@/lib/product-units';
 import type { StockGroupConfig } from '@/lib/stock-groups';
 
@@ -524,6 +525,9 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
       if (!res.ok) throw new Error(data.error || 'Form distribusi gagal disimpan.');
       setSaved({ ...data.distribution, proofToken: data.proofToken });
       showToast('Distribusi Tersimpan', `${data.distribution.number}: stok ${data.distribution.items.length} barang telah dikurangi.`);
+      invalidateSwrPrefix('/api/distributions');
+      invalidateSwrPrefix('/api/products');
+      invalidateSwrPrefix('/api/reports/summary');
       refreshBootstrap(false);
       const usedRecipient = recipientUnit.trim();
       const usedHandover = handoverName.trim();

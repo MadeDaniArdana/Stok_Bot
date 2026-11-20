@@ -48,20 +48,23 @@ export function Header({ onToggleMobile }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsLoaded, setNotificationsLoaded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const lastFetchedRef = useRef(0);
+  const lastCountFetchedRef = useRef(0);
+  const showNotificationsRef = useRef(false);
+  showNotificationsRef.current = showNotifications;
 
-  // Fetch notifications (dibatasi agar perpindahan tab cepat tidak memicu query berulang).
-  const loadNotifications = useCallback(async (force = false) => {
+  // Polling ringan: hanya ambil unreadCount (1 query COUNT) selama dropdown ditutup.
+  const loadUnreadCount = useCallback(async (force = false) => {
     const now = Date.now();
-    if (!force && now - lastFetchedRef.current < 15000) return;
-    lastFetchedRef.current = now;
+    if (!force && now - lastCountFetchedRef.current < 15000) return;
+    lastCountFetchedRef.current = now;
     try {
-      const res = await fetch('/api/notifications');
+      const res = await fetch('/api/notifications?countOnly=1');
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       }
     } catch (e) {
@@ -69,21 +72,50 @@ export function Header({ onToggleMobile }: HeaderProps) {
     }
   }, []);
 
+  // Daftar lengkap 25 notifikasi hanya diambil saat panel notifikasi dibuka.
+  const loadFullNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const res = await fetch('/api/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
+        setNotificationsLoaded(true);
+        lastCountFetchedRef.current = Date.now();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    loadNotifications(true);
-    // Cek notifikasi tiap 30 detik, hanya saat tab sedang dilihat; cek saat tab dibuka lagi (minimal jeda 15 detik).
+    loadUnreadCount(true);
+    // Cek jumlah notifikasi tiap 30 detik saat tab aktif; cek saat tab kembali dilihat (jeda minimal 15 detik).
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') loadNotifications(true);
+      if (document.visibilityState !== 'visible') return;
+      if (showNotificationsRef.current) loadFullNotifications();
+      else loadUnreadCount(true);
     }, 30000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') loadNotifications(false);
+      if (document.visibilityState !== 'visible') return;
+      if (showNotificationsRef.current) loadFullNotifications();
+      else loadUnreadCount(false);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [loadNotifications]);
+  }, [loadUnreadCount, loadFullNotifications]);
+
+  const toggleNotifications = () => {
+    const next = !showNotifications;
+    setShowNotifications(next);
+    if (next) loadFullNotifications();
+  };
 
   const handleMarkAllRead = async () => {
     try {
@@ -146,7 +178,7 @@ export function Header({ onToggleMobile }: HeaderProps) {
         {/* Notifications Dropdown */}
         <div className="relative">
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={toggleNotifications}
             className="relative p-2 rounded-lg text-slate-500 hover:text-maroon-800 hover:bg-maroon-50 transition-colors"
             aria-label="Notifications"
           >
@@ -180,7 +212,11 @@ export function Header({ onToggleMobile }: HeaderProps) {
               </div>
 
               <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                {notifications.length === 0 ? (
+                {notificationsLoading && !notificationsLoaded ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    Memuat notifikasi...
+                  </div>
+                ) : notifications.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-400">
                     Tidak ada notifikasi saat ini
                   </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
+import { requireAdmin } from '@/lib/auth-server';
 import { parseStockGroup } from '@/lib/stock-groups';
 import { DistributionService } from '@/services/distribution.service';
 
@@ -8,6 +9,9 @@ export const dynamic = 'force-dynamic';
 /** Tujuan, nama penyerah, dan nama penerima yang pernah dipakai, untuk saran isian di form distribusi. */
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const stockGroup = parseStockGroup(new URL(req.url).searchParams.get('jenis'));
     if (!stockGroup) return NextResponse.json({ error: 'Jenis stok tidak valid.' }, { status: 400 });
     return NextResponse.json(await DistributionService.recentRecipients(stockGroup));

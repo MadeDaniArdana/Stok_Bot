@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth-server';
 import { logError } from '@/lib/error-log';
 import { prisma } from '@/lib/prisma';
 import { readTaskProof } from '@/lib/task-proof-storage';
@@ -6,9 +7,12 @@ import { proofResponse } from '@/lib/proof-response';
 
 export const runtime = 'nodejs';
 
-/** Foto bukti distribusi untuk admin (butuh login, dilindungi middleware). */
+/** Foto bukti distribusi untuk admin (butuh login). */
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const distribution = await prisma.distribution.findUnique({
       where: { id: params.id },
       select: { proofFileName: true, proofMimeType: true, proofs: { select: { location: true, fileName: true, mimeType: true } } },

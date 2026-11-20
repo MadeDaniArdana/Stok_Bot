@@ -1,12 +1,14 @@
 import { cache } from 'react';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
+import { getCurrentUser } from '@/lib/auth-server';
 import { getStockGroup } from '@/lib/stock-groups';
 import { DistributionService } from '@/services/distribution.service';
 
 const FONT = { fontFamily: 'Arial, Helvetica, sans-serif' };
 const getDistribution = cache((id: string) => DistributionService.getById(id));
+const getAuthUser = cache(() => getCurrentUser());
 
 const safeFilePart = (value: string) =>
   value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
@@ -19,6 +21,8 @@ function buildDocumentTitle(distribution: { stockGroup: string; recipientUnit: s
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const user = await getAuthUser();
+  if (!user) return { title: 'Login - StockFlow' };
   const distribution = await getDistribution(params.id);
   if (!distribution) return { title: 'Dokumen Tidak Ditemukan - StockFlow' };
   return { title: buildDocumentTitle(distribution) };
@@ -32,6 +36,8 @@ const monthYear = (date: Date) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'short', year: 'numeric' }).format(date);
 
 export default async function PrintDistributionPage({ params }: { params: { id: string } }) {
+  const user = await getAuthUser();
+  if (!user) redirect('/login');
   const distribution = await getDistribution(params.id);
   if (!distribution) notFound();
   const group = getStockGroup(distribution.stockGroup);

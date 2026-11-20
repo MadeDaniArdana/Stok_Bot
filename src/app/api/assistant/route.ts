@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AssistantService, MAX_HISTORY, MAX_MESSAGE_LENGTH } from '@/services/assistant.service';
 import type { ChatTurn } from '@/lib/ai';
+import { requireAdmin } from '@/lib/auth-server';
 import { logError } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Dilindungi middleware: hanya admin yang sudah login.
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const body = await req.json().catch(() => null);
     const messages: unknown = body?.messages;
 

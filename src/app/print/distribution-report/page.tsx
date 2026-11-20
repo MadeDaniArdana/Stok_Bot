@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { getCurrentUser } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
@@ -32,17 +33,17 @@ export function generateMetadata({ searchParams }: { searchParams: { jenis?: str
 }
 
 export default async function PrintDistributionReportPage({ searchParams }: { searchParams: { jenis?: string; month?: string } }) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+
   const { group, month, range, periodLabel, documentTitle } = resolveReportParams(searchParams);
   const isListrik = group.id === 'LISTRIK';
 
-  const [user, distributions] = await Promise.all([
-    getCurrentUser(),
-    prisma.distribution.findMany({
-      where: { stockGroup: group.id, distributedAt: range, status: 'COMPLETED' },
-      orderBy: [{ distributedAt: 'asc' }, { createdAt: 'asc' }],
-      include: { items: { include: { product: { select: { id: true, name: true, sku: true } } }, orderBy: { id: 'asc' } } },
-    }),
-  ]);
+  const distributions = await prisma.distribution.findMany({
+    where: { stockGroup: group.id, distributedAt: range, status: 'COMPLETED' },
+    orderBy: [{ distributedAt: 'asc' }, { createdAt: 'asc' }],
+    include: { items: { include: { product: { select: { id: true, name: true, sku: true } } }, orderBy: { id: 'asc' } } },
+  });
 
   const lines = distributions.flatMap((distribution) => distribution.items.map((item) => ({ distribution, item })));
   const recap = new Map<string, { name: string; sku: string; unit: string; quantity: number; times: number }>();

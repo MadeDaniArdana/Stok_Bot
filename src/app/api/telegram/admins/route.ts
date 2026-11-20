@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { getEnvAdminIds } from '@/lib/telegram-admins';
 import { ensureTelegramBotProfile } from '@/lib/telegram-client';
@@ -23,9 +24,11 @@ function senderFromPayload(payload: string | null) {
   }
 }
 
-// Dilindungi middleware: hanya admin web yang sudah login.
 export async function GET() {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     // Deskripsi & perintah bot agar pengguna baru yang scan QR tidak melihat chat kosong.
     const botProfile = ensureTelegramBotProfile();
     const envIds = getEnvAdminIds();
@@ -77,6 +80,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const body = await req.json().catch(() => ({}));
     const telegramUserId = String(body?.telegramUserId ?? '').trim();
     const label = typeof body?.label === 'string' ? body.label.trim().slice(0, 60) : '';
@@ -102,6 +108,9 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const telegramUserId = new URL(req.url).searchParams.get('telegramUserId')?.trim() || '';
     if (getEnvAdminIds().includes(telegramUserId)) {
       return NextResponse.json(

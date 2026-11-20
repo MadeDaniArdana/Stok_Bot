@@ -477,37 +477,48 @@ export class DistributionService {
     };
   }
 
-  /** Daftar unit/ruang tujuan yang pernah dipakai, untuk saran isian form. */
+  /** Daftar unit/ruang tujuan yang pernah dipakai, untuk saran isian form (1 query SQL). */
   static async recentRecipients(stockGroup: StockGroup) {
-    // Tujuan, penyerah, dan penerima yang pernah dipakai (terbaru dulu) untuk saran isian form.
-    const distinctRecent = (field: 'recipientUnit' | 'handoverName' | 'receiverName') =>
-      prisma.distribution.findMany({
-        where: {
-          stockGroup,
-          ...(field === 'receiverName'
-            ? {
-                receiverName: { not: null },
-                // Abaikan dokumen contoh lama (seed) agar saran penerima memakai daftar petugas terbaru.
-                OR: [{ notes: null }, { NOT: { notes: { startsWith: 'Contoh dari formulir kertas' } } }],
-              }
-            : {}),
-        },
-        distinct: [field],
-        orderBy: { createdAt: 'desc' },
-        select: { [field]: true } as Record<typeof field, true>,
-        take: 50,
-      }) as Promise<Record<string, string | null>[]>;
-    const [recipients, handovers, receivers] = await Promise.all([
-      distinctRecent('recipientUnit'),
-      distinctRecent('handoverName'),
-      distinctRecent('receiverName'),
-    ]);
-    const pick = (rows: Record<string, string | null>[], field: string) =>
-      rows.map((row) => row[field]).filter((value): value is string => Boolean(value));
-    return {
-      recipients: pick(recipients, 'recipientUnit'),
-      handoverNames: pick(handovers, 'handoverName'),
-      receiverNames: pick(receivers, 'receiverName'),
-    };
+    const rows = await prisma.$queryRaw<{ kind: string; value: string }[]>`
+      (
+        SELECT 'recipient' AS kind, "recipientUnit" AS value, MAX("createdAt") AS last_used
+        FROM "Distribution"
+        WHERE "stockGroup" = ${stockGroup} AND "recipientUnit" IS NOT NULL AND "recipientUnit" <> ''
+        GROUP BY "recipientUnit"
+        ORDER BY last_used DESC
+        LIMIT 50
+      )
+      UNION ALL
+      (
+        SELECT 'handover' AS kind, "handoverName" AS value, MAX("createdAt") AS last_used
+        FROM "Distribution"
+        WHERE "stockGroup" = ${stockGroup} AND "handoverName" IS NOT NULL AND "handoverName" <> ''
+        GROUP BY "handoverName"
+        ORDER BY last_used DESC
+        LIMIT 50
+      )
+      UNION ALL
+      (
+        SELECT 'receiver' AS kind, "receiverName" AS value, MAX("createdAt") AS last_used
+        FROM "Distribution"
+        WHERE "stockGroup" = ${stockGroup}
+          AND "receiverName" IS NOT NULL
+          AND "receiverName" <> ''
+          AND ("notes" IS NULL OR "notes" NOT LIKE 'Contoh dari formulir kertas%')
+        GROUP BY "receiverName"
+        ORDER BY last_used DESC
+        LIMIT 50
+      )
+    `;
+
+    const recipients: string[] = [];
+    const handoverNames: string[] = [];
+    const receiverNames: string[] = [];
+    for (const row of rows) {
+      if (row.kind === 'recipient') recipients.push(row.value);
+      else if (row.kind === 'handover') handoverNames.push(row.value);
+      else if (row.kind === 'receiver') receiverNames.push(row.value);
+    }
+    return { recipients, handoverNames, receiverNames };
   }
 }

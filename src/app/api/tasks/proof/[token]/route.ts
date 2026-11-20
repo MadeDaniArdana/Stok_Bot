@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { InstallationTaskService } from '@/services/installation-task.service';
 import { logError } from '@/lib/error-log';
+import { isUserFacingError } from '@/lib/api-errors';
 
 export const runtime = 'nodejs';
 
@@ -65,7 +66,7 @@ export async function POST(
       completedAt: completedTask.completedAt,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Gagal menyimpan bukti.';
+    const message = isUserFacingError(error) ? error.message : 'Gagal menyimpan bukti. Silakan coba lagi atau hubungi admin.';
     await logError({ source: 'UPLOAD', error, location: 'Upload foto bukti (POST /api/tasks/proof)', context: logContext });
     return NextResponse.json({ error: message }, { status: 400 });
   }

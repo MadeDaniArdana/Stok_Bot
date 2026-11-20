@@ -35,6 +35,11 @@ export function getCachedDistributionBootstrap(groupId: StockGroup): Distributio
   return cache.get(groupId);
 }
 
+export function clearDistributionBootstrapCache(): void {
+  cache.clear();
+  inflight.clear();
+}
+
 export function patchCachedDistributionBootstrap(
   groupId: StockGroup,
   updater: (current: DistributionBootstrapData) => DistributionBootstrapData

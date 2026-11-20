@@ -9,6 +9,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
+import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 
 // Grafik Recharts dimuat terpisah agar ringkasan angka & tabel tampil lebih cepat.
 const StockChart = dynamic(
@@ -17,15 +18,18 @@ const StockChart = dynamic(
 );
 
 export default function ReportsPage() {
-  const [data, setData] = useState<any>(null);
   const [days, setDays] = useState(30);
+  const [data, setData] = useState<any>(() => getSwrCache(`/api/reports/summary?days=30`) ?? null);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/reports/summary?days=${days}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
+    const url = `/api/reports/summary?days=${days}`;
+    const cached = getSwrCache<any>(url);
+    if (cached) setData(cached);
+
+    fetchSwrJson<any>(url, { signal: controller.signal })
       .then((json) => {
-        if (json && !controller.signal.aborted) setData(json);
+        if (!controller.signal.aborted) setData(json);
       })
       .catch((e: any) => {
         if (e?.name !== 'AbortError') console.error(e);

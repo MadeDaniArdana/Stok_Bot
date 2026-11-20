@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
-import { getCurrentUser } from '@/lib/auth-server';
+import { requireAdmin } from '@/lib/auth-server';
 import { getCurrentReportMonth } from '@/lib/report-period';
 import { parseStockGroup } from '@/lib/stock-groups';
 import { DistributionService } from '@/services/distribution.service';
@@ -11,6 +11,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdmin();
+    if (auth.error) return auth.error;
+
     const { searchParams } = new URL(req.url);
     const stockGroup = parseStockGroup(searchParams.get('jenis'));
     if (!stockGroup) return NextResponse.json({ error: 'Jenis stok tidak valid.' }, { status: 400 });
@@ -21,6 +24,8 @@ export async function GET(req: NextRequest) {
     }
     const status = searchParams.get('status');
     const page = Number(searchParams.get('page') || '1');
+    const rawPageSize = Number(searchParams.get('pageSize') || '20');
+    const pageSize = Number.isFinite(rawPageSize) ? Math.min(Math.max(Math.trunc(rawPageSize), 1), 100) : 20;
 
     const result = await DistributionService.list({
       stockGroup,
@@ -28,7 +33,7 @@ export async function GET(req: NextRequest) {
       search: searchParams.get('search') || undefined,
       status: status === 'COMPLETED' || status === 'CANCELLED' ? status : 'all',
       page: Number.isSafeInteger(page) && page > 0 ? page : 1,
-      pageSize: Number(searchParams.get('pageSize') || '20'),
+      pageSize,
     });
     return NextResponse.json({ month, ...result });
   } catch (error) {
@@ -37,6 +42,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   let body: any;
   try {
     body = await req.json();
@@ -45,7 +53,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const user = await getCurrentUser();
     const { distribution, proofToken } = await DistributionService.create({
       stockGroup: body.stockGroup,
       recipientUnit: body.recipientUnit,
@@ -57,7 +64,7 @@ export async function POST(req: NextRequest) {
       handoverName: body.handoverName,
       notes: body.notes,
       items: body.items,
-      actorUserId: user?.id,
+      actorUserId: auth.user.id,
     });
     return NextResponse.json({ success: true, distribution, proofToken }, { status: 201 });
   } catch (error: any) {

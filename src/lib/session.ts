@@ -50,7 +50,9 @@ export async function createSessionToken(uid: string, role: string) {
 
 export async function verifySessionToken(token: string | undefined | null): Promise<SessionPayload | null> {
   if (!token) return null;
-  const [body, signature] = token.split('.');
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [body, signature] = parts;
   if (!body || !signature) return null;
 
   try {

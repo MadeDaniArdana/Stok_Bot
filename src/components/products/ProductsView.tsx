@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
+import { fetchSwrJson, getSwrCache, invalidateSwrPrefix } from '@/lib/client-swr';
+import { clearDistributionBootstrapCache } from '@/lib/distribution-bootstrap';
 
 // Form Barang Masuk hanya dipakai di dalam modal, jadi kodenya dimuat saat modal dibuka.
 const StockEntryForm = dynamic(
@@ -37,17 +39,29 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
 
-  const [products, setProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Filters
   const [search, setSearch] = useState('');
   // Kata kunci yang benar-benar dikirim ke API, menunggu 300 ms setelah berhenti mengetik.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryId, setCategoryId] = useState('all');
   const [stockStatus, setStockStatus] = useState(searchParams.get('stockStatus') || 'all');
   const [status, setStatus] = useState('all');
+
+  const buildProductsUrl = (opts?: { s?: string; cat?: string; ss?: string; st?: string }) => {
+    const query = new URLSearchParams({
+      search: opts?.s ?? debouncedSearch,
+      categoryId: opts?.cat ?? categoryId,
+      stockStatus: opts?.ss ?? stockStatus,
+      status: opts?.st ?? status,
+      limit: '500',
+      ...(stockGroup ? { jenis: stockGroup } : {}),
+    }).toString();
+    return `/api/products?${query}`;
+  };
+
+  const initialProductsUrl = buildProductsUrl({ s: '', cat: 'all', ss: searchParams.get('stockStatus') || 'all', st: 'all' });
+  const [products, setProducts] = useState<any[]>(() => getSwrCache<any>(initialProductsUrl)?.items || []);
+  const [categories, setCategories] = useState<any[]>(() => getSwrCache<any[]>('/api/categories') || []);
+  const [loading, setLoading] = useState(() => !getSwrCache<any>(initialProductsUrl));
   // Halaman per jenis (/products/atk, dst.) hanya menampilkan kategori & barang jenis tersebut.
   const visibleCategories = stockGroup ? categories.filter((c) => c.stockGroup === stockGroup) : categories;
 
@@ -91,27 +105,22 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   // Penanda permintaan terbaru + AbortController agar respons lama tidak menimpa hasil filter terbaru.
   const latestRequest = useRef(0);
   const fetchAbortRef = useRef<AbortController | null>(null);
-  const fetchProducts = async () => {
+  const fetchProducts = async (force = false) => {
     fetchAbortRef.current?.abort();
     const controller = new AbortController();
     fetchAbortRef.current = controller;
     const requestId = ++latestRequest.current;
-    try {
+    const url = buildProductsUrl();
+    const cached = getSwrCache<any>(url);
+    if (cached && !force) {
+      setProducts(cached.items || []);
+      setLoading(false);
+    } else {
       setLoading(true);
-      const query = new URLSearchParams({
-        search: debouncedSearch,
-        categoryId,
-        stockStatus,
-        status,
-        limit: '500',
-        ...(stockGroup ? { jenis: stockGroup } : {}),
-      }).toString();
-
-      const res = await fetch(`/api/products?${query}`, { signal: controller.signal });
-      if (res.ok) {
-        const data = await res.json();
-        if (requestId === latestRequest.current) setProducts(data.items || []);
-      }
+    }
+    try {
+      const data = await fetchSwrJson<any>(url, { force, signal: controller.signal });
+      if (requestId === latestRequest.current) setProducts(data.items || []);
     } catch (e: any) {
       if (e?.name !== 'AbortError') console.error(e);
     } finally {
@@ -122,11 +131,8 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/categories');
-      if (res.ok) {
-        const data = await res.json();
-        setCategories(data || []);
-      }
+      const data = await fetchSwrJson<any[]>('/api/categories');
+      setCategories(data || []);
     } catch (e) {
       console.error(e);
     }
@@ -184,7 +190,10 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
       showToast('Berhasil Diperbarui', `Informasi barang "${formName}" telah disimpan. SKU: ${data.product.sku}.`);
       setEditingProduct(null);
       resetForm();
-      fetchProducts();
+      invalidateSwrPrefix('/api/products');
+      invalidateSwrPrefix('/api/reports/summary');
+      clearDistributionBootstrapCache();
+      fetchProducts(true);
     } catch (err: any) {
       showToast('Gagal Edit', err.message, 'error');
     } finally {
@@ -210,7 +219,10 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
           ? 'Barang tidak dapat dipilih pada transaksi baru, namun histori tetap tersimpan.'
           : 'Barang kembali aktif untuk transaksi.'
       );
-      fetchProducts();
+      invalidateSwrPrefix('/api/products');
+      invalidateSwrPrefix('/api/reports/summary');
+      clearDistributionBootstrapCache();
+      fetchProducts(true);
     } catch (e: any) {
       showToast('Gagal', e.message, 'error');
     }
@@ -457,7 +469,10 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
               onCancel={closeStockEntry}
               onSaved={() => {
                 closeStockEntry();
-                fetchProducts();
+                invalidateSwrPrefix('/api/products');
+                invalidateSwrPrefix('/api/reports/summary');
+                clearDistributionBootstrapCache();
+                fetchProducts(true);
               }}
             />
           </div>

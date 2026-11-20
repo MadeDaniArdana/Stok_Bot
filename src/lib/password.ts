@@ -17,6 +17,7 @@ export async function verifyPassword(password: string, stored: string | null | u
   if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
 
   const expected = Buffer.from(hashHex, 'hex');
+  if (expected.length === 0) return false;
   const actual = await scrypt(password, Buffer.from(saltHex, 'hex'), expected.length);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
