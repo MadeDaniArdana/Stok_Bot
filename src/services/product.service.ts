@@ -26,6 +26,13 @@ export interface UpdateProductInput {
   /** Mengaktifkan satuan kecil: satuan lama menjadi kemasan, 1 kemasan = packSize satuan kecil. */
   subUnit?: string;
   packSize?: number;
+  /**
+   * Untuk barang yang sudah berkemasan: ganti nama satuan kemasan (packUnit) dan/atau isinya (packSize).
+   * Stok tetap tersimpan dalam satuan dasar, jadi hanya tampilan/konversi input yang berubah.
+   */
+  packUnit?: string;
+  /** Hapus satuan kemasan; stok tetap dalam satuan dasar. */
+  removePack?: boolean;
 }
 
 export interface ProductFilterOptions {
@@ -191,13 +198,26 @@ export class ProductService {
         }
       }
 
-      if (existing.packSize && input.unit !== undefined && normalizeProductUnit(input.unit) !== existing.unit) {
-        throw new Error('Satuan barang berkemasan tidak dapat diubah.');
+      // Barang yang sudah berkemasan: satuan dasar, satuan kemasan, dan isi per kemasan boleh diubah
+      // tanpa mengonversi angka, karena stok & riwayat sudah tersimpan dalam satuan dasar.
+      let packEdit: { packUnit: string | null; packSize: number | null } | undefined;
+      if (existing.packSize) {
+        const baseUnit = input.unit !== undefined ? normalizeProductUnit(input.unit) : existing.unit;
+        if (input.removePack) {
+          packEdit = { packUnit: null, packSize: null };
+        } else if (input.packUnit !== undefined || input.packSize !== undefined || input.unit !== undefined) {
+          const packUnit = input.packUnit !== undefined ? normalizeProductUnit(input.packUnit) : existing.packUnit || '';
+          const packSize = input.packSize !== undefined ? input.packSize : existing.packSize;
+          if (!packUnit) throw new Error('Satuan kemasan wajib diisi.');
+          if (packUnit === baseUnit) throw new Error('Satuan kemasan harus berbeda dari satuan dasar.');
+          if (!Number.isSafeInteger(packSize) || packSize < 2) throw new Error('Isi per kemasan harus bilangan bulat minimal 2.');
+          packEdit = { packUnit, packSize };
+        }
       }
 
       // Aktifkan satuan kecil: seluruh angka lama (dalam satuan lama) dikonversi ke satuan kecil.
       let pack: { unit: string; packUnit: string; packSize: number; minimumStock?: number } | undefined;
-      if (input.subUnit && input.packSize !== undefined && !existing.packSize) {
+      if (!existing.packSize && input.subUnit && input.packSize !== undefined) {
         const subUnit = normalizeProductUnit(input.subUnit);
         const size = input.packSize;
         if (!subUnit || subUnit === existing.unit) throw new Error('Satuan kecil harus berbeda dari satuan barang saat ini.');
@@ -223,6 +243,7 @@ export class ProductService {
           unit: input.unit !== undefined ? normalizeProductUnit(input.unit) : undefined,
           minimumStock: input.minimumStock !== undefined ? input.minimumStock * (pack?.packSize ?? 1) : undefined,
           // Ditaruh terakhir agar menimpa unit lama dari form.
+          ...(packEdit && { packUnit: packEdit.packUnit, packSize: packEdit.packSize }),
           ...(pack && { unit: pack.unit, packUnit: pack.packUnit, packSize: pack.packSize }),
         },
       });
@@ -250,6 +271,36 @@ export class ProductService {
     }, 0);
 
     return `${prefix}-${String(lastNumber + 1).padStart(3, '0')}`;
+  }
+
+  /**
+   * Hapus barang permanen. Hanya untuk barang yang belum dipakai di dokumen distribusi atau tugas pemasangan,
+   * agar laporan & bukti lama tetap utuh; riwayat stok (mis. stok awal) dan isi template ikut dihapus.
+   */
+  static async deleteProduct(id: string) {
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.product.findUnique({ where: { id }, select: { id: true, name: true } });
+      if (!existing) throw new Error('Barang tidak ditemukan.');
+
+      const [distributionCount, taskCount] = await Promise.all([
+        tx.distributionItem.count({ where: { productId: id } }),
+        tx.installationTask.count({ where: { productId: id } }),
+      ]);
+      if (distributionCount > 0 || taskCount > 0) {
+        const usedIn = [
+          distributionCount > 0 ? `${distributionCount} dokumen distribusi` : '',
+          taskCount > 0 ? `${taskCount} tugas pemasangan` : '',
+        ].filter(Boolean).join(' dan ');
+        throw new Error(
+          `Barang "${existing.name}" sudah tercatat di ${usedIn}, jadi tidak bisa dihapus agar laporan lama tetap utuh. Nonaktifkan barang ini saja.`
+        );
+      }
+
+      await tx.stockMovement.deleteMany({ where: { productId: id } });
+      await tx.distributionTemplateItem.deleteMany({ where: { productId: id } });
+      await tx.notification.deleteMany({ where: { productId: id } });
+      return tx.product.delete({ where: { id } });
+    });
   }
 
   static async toggleStatus(id: string) {

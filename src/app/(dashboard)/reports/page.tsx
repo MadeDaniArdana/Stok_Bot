@@ -2,13 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import {
   TrendingUp,
   ArrowDownToLine,
   ArrowUpFromLine,
   AlertTriangle,
-  AlertCircle,
   Printer,
   Download,
   Building2,
@@ -20,6 +18,7 @@ import { KPICard } from '@/components/dashboard/KPICard';
 import { StockPositionSection } from '@/components/dashboard/StockPositionSection';
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
+import { getCurrentReportMonth } from '@/lib/report-period';
 
 // Grafik Recharts dimuat terpisah agar ringkasan angka & tabel tampil lebih cepat.
 const StockChart = dynamic(
@@ -34,28 +33,35 @@ const GROUP_OPTIONS: Array<{ value: GroupFilter; label: string }> = [
   ...STOCK_GROUPS.map((g) => ({ value: g.id as GroupFilter, label: g.shortLabel })),
 ];
 
-const PERIOD_OPTIONS = [
-  { days: 7, label: '7 Hari' },
-  { days: 30, label: '30 Hari' },
-  { days: 90, label: '90 Hari' },
-];
+type PeriodMode = 'month' | 'year';
 
-function buildSummaryUrl(days: number, groupFilter: GroupFilter) {
-  const params = new URLSearchParams({ days: String(days) });
+function buildQuery(periode: string, groupFilter: GroupFilter) {
+  const params = new URLSearchParams({ periode });
+  if (groupFilter !== 'ALL') params.set('jenis', groupFilter);
+  return params.toString();
+}
+
+function buildSummaryUrl(periode: string, groupFilter: GroupFilter) {
+  const params = new URLSearchParams({ periode });
   if (groupFilter !== 'ALL') params.set('jenis', groupFilter);
   return `/api/reports/summary?${params.toString()}`;
 }
 
 export default function ReportsPage() {
-  const [days, setDays] = useState(30);
+  const currentMonth = getCurrentReportMonth();
+  const currentYear = Number(currentMonth.slice(0, 4));
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
+  const [month, setMonth] = useState(currentMonth);
+  const [year, setYear] = useState(String(currentYear));
+  const periode = periodMode === 'year' ? year : month;
   const [groupFilter, setGroupFilter] = useState<GroupFilter>('ALL');
-  const initialUrl = buildSummaryUrl(30, 'ALL');
+  const initialUrl = buildSummaryUrl(currentMonth, 'ALL');
   const [data, setData] = useState<any>(() => getSwrCache(initialUrl) ?? null);
   const [loading, setLoading] = useState(() => !getSwrCache(initialUrl));
 
   useEffect(() => {
     const controller = new AbortController();
-    const url = buildSummaryUrl(days, groupFilter);
+    const url = buildSummaryUrl(periode, groupFilter);
     const cached = getSwrCache<any>(url);
     if (cached) {
       setData(cached);
@@ -75,11 +81,11 @@ export default function ReportsPage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [days, groupFilter]);
+  }, [periode, groupFilter]);
 
-  const exportParams = new URLSearchParams({ days: String(days) });
-  if (groupFilter !== 'ALL') exportParams.set('jenis', groupFilter);
-  const queryStr = exportParams.toString();
+  const queryStr = buildQuery(periode, groupFilter);
+  const periodLabel: string = data?.period?.label ?? (periodMode === 'year' ? `Tahun ${year}` : '');
+  const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i);
 
   const criticalItems: any[] = data?.criticalItems || [];
   const topConsumed: any[] = data?.topConsumed || [];
@@ -141,21 +147,44 @@ export default function ReportsPage() {
           ))}
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 text-xs self-start sm:self-auto">
-          {PERIOD_OPTIONS.map((opt) => (
-            <button
-              key={opt.days}
-              type="button"
-              onClick={() => setDays(opt.days)}
-              className={`rounded-md px-3 py-1 font-medium transition-all ${
-                days === opt.days
-                  ? 'bg-white font-bold text-maroon-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 text-xs">
+            {(['month', 'year'] as PeriodMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPeriodMode(m)}
+                className={`rounded-md px-3 py-1 font-medium transition-all ${
+                  periodMode === m ? 'bg-white font-bold text-maroon-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {m === 'month' ? 'Per Bulan' : 'Per Tahun'}
+              </button>
+            ))}
+          </div>
+          {periodMode === 'month' ? (
+            <input
+              type="month"
+              aria-label="Pilih bulan"
+              value={month}
+              max={currentMonth}
+              onChange={(e) => e.target.value && setMonth(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-maroon-700 focus:outline-none"
+            />
+          ) : (
+            <select
+              aria-label="Pilih tahun"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-maroon-700 focus:outline-none"
             >
-              {opt.label}
-            </button>
-          ))}
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -205,7 +234,7 @@ export default function ReportsPage() {
         <KPICard
           title="Total Barang Masuk"
           value={data?.kpi?.totalInQuantity ?? '...'}
-          subtitle={`Penerimaan ${days} hari terakhir`}
+          subtitle={`Penerimaan ${periodLabel}`}
           icon={ArrowDownToLine}
           variant="success"
         />
@@ -251,10 +280,10 @@ export default function ReportsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-900">
-              Dinamika Arus Persediaan ({days} Hari Terakhir)
+              Dinamika Arus Persediaan ({periodLabel})
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Perbandingan volume penerimaan (IN) vs pengeluaran (OUT) {isWeekly ? 'per minggu' : 'per hari'}
+              Perbandingan volume penerimaan (IN) vs pengeluaran (OUT) {data?.trendGranularity === 'monthly' ? 'per bulan' : isWeekly ? 'per minggu' : 'per hari'}
             </p>
           </div>
           {loading && <span className="text-[11px] text-slate-400">Memperbarui data...</span>}
@@ -273,7 +302,7 @@ export default function ReportsPage() {
               Daftar Usulan Pengadaan Barang
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Seluruh barang habis & menipis lengkap dengan pemakaian {days} hari terakhir sebagai dasar pengajuan belanja
+              Barang habis & menipis pada {periodLabel}: sisa dari periode sebelumnya ditambah barang yang masuk
             </p>
           </div>
           {criticalItems.length > 0 && (
@@ -297,14 +326,10 @@ export default function ReportsPage() {
               <table className="w-full text-left text-xs tabular-nums">
                 <thead className="border-b border-slate-100 bg-slate-50 text-slate-500">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">Barang</th>
-                    <th className="px-3 py-3 font-semibold">Jenis</th>
-                    <th className="px-3 py-3 text-right font-semibold">Sisa Stok</th>
-                    <th className="px-3 py-3 text-right font-semibold">Batas Min.</th>
-                    <th className="px-3 py-3 text-right font-semibold">Terpakai ({days} hr)</th>
-                    <th className="px-3 py-3 text-right font-semibold">Estimasi Usulan</th>
-                    <th className="px-3 py-3 text-center font-semibold">Status</th>
-                    <th className="px-4 py-3 text-center font-semibold">Aksi</th>
+                    <th className="px-4 py-3 font-semibold">Nama Barang</th>
+                    <th className="px-3 py-3 text-right font-semibold">Stok Sisa</th>
+                    <th className="px-3 py-3 text-right font-semibold">Stok Masuk</th>
+                    <th className="px-4 py-3 text-right font-semibold">Jumlah Stok</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -313,46 +338,22 @@ export default function ReportsPage() {
                       <td className="px-4 py-3">
                         <p className="font-semibold text-slate-900">{item.name}</p>
                         <p className="font-mono text-[11px] text-slate-400">
-                          {item.sku} · {item.category}
+                          {item.sku} · {item.stockGroupLabel} · {item.category}
                         </p>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-slate-600">{item.stockGroupLabel}</td>
-                      <td
-                        className={`whitespace-nowrap px-3 py-3 text-right font-bold ${
-                          item.isZero ? 'text-rose-600' : 'text-amber-600'
-                        }`}
-                      >
-                        {item.currentStock} {item.unit}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right text-slate-600">
-                        {item.minimumStock} {item.unit}
-                      </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">
-                        {item.usedInPeriod} {item.unit}
+                        {item.remainingStock} {item.unit}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-maroon-800">
-                        +{item.suggestedOrder} {item.unit}
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-700">
+                        {item.incomingStock ? `+${item.incomingStock} ${item.unit}` : '-'}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                            item.isZero
-                              ? 'border-rose-200 bg-rose-50 text-rose-700'
-                              : 'border-amber-200 bg-amber-50 text-amber-700'
-                          }`}
-                        >
-                          {item.isZero ? <AlertCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-                          {item.isZero ? 'Habis' : 'Menipis'}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center">
-                        <Link
-                          href={`/products?entry=stock&productId=${encodeURIComponent(item.id)}`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
-                        >
-                          <ArrowDownToLine className="h-3 w-3" />
-                          Catat Masuk
-                        </Link>
+                      <td
+                        className={`whitespace-nowrap px-4 py-3 text-right font-bold ${
+                          item.isZero ? 'text-rose-600' : 'text-slate-900'
+                        }`}
+                        title={`Sisa akhir periode ${item.closingStock} ${item.unit} · batas minimum ${item.minimumStock} ${item.unit}`}
+                      >
+                        {item.totalStock} {item.unit}
                       </td>
                     </tr>
                   ))}
@@ -360,14 +361,14 @@ export default function ReportsPage() {
               </table>
             </div>
             <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-2.5 text-[11px] text-slate-500">
-              Estimasi usulan dihitung otomatis dari selisih terhadap batas minimum atau volume pemakaian {days} hari terakhir, dan dapat disesuaikan saat pengajuan anggaran.
+              Stok Sisa = sisa {data?.period?.openingLabel ?? 'awal periode'} · Stok Masuk = barang masuk selama {periodLabel} · Jumlah Stok = Stok Sisa + Stok Masuk. Penambahan stok dilakukan di menu Barang.
             </div>
           </>
         )}
       </section>
 
       {/* Riwayat Stok Lama & Stok Baru per Bulan / Tahun */}
-      <StockPositionSection jenis={groupFilter === 'ALL' ? undefined : groupFilter} />
+      <StockPositionSection periode={periode} jenis={groupFilter === 'ALL' ? undefined : groupFilter} />
 
       {/* Analitik Bawah: Top Barang Dipakai, Unit/Gedung Aktif, & Sebaran Kategori */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -377,7 +378,7 @@ export default function ReportsPage() {
             Barang Paling Banyak Digunakan
           </h3>
           <p className="text-xs text-slate-500 mb-4">
-            Konsumsi tertinggi dalam {days} hari terakhir
+            Konsumsi tertinggi {periodLabel}
           </p>
 
           <div className="divide-y divide-slate-100 text-xs">
@@ -415,7 +416,7 @@ export default function ReportsPage() {
             Unit / Gedung Paling Aktif
           </h3>
           <p className="text-xs text-slate-500 mb-4">
-            Penerima distribusi terbanyak dalam {days} hari terakhir
+            Penerima distribusi terbanyak {periodLabel}
           </p>
 
           <div className="divide-y divide-slate-100 text-xs">

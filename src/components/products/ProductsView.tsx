@@ -14,6 +14,7 @@ import {
   Search,
   Edit2,
   Power,
+  Trash2,
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
@@ -97,6 +98,9 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const [formUnit, setFormUnit] = useState('pcs');
   const [formSubUnit, setFormSubUnit] = useState('');
   const [formPackSize, setFormPackSize] = useState('');
+  // Edit kemasan untuk barang yang sudah berkemasan.
+  const [formPackUnit, setFormPackUnit] = useState('');
+  const [formRemovePack, setFormRemovePack] = useState(false);
   const [formMinStock, setFormMinStock] = useState('5');
   const [formDesc, setFormDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -159,7 +163,9 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
     setFormCategoryId(p.categoryId || '');
     setFormUnit(p.unit);
     setFormSubUnit('');
-    setFormPackSize('');
+    setFormPackSize(p.packSize ? String(p.packSize) : '');
+    setFormPackUnit(p.packUnit || '');
+    setFormRemovePack(false);
     setFormMinStock(String(p.minimumStock));
     setFormDesc(p.description || '');
   };
@@ -180,7 +186,11 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
           categoryId: formCategoryId || null,
           unit: formUnit.trim().toLowerCase(),
           minimumStock: Number(formMinStock),
-          ...(formSubUnit.trim() && { subUnit: formSubUnit.trim().toLowerCase(), packSize: Number(formPackSize) }),
+          ...(editingProduct.packSize
+            ? formRemovePack
+              ? { removePack: true }
+              : { packUnit: formPackUnit.trim().toLowerCase(), packSize: Number(formPackSize) }
+            : formSubUnit.trim() && { subUnit: formSubUnit.trim().toLowerCase(), packSize: Number(formPackSize) }),
         }),
       });
 
@@ -225,6 +235,27 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
       fetchProducts(true);
     } catch (e: any) {
       showToast('Gagal', e.message, 'error');
+    }
+  };
+
+  // Hapus permanen (hanya barang yang belum dipakai di distribusi / tugas pemasangan).
+  const handleDelete = async (p: any) => {
+    if (!confirm(`Hapus permanen barang "${p.name}"?\n\nRiwayat stok barang ini ikut terhapus dan tidak bisa dikembalikan. Jika barang sudah dipakai di dokumen distribusi atau tugas, hapus akan ditolak (gunakan Nonaktifkan).`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/products/${p.id}?permanent=1`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Barang gagal dihapus.');
+
+      showToast('Barang Dihapus', `"${p.name}" telah dihapus permanen.`);
+      invalidateSwrPrefix('/api/products');
+      invalidateSwrPrefix('/api/reports');
+      clearDistributionBootstrapCache();
+      fetchProducts(true);
+    } catch (e: any) {
+      showToast('Tidak Bisa Dihapus', e.message, 'error');
     }
   };
 
@@ -440,6 +471,16 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                               >
                                 <Power className="w-4 h-4" />
                               </button>
+
+                              {/* Hapus permanen */}
+                              <button
+                                onClick={() => handleDelete(p)}
+                                className="action-button action-icon action-danger"
+                                aria-label={`Hapus ${p.name}`}
+                                title="Hapus Barang Permanen"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </>
                           )}
                         </div>
@@ -556,7 +597,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                     id="edit-product-unit"
                     value={formUnit}
                     onChange={setFormUnit}
-                    disabled={isSubmitting || Boolean(editingProduct.packSize)}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -576,10 +617,46 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
               </div>
 
               {editingProduct.packSize ? (
-                <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                  Satuan kemasan: 1 <strong>{editingProduct.packUnit}</strong> = {editingProduct.packSize} <strong>{editingProduct.unit}</strong>.
-                  Stok dan batas minimum disimpan dalam {editingProduct.unit}.
-                </p>
+                <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                  <p className="mb-2 font-semibold text-slate-700">Satuan kemasan</p>
+                  {formRemovePack ? (
+                    <p className="text-[11px] text-amber-700">
+                      Satuan kemasan akan dihapus. Stok tetap dicatat dalam <strong>{formUnit || editingProduct.unit}</strong>.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="edit-product-packunit" className="block text-[11px] text-slate-500 mb-1">Satuan kemasan (mis. dus, krat)</label>
+                        <UnitInput id="edit-product-packunit" value={formPackUnit} onChange={setFormPackUnit} disabled={isSubmitting} />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-slate-500 mb-1">Isi per 1 {formPackUnit || 'kemasan'} ({formUnit || editingProduct.unit})</label>
+                        <input
+                          type="number"
+                          min="2"
+                          step="1"
+                          required
+                          value={formPackSize}
+                          onChange={(e) => setFormPackSize(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-500">
+                      Stok, batas minimum, dan riwayat tetap dalam {formUnit || editingProduct.unit}; angkanya tidak berubah.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setFormRemovePack((v) => !v)}
+                      disabled={isSubmitting}
+                      className="text-[11px] font-semibold text-maroon-700 hover:underline"
+                    >
+                      {formRemovePack ? 'Batal hapus kemasan' : 'Hapus satuan kemasan'}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 p-3">
                   <p className="mb-2 font-semibold text-slate-700">Bisa diambil per satuan kecil? (opsional)</p>

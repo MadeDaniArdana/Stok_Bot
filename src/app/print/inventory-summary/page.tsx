@@ -3,26 +3,28 @@ import { redirect } from 'next/navigation';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { getCurrentUser } from '@/lib/auth-server';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
+import { resolveSummaryPeriod } from '@/lib/report-period';
 import { ReportService } from '@/services/report.service';
 
 const FONT = { fontFamily: 'Arial, Helvetica, sans-serif' };
 const cell = 'border border-black px-2 py-1';
 
-function resolveParams(searchParams: { jenis?: string; days?: string }) {
+type Search = { jenis?: string; days?: string; periode?: string };
+
+function resolveParams(searchParams: Search) {
   const stockGroup = parseStockGroup(searchParams.jenis) ?? undefined;
-  const rawDays = parseInt(searchParams.days || '30', 10);
-  const days = Number.isFinite(rawDays) ? Math.min(Math.max(rawDays, 1), 365) : 30;
+  const period = resolveSummaryPeriod(searchParams.periode, searchParams.days);
+  const periodLabel = typeof period === 'number' ? `${period} Hari Terakhir` : period.label;
   const groupLabel = stockGroup ? getStockGroup(stockGroup).label : 'Semua Jenis';
   const groupShort = stockGroup ? getStockGroup(stockGroup).shortLabel : 'Semua Jenis';
-  const todayFile = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
-  const documentTitle = `Ringkasan Persediaan & Pengadaan ${groupShort} - ${days} Hari (${todayFile})`;
-  return { stockGroup, days, groupLabel, documentTitle };
+  const documentTitle = `Ringkasan Persediaan & Pengadaan ${groupShort} - ${periodLabel}`;
+  return { stockGroup, period, periodLabel, groupLabel, documentTitle };
 }
 
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: { jenis?: string; days?: string };
+  searchParams: Search;
 }): Promise<Metadata> {
   const user = await getCurrentUser();
   if (!user) return { title: 'Login - StockFlow' };
@@ -32,13 +34,13 @@ export async function generateMetadata({
 export default async function PrintInventorySummaryPage({
   searchParams,
 }: {
-  searchParams: { jenis?: string; days?: string };
+  searchParams: Search;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const { stockGroup, days, groupLabel, documentTitle } = resolveParams(searchParams);
-  const summary = await ReportService.getDashboardSummary(days, stockGroup);
+  const { stockGroup, period, periodLabel, groupLabel, documentTitle } = resolveParams(searchParams);
+  const summary = await ReportService.getDashboardSummary(period, stockGroup);
   const today = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
     day: 'numeric',
@@ -67,7 +69,7 @@ export default async function PrintInventorySummaryPage({
           Laporan Ringkasan Persediaan & Usulan Pengadaan
         </h1>
         <p className="text-center text-[12px]">
-          Jenis Stok: <strong>{groupLabel}</strong> · Periode Evaluasi: <strong>{days} Hari Terakhir</strong> · Dicetak: {today}
+          Jenis Stok: <strong>{groupLabel}</strong> · Periode: <strong>{periodLabel}</strong> · Dicetak: {today}
         </p>
 
         <table className="mt-4 w-full border-collapse border border-black text-[11px]">
@@ -78,8 +80,8 @@ export default async function PrintInventorySummaryPage({
               <td className={cell}>Perlu Pengadaan: <strong>{summary.criticalItems.length} barang</strong> ({summary.kpi.outOfStockCount} habis, {summary.kpi.lowStockCount} menipis)</td>
             </tr>
             <tr>
-              <td className={cell}>Total Barang Masuk ({days} hr): <strong>+{summary.kpi.totalInQuantity}</strong></td>
-              <td className={cell}>Total Barang Keluar ({days} hr): <strong>-{summary.kpi.totalOutQuantity}</strong></td>
+              <td className={cell}>Total Barang Masuk: <strong>+{summary.kpi.totalInQuantity}</strong></td>
+              <td className={cell}>Total Barang Keluar: <strong>-{summary.kpi.totalOutQuantity}</strong></td>
               <td className={cell}>Selisih Pergerakan (Net): <strong>{summary.kpi.netMovement > 0 ? `+${summary.kpi.netMovement}` : summary.kpi.netMovement}</strong></td>
             </tr>
           </tbody>
@@ -91,47 +93,43 @@ export default async function PrintInventorySummaryPage({
             <tr className="bg-slate-200">
               <th className={`${cell} w-8`}>No</th>
               <th className={cell}>Nama Barang</th>
-              <th className={cell}>Jenis</th>
-              <th className={cell}>Sisa Stok</th>
-              <th className={cell}>Min.</th>
-              <th className={cell}>Terpakai ({days} hr)</th>
-              <th className={cell}>Usulan Beli</th>
-              <th className={cell}>Status</th>
+              <th className={cell}>Stok Sisa<br /><span className="font-normal">({summary.period.openingLabel})</span></th>
+              <th className={cell}>Stok Masuk</th>
+              <th className={cell}>Jumlah Stok</th>
             </tr>
           </thead>
           <tbody>
             {summary.criticalItems.length === 0 ? (
               <tr>
-                <td colSpan={8} className={`${cell} py-3 text-center italic`}>
+                <td colSpan={5} className={`${cell} py-3 text-center italic`}>
                   Seluruh persediaan berada di atas batas minimum. Tidak ada usulan pengadaan mendesak.
                 </td>
               </tr>
             ) : (
-              summary.criticalItems.map((item, index) => (
-                <tr key={item.id} className="break-inside-avoid">
-                  <td className={`${cell} text-center`}>{index + 1}</td>
-                  <td className={cell}>
-                    <div className="font-semibold">{item.name}</div>
-                    <div className="font-mono text-[9px] text-slate-600">{item.sku}</div>
-                  </td>
-                  <td className={`${cell} text-center`}>{item.stockGroupLabel}</td>
-                  <td className={`${cell} text-center font-bold`}>{item.currentStock} {item.unit}</td>
-                  <td className={`${cell} text-center`}>{item.minimumStock} {item.unit}</td>
-                  <td className={`${cell} text-center`}>{item.usedInPeriod} {item.unit}</td>
-                  <td className={`${cell} text-center font-bold`}>{item.suggestedOrder} {item.unit}</td>
-                  <td className={`${cell} text-center`}>{item.isZero ? 'Habis' : 'Menipis'}</td>
-                </tr>
-              ))
+              summary.criticalItems.map((item, index) => {
+                return (
+                  <tr key={item.id} className="break-inside-avoid">
+                    <td className={`${cell} text-center`}>{index + 1}</td>
+                    <td className={cell}>
+                      <div className="font-semibold">{item.name}</div>
+                      <div className="font-mono text-[9px] text-slate-600">{item.sku} · {item.stockGroupLabel}</div>
+                    </td>
+                    <td className={`${cell} text-center`}>{item.remainingStock} {item.unit}</td>
+                    <td className={`${cell} text-center`}>{item.incomingStock ? `${item.incomingStock} ${item.unit}` : '-'}</td>
+                    <td className={`${cell} text-center font-bold`}>{item.totalStock} {item.unit}</td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
         {summary.criticalItems.length > 0 && (
           <p className="mt-1 text-[10px] italic text-slate-700">
-            * Angka usulan beli merupakan estimasi otomatis berdasarkan selisih stok minimum dan pemakaian {days} hari terakhir, dapat disesuaikan saat pengajuan anggaran.
+            * Stok Sisa = sisa dari periode sebelumnya; Stok Masuk = barang masuk selama {periodLabel}; Jumlah Stok = Stok Sisa + Stok Masuk.
           </p>
         )}
 
-        <h2 className="mt-5 text-[13px] font-bold">B. Barang Paling Banyak Digunakan ({days} Hari Terakhir)</h2>
+        <h2 className="mt-5 text-[13px] font-bold">B. Barang Paling Banyak Digunakan ({periodLabel})</h2>
         <table className="mt-1 w-full border-collapse border border-black text-[11px]">
           <thead>
             <tr className="bg-slate-200">
@@ -169,7 +167,7 @@ export default async function PrintInventorySummaryPage({
 
         {summary.topUnits.length > 0 && (
           <>
-            <h2 className="mt-5 text-[13px] font-bold">C. Rekap Unit / Gedung Penerima Paling Aktif ({days} Hari Terakhir)</h2>
+            <h2 className="mt-5 text-[13px] font-bold">C. Rekap Unit / Gedung Penerima Paling Aktif ({periodLabel})</h2>
             <table className="mt-1 w-full border-collapse border border-black text-[11px]">
               <thead>
                 <tr className="bg-slate-200">

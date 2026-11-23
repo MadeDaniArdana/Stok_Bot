@@ -146,7 +146,7 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
       return;
     }
     if (href === '/reports') {
-      prefetchSwrJson('/api/reports/summary?days=30');
+      prefetchSwrJson(`/api/reports/summary?periode=${getCurrentReportMonth()}`);
       return;
     }
     if (href.startsWith('/distribution/')) {

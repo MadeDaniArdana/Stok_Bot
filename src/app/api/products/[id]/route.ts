@@ -38,7 +38,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
 
-    // Soft toggle status as required by PRD
+    // ?permanent=1 menghapus barang permanen; tanpa itu hanya aktif/nonaktif (soft delete).
+    if (new URL(req.url).searchParams.get('permanent') === '1') {
+      const deleted = await ProductService.deleteProduct(params.id);
+      return NextResponse.json({ success: true, deleted: true, product: deleted });
+    }
     const updated = await ProductService.toggleStatus(params.id);
     return NextResponse.json({ success: true, product: updated });
   } catch (error: any) {

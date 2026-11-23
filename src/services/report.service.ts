@@ -3,6 +3,7 @@ import type { StockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Tanggal kalender WIB (YYYY-MM-DD) untuk sebuah Date UTC. */
 function toWibDateKey(date: Date): string {
@@ -29,19 +30,39 @@ function startOfWibDayUtc(date: Date): Date {
 }
 
 export class ReportService {
-  static async getDashboardSummary(days = 30, stockGroup?: StockGroup) {
+  /** Rentang "N hari terakhir" (WIB) untuk Dashboard harian. */
+  static daysRange(days = 30): StockReportPeriod {
     const safeDays = Number.isFinite(days) ? Math.min(Math.max(Math.trunc(days), 1), 365) : 30;
-    const now = new Date();
-    const todayStartUtc = startOfWibDayUtc(now);
-    const cutoffDate = new Date(todayStartUtc.getTime() - (safeDays - 1) * 24 * 60 * 60 * 1000);
+    const todayStartUtc = startOfWibDayUtc(new Date());
+    const startDate = new Date(todayStartUtc.getTime() - (safeDays - 1) * DAY_MS);
+    return {
+      kind: 'month',
+      value: `${safeDays}d`,
+      gte: startDate,
+      lt: new Date(todayStartUtc.getTime() + DAY_MS),
+      label: `${safeDays} Hari Terakhir`,
+      openingLabel: `per ${formatWibDayLabel(startDate, false)}`,
+    };
+  }
 
-    const productGroupFilter = stockGroup ? { category: { stockGroup } } : {};
+  /**
+   * Ringkasan persediaan untuk satu periode: angka (hari terakhir, bulan, atau tahun), tren, Top barang,
+   * unit penerima, sebaran kategori, dan Daftar Usulan Pengadaan (Stok Sisa awal periode + Stok Masuk = Jumlah Stok).
+   * `period` boleh berupa jumlah hari (Dashboard) atau periode bulan/tahun dari parseStockReportPeriod.
+   */
+  static async getDashboardSummary(period: number | StockReportPeriod = 30, stockGroup?: StockGroup) {
+    const isDays = typeof period === 'number';
+    const range = isDays ? this.daysRange(period) : period;
+    const start = range.gte;
+    const end = range.lt;
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS));
+    const periodKind: 'days' | 'month' | 'year' = isDays ? 'days' : range.kind;
+
     const movementPeriodWhere = {
-      createdAt: { gte: cutoffDate },
+      createdAt: { gte: start, lt: end },
       ...(stockGroup ? { product: { category: { stockGroup } } } : {}),
     };
 
-    // Semua query berjalan paralel; agregasi dilakukan di database bila memungkinkan.
     const [
       allActiveProducts,
       totalsByType,
@@ -49,6 +70,7 @@ export class ReportService {
       trendMovements,
       recentActivities,
       periodDistributions,
+      position,
     ] = await Promise.all([
       prisma.product.findMany({
         where: { isActive: true },
@@ -90,36 +112,23 @@ export class ReportService {
       prisma.distribution.findMany({
         where: {
           status: 'COMPLETED',
-          distributedAt: { gte: cutoffDate },
+          distributedAt: { gte: start, lt: end },
           ...(stockGroup ? { stockGroup } : {}),
         },
-        select: {
-          recipientUnit: true,
-          stockGroup: true,
-          _count: { select: { items: true } },
-        },
+        select: { recipientUnit: true, stockGroup: true, _count: { select: { items: true } } },
       }),
+      this.getStockPositionReport(range, stockGroup),
     ]);
 
-    // Ringkasan kondisi stok per jenis (selalu dihitung dari seluruh barang aktif agar kartu ringkasan tetap lengkap).
+    // Ringkasan kondisi stok per jenis (stok saat ini, seluruh barang aktif).
     const stockGroupMap = new Map(
       STOCK_GROUPS.map((g) => [
         g.id,
-        {
-          id: g.id,
-          slug: g.slug,
-          label: g.label,
-          shortLabel: g.shortLabel,
-          totalSku: 0,
-          totalStock: 0,
-          lowStockCount: 0,
-          outOfStockCount: 0,
-        },
+        { id: g.id, slug: g.slug, label: g.label, shortLabel: g.shortLabel, totalSku: 0, totalStock: 0, lowStockCount: 0, outOfStockCount: 0 },
       ])
     );
     for (const p of allActiveProducts) {
-      const groupId = getStockGroup(p.category?.stockGroup).id;
-      const bucket = stockGroupMap.get(groupId);
+      const bucket = stockGroupMap.get(getStockGroup(p.category?.stockGroup).id);
       if (!bucket) continue;
       bucket.totalSku += 1;
       bucket.totalStock += p.currentStock;
@@ -127,54 +136,29 @@ export class ReportService {
       else if (p.currentStock <= p.minimumStock) bucket.lowStockCount += 1;
     }
 
-    // Produk sesuai filter jenis (atau seluruhnya jika tidak difilter).
     const activeProducts = stockGroup
       ? allActiveProducts.filter((p) => getStockGroup(p.category?.stockGroup).id === stockGroup)
       : allActiveProducts;
 
-    // 1. KPI stok & arus
-    const totalActiveSku = activeProducts.length;
-    const totalAggregateStock = activeProducts.reduce((sum, p) => sum + p.currentStock, 0);
-    const lowStockItems = activeProducts.filter((p) => p.currentStock > 0 && p.currentStock <= p.minimumStock);
-    const outOfStockItems = activeProducts.filter((p) => p.currentStock === 0);
-
     const totalInQuantity = totalsByType.find((t) => t.type === 'IN')?._sum.quantity ?? 0;
     const totalOutQuantity = totalsByType.find((t) => t.type === 'OUT')?._sum.quantity ?? 0;
-
-    // Peta pemakaian (OUT) per produk selama periode untuk usulan pengadaan & Top 10.
     const outStatsByProduct = new Map(
       outByProduct.map((row) => [row.productId, { totalOut: row._sum.quantity ?? 0, txCount: row._count._all }])
     );
 
-    // 2. Top 10 barang paling banyak digunakan
+    // Top 10 barang paling banyak digunakan
     const topOutGroups = outByProduct.slice(0, 10);
     const productById = new Map(
       allActiveProducts.map((p) => [
         p.id,
-        {
-          id: p.id,
-          name: p.name,
-          sku: p.sku,
-          unit: p.unit,
-          currentStock: p.currentStock,
-          stockGroup: getStockGroup(p.category?.stockGroup).shortLabel,
-        },
+        { id: p.id, name: p.name, sku: p.sku, unit: p.unit, currentStock: p.currentStock, stockGroup: getStockGroup(p.category?.stockGroup).shortLabel },
       ])
     );
-    const missingProductIds = topOutGroups
-      .map((g) => g.productId)
-      .filter((id) => !productById.has(id));
+    const missingProductIds = topOutGroups.map((g) => g.productId).filter((id) => !productById.has(id));
     if (missingProductIds.length > 0) {
       const inactiveTopProducts = await prisma.product.findMany({
         where: { id: { in: missingProductIds } },
-        select: {
-          id: true,
-          name: true,
-          sku: true,
-          unit: true,
-          currentStock: true,
-          category: { select: { stockGroup: true } },
-        },
+        select: { id: true, name: true, sku: true, unit: true, currentStock: true, category: { select: { stockGroup: true } } },
       });
       for (const p of inactiveTopProducts) {
         productById.set(p.id, {
@@ -187,40 +171,36 @@ export class ReportService {
         });
       }
     }
-    const topConsumed = topOutGroups.map((g) => {
-      const found = productById.get(g.productId) ?? {
-        id: g.productId,
-        name: '-',
-        sku: '-',
-        unit: '',
-        currentStock: 0,
-        stockGroup: '-',
-      };
-      return {
-        product: {
-          id: found.id,
-          name: found.name,
-          sku: found.sku,
-          unit: found.unit,
-          currentStock: found.currentStock,
-          stockGroup: found.stockGroup,
-        },
-        totalOut: g._sum.quantity ?? 0,
-        txCount: g._count._all,
-      };
-    });
+    const topConsumed = topOutGroups.map((g) => ({
+      product: productById.get(g.productId) ?? { id: g.productId, name: '-', sku: '-', unit: '', currentStock: 0, stockGroup: '-' },
+      totalOut: g._sum.quantity ?? 0,
+      txCount: g._count._all,
+    }));
 
-    // 3. Tren pergerakan dinamis sesuai periode (harian untuk <=31 hari, mingguan untuk >31 hari).
-    const trendGranularity: 'daily' | 'weekly' = safeDays > 31 ? 'weekly' : 'daily';
+    // Tren: per bulan untuk laporan tahunan, per hari untuk <= 31 hari, per minggu untuk rentang hari yang panjang.
+    const trendGranularity: 'daily' | 'weekly' | 'monthly' =
+      periodKind === 'year' ? 'monthly' : days > 31 ? 'weekly' : 'daily';
     let dailyTrends: Array<{ date: string; inQty: number; outQty: number }> = [];
-
-    if (trendGranularity === 'daily') {
+    if (trendGranularity === 'monthly') {
+      const year = Number(toWibDateKey(start).slice(0, 4));
+      const buckets = Array.from({ length: 12 }, (_, i) => ({
+        date: new Intl.DateTimeFormat('id-ID', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(year, i, 15))),
+        inQty: 0,
+        outQty: 0,
+      }));
+      for (const m of trendMovements) {
+        const bucket = buckets[Number(toWibDateKey(m.createdAt).slice(5, 7)) - 1];
+        if (!bucket) continue;
+        if (m.type === 'IN') bucket.inQty += m.quantity;
+        if (m.type === 'OUT') bucket.outQty += m.quantity;
+      }
+      dailyTrends = buckets;
+    } else if (trendGranularity === 'daily') {
       const buckets: Record<string, { date: string; inQty: number; outQty: number }> = {};
-      const includeWeekday = safeDays <= 7;
-      for (let i = safeDays - 1; i >= 0; i--) {
-        const d = new Date(todayStartUtc.getTime() - i * 24 * 60 * 60 * 1000);
-        const key = toWibDateKey(d);
-        buckets[key] = { date: formatWibDayLabel(d, includeWeekday), inQty: 0, outQty: 0 };
+      const includeWeekday = days <= 7;
+      for (let i = 0; i < days; i++) {
+        const d = new Date(start.getTime() + i * DAY_MS);
+        buckets[toWibDateKey(d)] = { date: formatWibDayLabel(d, includeWeekday), inQty: 0, outQty: 0 };
       }
       for (const m of trendMovements) {
         const bucket = buckets[toWibDateKey(m.createdAt)];
@@ -230,34 +210,25 @@ export class ReportService {
       }
       dailyTrends = Object.values(buckets);
     } else {
-      const weekMs = 7 * 24 * 60 * 60 * 1000;
-      const numWeeks = Math.ceil(safeDays / 7);
-      const weeklyBuckets: Array<{ startMs: number; endMs: number; date: string; inQty: number; outQty: number }> = [];
-      for (let w = 0; w < numWeeks; w++) {
-        const startMs = cutoffDate.getTime() + w * weekMs;
-        const endMs = Math.min(startMs + weekMs, todayStartUtc.getTime() + 24 * 60 * 60 * 1000);
+      const weekMs = 7 * DAY_MS;
+      const weeklyBuckets: Array<{ date: string; inQty: number; outQty: number }> = [];
+      for (let w = 0; w < Math.ceil(days / 7); w++) {
+        const startMs = start.getTime() + w * weekMs;
+        const endMs = Math.min(startMs + weekMs, end.getTime());
         const labelStart = formatWibDayLabel(new Date(startMs), false);
         const labelEnd = formatWibDayLabel(new Date(endMs - 1), false);
-        weeklyBuckets.push({
-          startMs,
-          endMs,
-          date: labelStart === labelEnd ? labelStart : `${labelStart}–${labelEnd}`,
-          inQty: 0,
-          outQty: 0,
-        });
+        weeklyBuckets.push({ date: labelStart === labelEnd ? labelStart : `${labelStart}–${labelEnd}`, inQty: 0, outQty: 0 });
       }
       for (const m of trendMovements) {
-        const ts = m.createdAt.getTime();
-        const idx = Math.floor((ts - cutoffDate.getTime()) / weekMs);
-        const bucket = weeklyBuckets[idx];
+        const bucket = weeklyBuckets[Math.floor((m.createdAt.getTime() - start.getTime()) / weekMs)];
         if (!bucket) continue;
         if (m.type === 'IN') bucket.inQty += m.quantity;
         if (m.type === 'OUT') bucket.outQty += m.quantity;
       }
-      dailyTrends = weeklyBuckets.map(({ date, inQty, outQty }) => ({ date, inQty, outQty }));
+      dailyTrends = weeklyBuckets;
     }
 
-    // 4. Rekap Unit / Gedung paling aktif menerima distribusi dalam periode
+    // Unit / Gedung paling aktif menerima distribusi
     const unitMap = new Map<string, { unit: string; distributions: number; itemLines: number }>();
     for (const dist of periodDistributions) {
       const name = dist.recipientUnit.trim();
@@ -271,17 +242,16 @@ export class ReportService {
       .sort((a, b) => b.distributions - a.distributions || b.itemLines - a.itemLines || a.unit.localeCompare(b.unit, 'id'))
       .slice(0, 8);
 
-    // 5. Sebaran stok per kategori
+    // Sebaran stok per kategori (stok saat ini)
     const categoryStatsMap: Record<
       string,
       { name: string; stockGroup: string; itemCount: number; totalStock: number; criticalCount: number }
     > = {};
     for (const p of activeProducts) {
       const catName = p.category?.name || 'Tanpa Kategori';
-      const groupLabel = getStockGroup(p.category?.stockGroup).shortLabel;
       categoryStatsMap[catName] ??= {
         name: catName,
-        stockGroup: groupLabel,
+        stockGroup: getStockGroup(p.category?.stockGroup).shortLabel,
         itemCount: 0,
         totalStock: 0,
         criticalCount: 0,
@@ -294,45 +264,52 @@ export class ReportService {
       (a, b) => b.totalStock - a.totalStock || a.name.localeCompare(b.name, 'id')
     );
 
-    // 6. Daftar Usulan Pengadaan (barang habis dulu, lalu menipis, urut dari pemakaian tertinggi)
-    const criticalItems = [...outOfStockItems, ...lowStockItems]
-      .map((p) => {
-        const groupInfo = getStockGroup(p.category?.stockGroup);
-        const usedInPeriod = outStatsByProduct.get(p.id)?.totalOut ?? 0;
-        const deficit = Math.max(p.minimumStock - p.currentStock, 0);
-        const suggestedOrder = Math.max(deficit, usedInPeriod - p.currentStock, 1);
+    // Daftar Usulan Pengadaan: barang aktif yang sisa akhir periodenya habis / di bawah batas minimum.
+    // Stok Sisa = sisa dari periode sebelumnya (awal periode), Stok Masuk = barang masuk selama periode.
+    const minimumById = new Map(activeProducts.map((p) => [p.id, p.minimumStock]));
+    const criticalItems = position.rows
+      .filter((r) => r.isActive && minimumById.has(r.id) && r.closingStock <= (minimumById.get(r.id) ?? 0))
+      .map((r) => {
+        const minimumStock = minimumById.get(r.id) ?? 0;
+        const usedInPeriod = outStatsByProduct.get(r.id)?.totalOut ?? 0;
         return {
-          id: p.id,
-          sku: p.sku,
-          name: p.name,
-          category: p.category?.name || 'Umum',
-          stockGroup: groupInfo.id,
-          stockGroupLabel: groupInfo.shortLabel,
-          currentStock: p.currentStock,
-          minimumStock: p.minimumStock,
-          unit: p.unit,
-          isZero: p.currentStock === 0,
+          id: r.id,
+          sku: r.sku,
+          name: r.name,
+          category: r.category,
+          stockGroup: r.stockGroup,
+          stockGroupLabel: r.stockGroupLabel,
+          unit: r.unit,
+          packUnit: r.packUnit,
+          packSize: r.packSize,
+          remainingStock: r.openingStock,
+          incomingStock: r.inQty,
+          totalStock: r.totalAvailable,
+          closingStock: r.closingStock,
+          /** Stok akhir periode (sama dengan stok saat ini untuk periode berjalan). */
+          currentStock: r.closingStock,
+          minimumStock,
+          isZero: r.closingStock <= 0,
           usedInPeriod,
-          suggestedOrder,
+          suggestedOrder: Math.max(minimumStock - r.closingStock, usedInPeriod - r.closingStock, 1),
         };
       })
       .sort((a, b) => {
         if (a.isZero !== b.isZero) return a.isZero ? -1 : 1;
         return b.usedInPeriod - a.usedInPeriod || a.currentStock - b.currentStock || a.name.localeCompare(b.name, 'id');
       });
-
-    // unused filter guard (keeps typecheck clean)
-    void productGroupFilter;
+    const outOfStockCount = criticalItems.filter((i) => i.isZero).length;
 
     return {
-      days: safeDays,
+      days,
+      period: { kind: periodKind, value: range.value, label: range.label, openingLabel: range.openingLabel },
       stockGroup: stockGroup ?? null,
       trendGranularity,
       kpi: {
-        totalActiveSku,
-        totalAggregateStock,
-        lowStockCount: lowStockItems.length,
-        outOfStockCount: outOfStockItems.length,
+        totalActiveSku: activeProducts.length,
+        totalAggregateStock: activeProducts.reduce((sum, p) => sum + p.currentStock, 0),
+        lowStockCount: criticalItems.length - outOfStockCount,
+        outOfStockCount,
         totalInQuantity,
         totalOutQuantity,
         netMovement: totalInQuantity - totalOutQuantity,

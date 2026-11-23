@@ -66,3 +66,15 @@ export function parseStockReportPeriod(raw: string | null | undefined, now = new
     openingLabel: `per 1 ${MONTH_NAMES_ID[monthNumber - 1]} ${year}`,
   };
 }
+
+/**
+ * Periode Ringkasan Persediaan: ?periode=YYYY-MM / YYYY (laporan bulanan/tahunan),
+ * atau ?days=N (Dashboard). Tanpa keduanya: bulan berjalan.
+ */
+export function resolveSummaryPeriod(periode: string | null | undefined, days: string | null | undefined): number | StockReportPeriod {
+  if (!periode && days) {
+    const rawDays = parseInt(days, 10);
+    return Number.isFinite(rawDays) ? Math.min(Math.max(rawDays, 1), 365) : 30;
+  }
+  return parseStockReportPeriod(periode);
+}

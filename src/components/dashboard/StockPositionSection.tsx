@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarRange, Download, History, Printer, Search } from 'lucide-react';
+import { Download, History, Printer, Search } from 'lucide-react';
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { formatStock } from '@/lib/product-units';
-import { getCurrentReportMonth } from '@/lib/report-period';
 
 type Mode = 'month' | 'year';
 
@@ -50,16 +49,11 @@ function qty(row: StockPositionRow, value: number) {
  * Riwayat stok per bulan/tahun: Stok Lama (awal periode), Stok Baru (masuk), Total, Keluar, dan Sisa Akhir.
  * Bisa dicetak A4 dan diunduh CSV sesuai periode & jenis stok yang dipilih.
  */
-export function StockPositionSection({ jenis }: { jenis?: string }) {
-  const currentMonth = getCurrentReportMonth();
-  const currentYear = Number(currentMonth.slice(0, 4));
-  const [mode, setMode] = useState<Mode>('month');
-  const [month, setMonth] = useState(currentMonth);
-  const [year, setYear] = useState(String(currentYear));
+export function StockPositionSection({ periode, jenis }: { periode: string; jenis?: string }) {
+  const mode: Mode = /^\d{4}$/.test(periode) ? 'year' : 'month';
   const [search, setSearch] = useState('');
   const [onlyMoved, setOnlyMoved] = useState(false);
 
-  const periode = mode === 'year' ? year : month;
   const params = new URLSearchParams({ periode });
   if (jenis) params.set('jenis', jenis);
   const queryStr = params.toString();
@@ -91,12 +85,6 @@ export function StockPositionSection({ jenis }: { jenis?: string }) {
       });
     return () => controller.abort();
   }, [url]);
-
-  const yearOptions = useMemo(() => {
-    const years: number[] = [];
-    for (let y = currentYear; y >= currentYear - 5; y--) years.push(y);
-    return years;
-  }, [currentYear]);
 
   const rows = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase('id-ID');
@@ -145,45 +133,8 @@ export function StockPositionSection({ jenis }: { jenis?: string }) {
 
       {/* Pilihan periode */}
       <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50/60 px-5 py-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <CalendarRange className="h-4 w-4 text-slate-400" aria-hidden="true" />
-          <div className="flex items-center gap-1 rounded-lg bg-slate-200/60 p-1 text-xs">
-            {(['month', 'year'] as Mode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`rounded-md px-3 py-1 font-medium transition-all ${
-                  mode === m ? 'bg-white font-bold text-maroon-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {m === 'month' ? 'Per Bulan' : 'Per Tahun'}
-              </button>
-            ))}
-          </div>
-          {mode === 'month' ? (
-            <input
-              type="month"
-              aria-label="Pilih bulan"
-              value={month}
-              max={currentMonth}
-              onChange={(e) => e.target.value && setMonth(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-maroon-700 focus:outline-none"
-            />
-          ) : (
-            <select
-              aria-label="Pilih tahun"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-maroon-700 focus:outline-none"
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          )}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          Periode: <strong className="text-slate-800">{data?.period.label ?? '...'}</strong>
           {loading && <span className="text-[11px] text-slate-400">Memuat...</span>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
