@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, History, Printer, Search } from 'lucide-react';
+import { Download, FileText, History, Loader2, Printer, Search } from 'lucide-react';
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { formatStock } from '@/lib/product-units';
+import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
 
 type Mode = 'month' | 'year';
 
@@ -62,6 +63,24 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
   const [data, setData] = useState<StockPositionReport | null>(() => getSwrCache<StockPositionReport>(url) ?? null);
   const [loading, setLoading] = useState(() => !getSwrCache(url));
   const [error, setError] = useState<string | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!data || exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const group = parseStockGroup(jenis);
+      const { downloadStockPositionPdf } = await import('@/lib/stock-position-pdf');
+      await downloadStockPositionPdf(data, {
+        groupLabel: group ? getStockGroup(group).label : 'Semua Jenis',
+        groupSlug: group ? getStockGroup(group).slug : 'semua',
+      });
+    } catch (e: any) {
+      setError(e?.message || 'PDF gagal dibuat.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -128,6 +147,15 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
             <Download className="h-4 w-4" />
             Export CSV {mode === 'year' ? 'Tahunan' : 'Bulanan'}
           </a>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            disabled={!data || exportingPdf}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-maroon-700 bg-maroon-800 px-3 py-2 text-xs font-semibold text-white shadow-soft hover:bg-maroon-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            Export PDF {mode === 'year' ? 'Tahunan' : 'Bulanan'}
+          </button>
         </div>
       </div>
 

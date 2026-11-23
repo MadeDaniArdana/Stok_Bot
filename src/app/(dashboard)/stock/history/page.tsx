@@ -15,6 +15,8 @@ import {
   ArrowUpRight,
   X,
   FileSpreadsheet,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
@@ -44,6 +46,7 @@ export default function StockHistoryPage() {
   const [isReversing, setIsReversing] = useState(false);
 
   const movementsAbortRef = useRef<AbortController | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const fetchMovements = async () => {
     movementsAbortRef.current?.abort();
@@ -176,6 +179,38 @@ export default function StockHistoryPage() {
     showToast('Ekspor Berhasil', 'File CSV riwayat pergerakan stok telah diunduh.');
   };
 
+  // Export PDF: ambil seluruh transaksi sesuai filter aktif (bukan hanya 100 baris di layar).
+  const handleExportPDF = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const { fetchAllMovements, downloadStockMovementsPdf } = await import('@/lib/stock-movements-pdf');
+      const all = await fetchAllMovements({ productId, type, source, actorUserId, startDate, endDate });
+      if (all.length === 0) {
+        showToast('Tidak Ada Data', 'Tidak ada data untuk diekspor pada filter ini.', 'error');
+        return;
+      }
+      const fmtDate = (value: string) =>
+        new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
+      const typeLabels: Record<string, string> = { IN: 'Masuk', OUT: 'Keluar', ADJUSTMENT: 'Penyesuaian', REVERSAL: 'Pembatalan' };
+      const filterLines = [
+        startDate || endDate
+          ? `Periode: ${startDate ? fmtDate(startDate) : 'awal'} s/d ${endDate ? fmtDate(endDate) : 'sekarang'}`
+          : 'Periode: semua tanggal',
+        productId !== 'all' ? `Barang: ${products.find((p) => p.id === productId)?.name || '-'}` : '',
+        type !== 'all' ? `Aktivitas: ${typeLabels[type] || type}` : '',
+        source !== 'all' ? `Sumber: ${source}` : '',
+        actorUserId !== 'all' ? `Pelaku: ${users.find((u) => u.id === actorUserId)?.name || '-'}` : '',
+      ].filter(Boolean);
+      await downloadStockMovementsPdf(all, filterLines);
+      showToast('Ekspor Berhasil', `File PDF berisi ${all.length} transaksi telah diunduh.`);
+    } catch (e: any) {
+      showToast('Gagal Ekspor PDF', e?.message || 'PDF gagal dibuat.', 'error');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -189,13 +224,23 @@ export default function StockHistoryPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          className="action-button action-success"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-          <span>Ekspor ke CSV</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="action-button action-success"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Ekspor ke CSV</span>
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={exportingPdf}
+            className="action-button action-danger disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+            <span>{exportingPdf ? 'Membuat PDF...' : 'Ekspor ke PDF'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
