@@ -175,6 +175,10 @@ const DistributionRow = memo(function DistributionRow({
               )}
             </div>
           )}
+          {product?.packUnit && product.packSize && inputUnit === product.packUnit && row.quantity !== '' && (() => {
+            const base = toBaseQuantity(product, Number(row.quantity), inputUnit);
+            return base ? <p className="mt-1 text-[11px] font-medium text-slate-600">= {base.toLocaleString('id-ID')} {product.unit}</p> : null;
+          })()}
           {invalidQuantity && <p className="mt-1 text-[11px] text-rose-600">Jumlah tidak valid (hasil harus bilangan bulat {product?.unit}).</p>}
           {overStock && <p className="mt-1 text-[11px] text-rose-600">Melebihi stok.</p>}
         </div>

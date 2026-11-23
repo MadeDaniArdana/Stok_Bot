@@ -55,6 +55,11 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
   const [loadError, setLoadError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Ganti barang -> kembali ke satuan beli barang tersebut.
+  useEffect(() => {
+    setEntryUnit('');
+  }, [selectedProductId]);
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -101,7 +106,8 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
 
   const currentStock = selectedProduct?.currentStock || 0;
   const packUnit: string | null = (!isNewProduct && (selectedProduct as any)?.packUnit) || null;
-  const inputUnit = packUnit && entryUnit === packUnit ? packUnit : selectedProduct?.unit || 'satuan';
+  // Tambah stok = barang dibeli, jadi bawaannya satuan beli (mis. liter/dus); satuan dasar hanya jika dipilih.
+  const inputUnit = packUnit && entryUnit !== selectedProduct?.unit ? packUnit : selectedProduct?.unit || 'satuan';
   const baseQty = typeof quantity === 'number' && selectedProduct && !isNewProduct
     ? toBaseQuantity(selectedProduct as any, quantity, inputUnit)
     : null;
@@ -321,6 +327,11 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
                     </select>
                   )}
                   </div>
+                  {packUnit && baseQty !== null && inputUnit === packUnit && (
+                    <p className="mt-1 text-xs font-medium text-emerald-700">
+                      = {baseQty.toLocaleString('id-ID')} {selectedProduct?.unit} (1 {packUnit} = {(selectedProduct as any)?.packSize} {selectedProduct?.unit})
+                    </p>
+                  )}
                   {isNewProduct && <p className="text-xs text-slate-500 mt-1">Isi 0 jika barang belum memiliki stok. Stok 0 hanya mendaftarkan barang, tanpa transaksi penerimaan.</p>}
                 </div>
               </div>
