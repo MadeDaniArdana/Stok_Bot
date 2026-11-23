@@ -19,7 +19,7 @@ import {
   type DistributionTemplateOption as Template,
 } from '@/lib/distribution-bootstrap';
 import { invalidateSwrPrefix } from '@/lib/client-swr';
-import { formatStock, toBaseQuantity } from '@/lib/product-units';
+import { formatItemQuantity, formatStock, toBaseQuantity } from '@/lib/product-units';
 import type { StockGroupConfig } from '@/lib/stock-groups';
 
 interface Row {
@@ -38,7 +38,7 @@ interface SavedDistribution {
   recipientUnit: string;
   handoverName: string;
   officerPhone?: string | null;
-  items: { id: string; quantity: number; unit: string; product: { name: string } }[];
+  items: { id: string; quantity: number; unit: string; product: { name: string; unit?: string; packUnit?: string | null; packSize?: number | null } }[];
   /** Token link foto bukti (khusus Peralatan Listrik). */
   proofToken?: string | null;
 }
@@ -564,7 +564,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
               officerName={saved.handoverName}
               phone={saved.officerPhone}
               location={saved.recipientUnit}
-              itemsLabel={saved.items.map((item) => `${item.product.name} (${item.quantity} ${item.unit})`).join(', ')}
+              itemsLabel={saved.items.map((item) => `${item.product.name} (${formatItemQuantity(item.quantity, item.unit, item.product)})`).join(', ')}
             />
           </div>
         )}

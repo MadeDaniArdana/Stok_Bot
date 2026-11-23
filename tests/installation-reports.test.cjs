@@ -18,6 +18,7 @@ function loadTypeScript(file, mocks = {}) {
 
 const period = loadTypeScript('src/lib/report-period.ts');
 const deletedAccount = loadTypeScript('src/lib/deleted-account.ts');
+const productUnits = loadTypeScript('src/lib/product-units.ts');
 
 function task(id, overrides = {}) {
   return {
@@ -72,6 +73,7 @@ function createAPI(rows, distributions = [], { authenticated = true } = {}) {
     '@/lib/report-period': { ...period, getCurrentReportMonth: () => '2026-02' },
     '@/lib/error-log': { apiError: (error) => { throw error; } },
     '@/lib/deleted-account': deletedAccount,
+    '@/lib/product-units': productUnits,
     '@/lib/prisma': { prisma: { installationTask: {
       groupBy: async (args) => {
         calls.push({ method: 'groupBy', ...args });

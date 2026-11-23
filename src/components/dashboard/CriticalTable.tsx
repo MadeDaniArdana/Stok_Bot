@@ -8,6 +8,7 @@ import {
   ArrowDownToLine,
   Check,
 } from "lucide-react";
+import { formatStock } from '@/lib/product-units';
 
 interface CriticalItem {
   id: string;
@@ -134,11 +135,10 @@ export function CriticalTable({ items }: { items: CriticalItem[] }) {
                         : "whitespace-nowrap font-semibold leading-6 text-amber-600"
                     }
                   >
-                    {item.currentStock}{" "}
-                    <span className="text-xs font-normal">{item.unit}</span>
+                    {formatStock(item, item.currentStock)}
                   </p>
                   <p className="mt-1 whitespace-nowrap text-xs leading-5 text-slate-500">
-                    Min. {item.minimumStock} {item.unit}
+                    Min. {formatStock(item, item.minimumStock)}
                   </p>
                 </td>
                 <td className="px-2 py-4 align-top">
@@ -181,13 +181,13 @@ export function CriticalTable({ items }: { items: CriticalItem[] }) {
                         : "mt-1 text-sm font-semibold text-amber-600"
                     }
                   >
-                    {item.currentStock} {item.unit}
+                    {formatStock(item, item.currentStock)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-slate-500">Minimum</dt>
                   <dd className="mt-1 text-sm text-slate-600">
-                    {item.minimumStock} {item.unit}
+                    {formatStock(item, item.minimumStock)}
                   </dd>
                 </div>
               </dl>

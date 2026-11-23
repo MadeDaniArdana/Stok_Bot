@@ -5,6 +5,7 @@ import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { getCurrentUser } from '@/lib/auth-server';
 import { getStockGroup } from '@/lib/stock-groups';
 import { DistributionService } from '@/services/distribution.service';
+import { formatItemQuantity } from '@/lib/product-units';
 
 const FONT = { fontFamily: 'Arial, Helvetica, sans-serif' };
 const getDistribution = cache((id: string) => DistributionService.getById(id));
@@ -111,7 +112,7 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
                   <td className="border border-black px-2 py-1 text-center">{shortDate(distribution.distributedAt)}</td>
                   <td className="border border-black px-2 py-1">{item.product.name}</td>
                   <td className="border border-black px-2 py-1">{item.location || distribution.recipientUnit}</td>
-                  <td className="border border-black px-2 py-1 text-center">{item.quantity} {item.unit}</td>
+                  <td className="border border-black px-2 py-1 text-center">{formatItemQuantity(item.quantity, item.unit, item.product)}</td>
                   <td className="border border-black px-2 py-1">{distribution.handoverName}</td>
                 </tr>
               ))}
@@ -148,7 +149,7 @@ export default async function PrintDistributionPage({ params }: { params: { id: 
                   <tr key={item.id}>
                     <td className="border border-black px-1 py-0.5 text-center">{index + 1}</td>
                     <td className="border border-black px-2 py-0.5">{item.product.name}</td>
-                    <td className="border border-black px-2 py-0.5 text-center">{item.quantity} {item.unit}</td>
+                    <td className="border border-black px-2 py-0.5 text-center">{formatItemQuantity(item.quantity, item.unit, item.product)}</td>
                     {index === 0 && (
                       <td rowSpan={distribution.items.length + blankRows} className="border border-black px-2 py-1 text-center align-middle">
                         {distribution.storageLocation || distribution.recipientUnit}

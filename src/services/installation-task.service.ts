@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { NotificationService } from './notification.service';
 import { logError } from '@/lib/error-log';
 import { saveTaskProof, deleteTaskProof } from '@/lib/task-proof-storage';
+import { formatStock } from '@/lib/product-units';
 
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
 
@@ -37,7 +38,7 @@ export class InstallationTaskService {
       const committedPendingQuantity = pendingTasks._sum.quantity || 0;
       const availableStock = product.currentStock - committedPendingQuantity;
       if (availableStock < quantity) {
-        throw new Error(`Stok tersedia untuk tugas baru hanya ${Math.max(availableStock, 0)} ${product.unit}.`);
+        throw new Error(`Stok tersedia untuk tugas baru hanya ${formatStock(product, Math.max(availableStock, 0))}.`);
       }
 
       return tx.installationTask.create({

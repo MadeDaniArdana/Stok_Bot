@@ -29,6 +29,7 @@ import { getStockGroup, parseStockGroup, type StockGroup } from '@/lib/stock-gro
 import { personName } from '@/lib/deleted-account';
 import { fetchSwrJson, getSwrCache, invalidateSwrPrefix } from '@/lib/client-swr';
 import { clearDistributionBootstrapCache } from '@/lib/distribution-bootstrap';
+import { formatItemQuantity } from '@/lib/product-units';
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
@@ -280,7 +281,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                         <p className="font-mono text-[10px] text-slate-400">{item.sku}</p>
                       </td>
                       <td className="py-2 px-2 text-center text-slate-500">{item.documents}</td>
-                      <td className="py-2 pl-2 text-right font-bold text-maroon-800">{item.quantity} {item.unit}</td>
+                      <td className="py-2 pl-2 text-right font-bold text-maroon-800">{formatItemQuantity(item.quantity, item.unit, item)}</td>
                     </tr>
                   ))
                 )}
@@ -362,7 +363,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                             className="inline-flex items-center gap-1 text-left hover:text-maroon-800"
                           >
                             <span>
-                              {first ? `${first.product.name} (${first.quantity} ${first.unit})` : '-'}
+                              {first ? `${first.product.name} (${formatItemQuantity(first.quantity, first.unit, first.product)})` : '-'}
                               {row.items.length > 1 && <span className="text-slate-400"> +{row.items.length - 1} lainnya</span>}
                             </span>
                             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', isOpen && 'rotate-180')} />
@@ -464,7 +465,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                                     <tr key={item.id}>
                                       <td className="py-1.5 text-slate-400">{index + 1}</td>
                                       <td className="py-1.5 font-medium text-slate-800">{item.product.name}</td>
-                                      <td className="py-1.5 text-right font-semibold">{item.quantity} {item.unit}</td>
+                                      <td className="py-1.5 text-right font-semibold">{formatItemQuantity(item.quantity, item.unit, item.product)}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -516,7 +517,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
               officerName={proofLink.row.handoverName}
               phone={proofLink.row.officerPhone}
               location={proofLink.row.recipientUnit}
-              itemsLabel={proofLink.row.items.map((item: any) => `${item.product.name} (${item.quantity} ${item.unit})`).join(', ')}
+              itemsLabel={proofLink.row.items.map((item: any) => `${item.product.name} (${formatItemQuantity(item.quantity, item.unit, item.product)})`).join(', ')}
             />
           </div>
         </ModalOverlay>

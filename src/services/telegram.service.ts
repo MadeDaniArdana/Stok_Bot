@@ -5,6 +5,7 @@ import { buildMainMenuKeyboard } from '@/lib/telegram-keyboards';
 import type { TelegramInlineKeyboardMarkup } from '@/lib/telegram-client';
 import { InstallationTaskService } from './installation-task.service';
 import { TelegramTaskWizardService } from './telegram-task-wizard.service';
+import { formatStock } from '@/lib/product-units';
 
 export interface TelegramMessagePayload {
   update_id: number | string;
@@ -534,7 +535,7 @@ export class TelegramService {
         return {
           replyText:
             `Tugas pemasangan dibuat.\n` +
-            `Barang: ${task.product.name} (${task.quantity} ${task.product.unit})\n` +
+            `Barang: ${task.product.name} (${formatStock(task.product, task.quantity)})\n` +
             `Pemasang: ${task.assigneeName}\nLokasi: ${task.location}\n` +
             `Status: Menunggu bukti foto\n\n` +
             `Link bukti: ${proofUrl}\n` +
@@ -574,7 +575,7 @@ export class TelegramService {
       const lines = tasks.map((task) => {
         const state = task.status === 'COMPLETED' ? 'Selesai' : 'Menunggu bukti';
         const date = task.createdAt.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-        return `• ${task.product.name} (${task.quantity} ${task.product.unit}) - ${task.assigneeName}, ${task.location}\n  ${state} | ${date}`;
+        return `• ${task.product.name} (${formatStock(task.product, task.quantity)}) - ${task.assigneeName}, ${task.location}\n  ${state} | ${date}`;
       });
       return {
         replyText: `10 tugas pemasangan terbaru:\n\n${lines.join('\n\n')}`,
@@ -598,7 +599,7 @@ export class TelegramService {
         if (p.currentStock === 0) statusIcon = '🔴';
         else if (p.currentStock <= p.minimumStock) statusIcon = '🟡';
 
-        response += `${statusIcon} *${p.name}*\n   Stok: \`${p.currentStock} ${p.unit}\` (Min: ${p.minimumStock})\n`;
+        response += `${statusIcon} *${p.name}*\n   Stok: \`${formatStock(p, p.currentStock)}\` (Min: ${p.minimumStock})\n`;
       });
 
       response += '\nTekan "Cari barang" untuk mencari nama atau SKU.';
@@ -644,7 +645,7 @@ export class TelegramService {
       let response = `🔍 *Hasil Pencarian "${query}":*\n\n`;
       found.forEach((p) => {
         let statusBadge = p.currentStock === 0 ? '❌ Habis' : p.currentStock <= p.minimumStock ? '⚠️ Stok Rendah' : '✅ Aman';
-        response += `• *${p.name}* [${p.sku}]\n   Tersedia: \`${p.currentStock} ${p.unit}\` (${statusBadge})\n`;
+        response += `• *${p.name}* [${p.sku}]\n   Tersedia: \`${formatStock(p, p.currentStock)}\` (${statusBadge})\n`;
       });
 
       return {
@@ -679,7 +680,7 @@ export class TelegramService {
       let response = `📜 *5 Riwayat Pengambilan Terakhir Anda:*\n\n`;
       movements.forEach((m) => {
         const dateStr = new Date(m.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-        response += `• *${m.product.name}*\n   Jumlah: \`${m.quantity} ${m.product.unit}\` | ${dateStr}\n   Keperluan: _${m.notes || '-' }_\n\n`;
+        response += `• *${m.product.name}*\n   Jumlah: \`${formatStock(m.product, m.quantity)}\` | ${dateStr}\n   Keperluan: _${m.notes || '-' }_\n\n`;
       });
 
       return {

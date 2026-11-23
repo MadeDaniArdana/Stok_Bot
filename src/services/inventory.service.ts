@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { MovementSource, MovementType } from '@/types';
 import { NotificationService } from './notification.service';
+import { formatStock } from '@/lib/product-units';
 
 export interface StockInParams {
   productId: string;
@@ -129,7 +130,7 @@ export class InventoryService {
 
       if (product.currentStock < quantity) {
         throw new Error(
-          `Jumlah yang diminta (${quantity} ${product.unit}) melebihi stok tersedia (${product.currentStock} ${product.unit}).`
+          `Jumlah yang diminta (${formatStock(product, quantity)}) melebihi stok tersedia (${formatStock(product, product.currentStock)}).`
         );
       }
 

@@ -19,6 +19,7 @@ import { StockPositionSection } from '@/components/dashboard/StockPositionSectio
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 import { getCurrentReportMonth } from '@/lib/report-period';
+import { formatStock } from '@/lib/product-units';
 
 // Grafik Recharts dimuat terpisah agar ringkasan angka & tabel tampil lebih cepat.
 const StockChart = dynamic(
@@ -342,18 +343,18 @@ export default function ReportsPage() {
                         </p>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">
-                        {item.remainingStock} {item.unit}
+                        {formatStock(item, item.remainingStock)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-700">
-                        {item.incomingStock ? `+${item.incomingStock} ${item.unit}` : '-'}
+                        {item.incomingStock ? `+${formatStock(item, item.incomingStock)}` : '-'}
                       </td>
                       <td
                         className={`whitespace-nowrap px-4 py-3 text-right font-bold ${
                           item.isZero ? 'text-rose-600' : 'text-slate-900'
                         }`}
-                        title={`Sisa akhir periode ${item.closingStock} ${item.unit} · batas minimum ${item.minimumStock} ${item.unit}`}
+                        title={`Sisa akhir periode ${formatStock(item, item.closingStock)} · batas minimum ${formatStock(item, item.minimumStock)}`}
                       >
-                        {item.totalStock} {item.unit}
+                        {formatStock(item, item.totalStock)}
                       </td>
                     </tr>
                   ))}
@@ -396,12 +397,12 @@ export default function ReportsPage() {
                         {item.product.name}
                       </p>
                       <span className="font-mono text-[10px] text-slate-400">
-                        {item.txCount}x keluar · Sisa {item.product.currentStock} {item.product.unit}
+                        {item.txCount}x keluar · Sisa {formatStock(item.product, item.product.currentStock)}
                       </span>
                     </div>
                   </div>
                   <span className="shrink-0 font-bold text-maroon-800">
-                    {item.totalOut} {item.product.unit}
+                    {formatStock(item.product, item.totalOut)}
                   </span>
                 </div>
               ))

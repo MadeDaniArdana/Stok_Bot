@@ -162,7 +162,7 @@ export function StockEntryForm({ initialProductId = '', initialMode = 'existing'
 
       showToast(
         isNewProduct ? 'Barang Baru Berhasil Disimpan' : 'Barang Masuk Berhasil Dicatat!',
-        `${savedProduct.name}: stok ${savedProduct.currentStock} ${savedProduct.unit}.`
+        `${savedProduct.name}: stok ${formatStock(savedProduct, savedProduct.currentStock)}.`
       );
 
       // Reset form

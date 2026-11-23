@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { normalizeProductUnit } from '@/lib/product-units';
+import { checkPackSetup } from '@/lib/unit-guard';
 import type { StockGroup } from '@/lib/stock-groups';
 
 export interface CreateProductInput {
@@ -208,11 +209,22 @@ export class ProductService {
         } else if (input.packUnit !== undefined || input.packSize !== undefined || input.unit !== undefined) {
           const packUnit = input.packUnit !== undefined ? normalizeProductUnit(input.packUnit) : existing.packUnit || '';
           const packSize = input.packSize !== undefined ? input.packSize : existing.packSize;
-          if (!packUnit) throw new Error('Satuan kemasan wajib diisi.');
-          if (packUnit === baseUnit) throw new Error('Satuan kemasan harus berbeda dari satuan dasar.');
-          if (!Number.isSafeInteger(packSize) || packSize < 2) throw new Error('Isi per kemasan harus bilangan bulat minimal 2.');
+          if (!packUnit) throw new Error('Satuan beli wajib diisi.');
+          if (packUnit === baseUnit) throw new Error('Satuan beli harus berbeda dari satuan dasar.');
+          if (!Number.isSafeInteger(packSize) || packSize < 2) throw new Error('Isi per satuan beli harus bilangan bulat minimal 2.');
+          const check = checkPackSetup(packUnit, packSize, baseUnit);
+          if (check.errors.length) throw new Error(check.errors[0]);
           packEdit = { packUnit, packSize };
         }
+      }
+
+      // Tambah kemasan besar untuk barang tanpa kemasan: satuan sekarang jadi satuan dasar, angka tidak dikonversi.
+      if (!existing.packSize && !input.subUnit && input.packUnit && input.packSize !== undefined) {
+        const baseUnit = input.unit !== undefined ? normalizeProductUnit(input.unit) : existing.unit;
+        const packUnit = normalizeProductUnit(input.packUnit);
+        const check = checkPackSetup(packUnit, input.packSize, baseUnit);
+        if (check.errors.length) throw new Error(check.errors[0]);
+        packEdit = { packUnit, packSize: input.packSize };
       }
 
       // Aktifkan satuan kecil: seluruh angka lama (dalam satuan lama) dikonversi ke satuan kecil.
@@ -220,8 +232,11 @@ export class ProductService {
       if (!existing.packSize && input.subUnit && input.packSize !== undefined) {
         const subUnit = normalizeProductUnit(input.subUnit);
         const size = input.packSize;
-        if (!subUnit || subUnit === existing.unit) throw new Error('Satuan kecil harus berbeda dari satuan barang saat ini.');
-        if (!Number.isSafeInteger(size) || size < 2) throw new Error('Isi per kemasan harus bilangan bulat minimal 2.');
+        const newPackUnit = input.unit !== undefined ? normalizeProductUnit(input.unit) : existing.unit;
+        if (!subUnit || subUnit === newPackUnit) throw new Error('Satuan dasar harus berbeda dari satuan beli.');
+        if (!Number.isSafeInteger(size) || size < 2) throw new Error('Isi per satuan beli harus bilangan bulat minimal 2.');
+        const check = checkPackSetup(input.unit !== undefined ? normalizeProductUnit(input.unit) : existing.unit, size, subUnit);
+        if (check.errors.length) throw new Error(check.errors[0]);
         if (existing.currentStock * size > 2_000_000_000) throw new Error('Isi per kemasan terlalu besar.');
         await tx.stockMovement.updateMany({
           where: { productId: id },
@@ -230,7 +245,7 @@ export class ProductService {
         await tx.distributionTemplateItem.updateMany({ where: { productId: id }, data: { quantity: { multiply: size } } });
         await tx.installationTask.updateMany({ where: { productId: id }, data: { quantity: { multiply: size } } });
         await tx.product.update({ where: { id }, data: { currentStock: { multiply: size }, minimumStock: { multiply: size } } });
-        pack = { unit: subUnit, packUnit: existing.unit, packSize: size };
+        pack = { unit: subUnit, packUnit: input.unit !== undefined ? normalizeProductUnit(input.unit) : existing.unit, packSize: size };
       }
 
       return tx.product.update({

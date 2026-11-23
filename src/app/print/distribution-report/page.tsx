@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentReportMonth, getReportMonthRange } from '@/lib/report-period';
 import { DEFAULT_STOCK_GROUP, getStockGroup, parseStockGroup } from '@/lib/stock-groups';
+import { formatItemQuantity } from '@/lib/product-units';
 
 const FONT = { fontFamily: 'Arial, Helvetica, sans-serif' };
 const cell = 'border border-black px-2 py-0.5';
@@ -42,13 +43,13 @@ export default async function PrintDistributionReportPage({ searchParams }: { se
   const distributions = await prisma.distribution.findMany({
     where: { stockGroup: group.id, distributedAt: range, status: 'COMPLETED' },
     orderBy: [{ distributedAt: 'asc' }, { createdAt: 'asc' }],
-    include: { items: { include: { product: { select: { id: true, name: true, sku: true } } }, orderBy: { id: 'asc' } } },
+    include: { items: { include: { product: { select: { id: true, name: true, sku: true, unit: true, packUnit: true, packSize: true } } }, orderBy: { id: 'asc' } } },
   });
 
   const lines = distributions.flatMap((distribution) => distribution.items.map((item) => ({ distribution, item })));
-  const recap = new Map<string, { name: string; sku: string; unit: string; quantity: number; times: number }>();
+  const recap = new Map<string, { name: string; sku: string; unit: string; product: (typeof lines)[number]['item']['product']; quantity: number; times: number }>();
   for (const { item } of lines) {
-    const entry = recap.get(item.product.id) ?? { name: item.product.name, sku: item.product.sku, unit: item.unit, quantity: 0, times: 0 };
+    const entry = recap.get(item.product.id) ?? { name: item.product.name, sku: item.product.sku, unit: item.unit, product: item.product, quantity: 0, times: 0 };
     entry.quantity += item.quantity;
     entry.times += 1;
     recap.set(item.product.id, entry);
@@ -98,7 +99,7 @@ export default async function PrintDistributionReportPage({ searchParams }: { se
                   <td className={`${cell} text-center`}>{index + 1}</td>
                   <td className={cell}>{row.name}</td>
                   <td className={`${cell} font-mono text-[10px]`}>{row.sku}</td>
-                  <td className={`${cell} text-center`}>{row.quantity} {row.unit}</td>
+                  <td className={`${cell} text-center`}>{formatItemQuantity(row.quantity, row.unit, row.product)}</td>
                   <td className={`${cell} text-center`}>{row.times}x</td>
                 </tr>
               ))
@@ -141,14 +142,14 @@ export default async function PrintDistributionReportPage({ searchParams }: { se
                     <>
                       <td className={cell}>{item.product.name}</td>
                       <td className={cell}>{distribution.recipientUnit}</td>
-                      <td className={`${cell} text-center`}>{item.quantity} {item.unit}</td>
+                      <td className={`${cell} text-center`}>{formatItemQuantity(item.quantity, item.unit, item.product)}</td>
                       <td className={cell}>{distribution.handoverName}</td>
                     </>
                   ) : (
                     <>
                       <td className={cell}>{distribution.recipientUnit}</td>
                       <td className={cell}>{item.product.name}</td>
-                      <td className={`${cell} text-center`}>{item.quantity} {item.unit}</td>
+                      <td className={`${cell} text-center`}>{formatItemQuantity(item.quantity, item.unit, item.product)}</td>
                       <td className={cell}>{distribution.receiverName || '-'}</td>
                     </>
                   )}

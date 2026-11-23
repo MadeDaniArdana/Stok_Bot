@@ -3,6 +3,7 @@ import { getStockGroup } from '@/lib/stock-groups';
 import { buildCancelKeyboard, buildMainMenuKeyboard } from '@/lib/telegram-keyboards';
 import type { TelegramInlineKeyboardMarkup } from '@/lib/telegram-client';
 import { InstallationTaskService } from './installation-task.service';
+import { formatStock } from '@/lib/product-units';
 
 type ConversationState =
   | 'SELECT_PRODUCT'
@@ -111,7 +112,7 @@ export class TelegramTaskWizardService {
       if (product.currentStock < quantity) {
         await prisma.telegramConversation.deleteMany({ where: { telegramUserId } });
         return {
-          replyText: `Stok ${product.name} hanya ${product.currentStock} ${product.unit}, tidak cukup untuk ${quantity} ${product.unit}.`,
+          replyText: `Stok ${product.name} hanya ${formatStock(product, product.currentStock)}, tidak cukup untuk ${formatStock(product, quantity)}.`,
           success: false,
           actionTaken: 'QUICK_TASK_INSUFFICIENT_STOCK',
           replyMarkup: buildMainMenuKeyboard(isAllowedAdmin),
@@ -286,7 +287,7 @@ export class TelegramTaskWizardService {
           const status = product.currentStock === 0
             ? 'Habis'
             : product.currentStock <= product.minimumStock ? 'Stok rendah' : 'Aman';
-          return `• ${product.name} - ${product.currentStock} ${product.unit} (${status})`;
+          return `• ${product.name} - ${formatStock(product, product.currentStock)} (${status})`;
         }).join('\n')
         : `Barang "${text.trim()}" tidak ditemukan.`;
 
@@ -445,7 +446,7 @@ export class TelegramTaskWizardService {
     hasNextPage: boolean
   ): TelegramInlineKeyboardMarkup {
     const keyboard = products.map((product) => [{
-      text: `${product.name.slice(0, 40)} - ${product.currentStock} ${product.unit}`,
+      text: `${product.name.slice(0, 40)} - ${formatStock(product, product.currentStock)}`,
       callback_data: `task:product:${product.id}`,
     }]);
 
@@ -487,7 +488,7 @@ export class TelegramTaskWizardService {
     if (existing.quantity && existing.assigneeName && existing.location) {
       if (product.currentStock < existing.quantity) {
         return {
-          replyText: `Stok ${product.name} hanya ${product.currentStock} ${product.unit}, tidak cukup untuk ${existing.quantity} ${product.unit}. Pilih barang lain:`,
+          replyText: `Stok ${product.name} hanya ${formatStock(product, product.currentStock)}, tidak cukup untuk ${formatStock(product, existing.quantity)}. Pilih barang lain:`,
           success: false,
           actionTaken: 'QUICK_TASK_INSUFFICIENT_STOCK',
           replyMarkup: await this.productKeyboardForPage(0),
@@ -500,7 +501,7 @@ export class TelegramTaskWizardService {
       productId: product.id,
     });
     return {
-      replyText: `Barang dipilih: ${product.name}\nStok tercatat: ${product.currentStock} ${product.unit}\n\nPilih jumlah atau ketik jumlah lain:`,
+      replyText: `Barang dipilih: ${product.name}\nStok tercatat: ${formatStock(product, product.currentStock)}\n\nPilih jumlah atau ketik jumlah lain:`,
       success: true,
       actionTaken: 'TASK_QUANTITY_SELECTION',
       replyMarkup: this.quantityKeyboard(product.currentStock),
@@ -531,7 +532,7 @@ export class TelegramTaskWizardService {
     if (!product || !product.isActive) return this.staleAction(true);
     if (!Number.isSafeInteger(quantity) || quantity <= 0 || quantity > product.currentStock) {
       return {
-        replyText: `Jumlah harus antara 1 dan ${product.currentStock} ${product.unit}. Silakan pilih atau ketik kembali.`,
+        replyText: `Jumlah harus antara 1 dan ${formatStock(product, product.currentStock)}. Silakan pilih atau ketik kembali.`,
         success: false,
         actionTaken: 'TASK_INVALID_QUANTITY',
         replyMarkup: this.quantityKeyboard(product.currentStock),
@@ -543,7 +544,7 @@ export class TelegramTaskWizardService {
       quantity,
     });
     return {
-      replyText: `Jumlah: ${quantity} ${product.unit}.\n\nPilih nama pemasang atau ketik nama secara manual:`,
+      replyText: `Jumlah: ${formatStock(product, quantity)}.\n\nPilih nama pemasang atau ketik nama secara manual:`,
       success: true,
       actionTaken: 'TASK_ASSIGNEE_PROMPT',
       replyMarkup: this.assigneeKeyboard(),
@@ -582,7 +583,7 @@ export class TelegramTaskWizardService {
       replyText:
         `Periksa tugas pemasangan:\n\n` +
         `Barang: ${product.name}\n` +
-        `Jumlah: ${data.quantity} ${product.unit}\n` +
+        `Jumlah: ${formatStock(product, data.quantity)}\n` +
         `Pemasang: ${data.assigneeName}\n` +
         `Lokasi: ${data.location}\n` +
         `Catatan: ${data.notes || '-'}\n\n` +
@@ -663,7 +664,7 @@ export class TelegramTaskWizardService {
     return {
       replyText:
         `✅ Tugas pemasangan berhasil dibuat.\n` +
-        `Barang: ${task.product.name} (${task.quantity} ${task.product.unit})\n` +
+        `Barang: ${task.product.name} (${formatStock(task.product, task.quantity)})\n` +
         `Pemasang: ${task.assigneeName}\n` +
         `Lokasi: ${task.location}\n` +
         `Status: Menunggu bukti foto\n\n` +

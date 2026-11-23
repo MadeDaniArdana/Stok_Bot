@@ -1,4 +1,5 @@
 import { personName } from '@/lib/deleted-account';
+import { formatStock } from '@/lib/product-units';
 
 const TYPE_LABEL: Record<string, string> = {
   IN: 'Masuk',
@@ -90,14 +91,14 @@ export async function downloadStockMovementsPdf(movements: any[], filterLines: s
     const delta = Number(m.stockAfter) - Number(m.stockBefore);
     if (m.type === 'IN') totalIn += m.quantity;
     if (m.type === 'OUT') totalOut += m.quantity;
-    const unit = m.product?.unit || '';
+    const fmt = (value: number) => (m.product ? formatStock(m.product, value) : String(value));
     return [
       String(i + 1),
       fmtTime.format(new Date(m.createdAt)),
       `${m.product?.name || '-'}\n${m.product?.sku || ''}`,
       TYPE_LABEL[m.type] || m.type,
-      `${delta > 0 ? '+' : delta < 0 ? '-' : ''}${m.quantity} ${unit}`.trim(),
-      `${m.stockBefore} -> ${m.stockAfter}`,
+      `${delta > 0 ? '+' : delta < 0 ? '-' : ''}${fmt(m.quantity)}`,
+      `${fmt(m.stockBefore)} -> ${fmt(m.stockAfter)}`,
       actorLabel(m),
       SOURCE_LABEL[m.source] || m.source,
       m.notes || '-',

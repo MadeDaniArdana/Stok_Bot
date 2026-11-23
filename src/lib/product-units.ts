@@ -37,6 +37,7 @@ export function toBaseQuantity(product: PackInfo, quantity: number, inputUnit: s
 
 /** Tampilan stok: "7 krat 5 pcs" untuk barang berkemasan, "12 pcs" untuk barang biasa. */
 export function formatStock(product: PackInfo, quantity: number): string {
+  if (quantity < 0) return `-${formatStock(product, -quantity)}`;
   if (!product.packUnit || !product.packSize) return `${quantity} ${product.unit}`;
   const packs = Math.floor(quantity / product.packSize);
   const rest = quantity % product.packSize;
@@ -45,3 +46,17 @@ export function formatStock(product: PackInfo, quantity: number): string {
   if (rest > 0 || packs === 0) parts.push(`${rest} ${product.unit}`);
   return parts.join(' ');
 }
+
+/**
+ * Jumlah pada baris dokumen (distribusi/tugas) yang menyimpan satuan saat dibuat.
+ * Jika satuannya masih satuan dasar barang, tampil gabungan kemasan + satuan dasar (mis. "1 liter 500 ml").
+ */
+export function formatItemQuantity(quantity: number, itemUnit: string, product?: Partial<PackInfo> | null): string {
+  if (product?.unit && product.unit === itemUnit) {
+    return formatStock({ unit: product.unit, packUnit: product.packUnit, packSize: product.packSize }, quantity);
+  }
+  return `${quantity} ${itemUnit}`;
+}
+
+/** Field Prisma untuk select produk agar tampilan stok bisa digabung (kemasan + satuan dasar). */
+export const PACK_SELECT = { unit: true, packUnit: true, packSize: true } as const;

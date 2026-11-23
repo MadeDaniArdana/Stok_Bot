@@ -9,9 +9,11 @@ interface UnitInputProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** Sembunyikan teks petunjuk di bawah kolom (untuk tata letak sempit). */
+  compact?: boolean;
 }
 
-export function UnitInput({ id, value, onChange, disabled = false }: UnitInputProps) {
+export function UnitInput({ id, value, onChange, disabled = false, compact = false }: UnitInputProps) {
   const [options, setOptions] = useState(() => getProductUnitOptions([]));
   const [query, setQuery] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -105,7 +107,7 @@ export function UnitInput({ id, value, onChange, disabled = false }: UnitInputPr
         disabled={disabled}
         required
         autoComplete="off"
-        aria-describedby={`${id}-hint`}
+        aria-describedby={compact ? undefined : `${id}-hint`}
         placeholder="Pilih atau ketik satuan..."
         className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-9 text-slate-800 focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500/20 disabled:bg-slate-50"
       />
@@ -134,7 +136,7 @@ export function UnitInput({ id, value, onChange, disabled = false }: UnitInputPr
           ))}
         </ul>
       )}
-      <p id={`${id}-hint`} className="mt-1 text-[11px] text-slate-500">Pilih satuan atau ketik sendiri. Boleh menyertakan ukuran isi, misalnya botol 330ml atau botol 800gr.</p>
+      {!compact && <p id={`${id}-hint`} className="mt-1 text-[11px] text-slate-500">Pilih satuan atau ketik sendiri. Boleh menyertakan ukuran isi, misalnya botol 330ml atau botol 800gr.</p>}
     </div>
   );
 }

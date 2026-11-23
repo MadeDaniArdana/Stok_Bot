@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth-server';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
 import { resolveSummaryPeriod } from '@/lib/report-period';
 import { ReportService } from '@/services/report.service';
+import { formatStock } from '@/lib/product-units';
 
 const FONT = { fontFamily: 'Arial, Helvetica, sans-serif' };
 const cell = 'border border-black px-2 py-1';
@@ -114,9 +115,9 @@ export default async function PrintInventorySummaryPage({
                       <div className="font-semibold">{item.name}</div>
                       <div className="font-mono text-[9px] text-slate-600">{item.sku} · {item.stockGroupLabel}</div>
                     </td>
-                    <td className={`${cell} text-center`}>{item.remainingStock} {item.unit}</td>
-                    <td className={`${cell} text-center`}>{item.incomingStock ? `${item.incomingStock} ${item.unit}` : '-'}</td>
-                    <td className={`${cell} text-center font-bold`}>{item.totalStock} {item.unit}</td>
+                    <td className={`${cell} text-center`}>{formatStock(item, item.remainingStock)}</td>
+                    <td className={`${cell} text-center`}>{item.incomingStock ? formatStock(item, item.incomingStock) : '-'}</td>
+                    <td className={`${cell} text-center font-bold`}>{formatStock(item, item.totalStock)}</td>
                   </tr>
                 );
               })
@@ -156,9 +157,9 @@ export default async function PrintInventorySummaryPage({
                   <td className={cell}>{row.product.name}</td>
                   <td className={`${cell} font-mono text-[10px]`}>{row.product.sku}</td>
                   <td className={`${cell} text-center`}>{row.product.stockGroup}</td>
-                  <td className={`${cell} text-center font-semibold`}>{row.totalOut} {row.product.unit}</td>
+                  <td className={`${cell} text-center font-semibold`}>{formatStock(row.product, row.totalOut)}</td>
                   <td className={`${cell} text-center`}>{row.txCount}x</td>
-                  <td className={`${cell} text-center`}>{row.product.currentStock} {row.product.unit}</td>
+                  <td className={`${cell} text-center`}>{formatStock(row.product, row.product.currentStock)}</td>
                 </tr>
               ))
             )}

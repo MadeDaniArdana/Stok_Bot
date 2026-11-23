@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getAIProvider, ToolsNotSupportedError, type AITool, type ChatTurn, type ToolCall } from '@/lib/ai';
 import { getStockGroup } from '@/lib/stock-groups';
 import { personName } from '@/lib/deleted-account';
+import { formatStock, formatItemQuantity } from '@/lib/product-units';
 
 /**
  * Asisten AI StockFlow: menjawab pertanyaan tentang stok, tugas pemasangan, dan riwayat stok.
@@ -155,7 +156,7 @@ async function cariTugas(args: Record<string, unknown>) {
     prisma.installationTask.count({ where }),
     prisma.installationTask.findMany({
       where,
-      include: { product: { select: { name: true, unit: true } } },
+      include: { product: { select: { name: true, unit: true, packUnit: true, packSize: true } } },
       orderBy: { createdAt: 'desc' },
       take: 50,
     }),
@@ -166,7 +167,7 @@ async function cariTugas(args: Record<string, unknown>) {
     ditampilkan: tasks.length,
     tugas: tasks.map((task) => ({
       barang: task.product.name,
-      jumlah: `${task.quantity} ${task.product.unit}`,
+      jumlah: `${formatStock(task.product, task.quantity)}`,
       pemasang: task.assigneeName,
       lokasi: task.location,
       catatan: task.notes,
@@ -194,7 +195,7 @@ async function cariFotoDistribusi(args: Record<string, unknown>) {
     prisma.distribution.count({ where }),
     prisma.distribution.findMany({
       where,
-      include: { items: { include: { product: { select: { name: true } } } }, proofs: true },
+      include: { items: { include: { product: { select: { name: true, unit: true, packUnit: true, packSize: true } } } }, proofs: true },
       orderBy: { createdAt: 'desc' },
       take: 30,
     }),
@@ -214,7 +215,7 @@ async function cariFotoDistribusi(args: Record<string, unknown>) {
         nomor: row.number,
         petugas: row.handoverName,
         ruang: row.recipientUnit,
-        barang: row.items.map((item) => `${item.product.name} ${item.quantity} ${item.unit}`).join(', '),
+        barang: row.items.map((item) => `${item.product.name} ${formatItemQuantity(item.quantity, item.unit, item.product)}`).join(', '),
         tanggal_distribusi: formatDate(row.distributedAt),
         foto_dikirim: formatDate(row.proofUploadedAt ?? row.proofs[0]?.uploadedAt ?? null),
         status: foto.length ? 'selesai (foto terkirim)' : 'menunggu foto',
@@ -237,7 +238,7 @@ async function riwayatStok(args: Record<string, unknown>) {
     prisma.stockMovement.groupBy({ by: ['type'], where, _sum: { quantity: true }, _count: true }),
     prisma.stockMovement.findMany({
       where,
-      include: { product: { select: { name: true, unit: true } }, actor: { select: { name: true } } },
+      include: { product: { select: { name: true, unit: true, packUnit: true, packSize: true } }, actor: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 50,
     }),
@@ -251,7 +252,7 @@ async function riwayatStok(args: Record<string, unknown>) {
       waktu: formatDate(movement.createdAt),
       barang: movement.product.name,
       jenis: label[movement.type] ?? movement.type,
-      jumlah: `${movement.quantity} ${movement.product.unit}`,
+      jumlah: `${formatStock(movement.product, movement.quantity)}`,
       stok_sesudah: movement.stockAfter,
       oleh: personName(movement.actor?.name, movement.actorName),
       catatan: movement.notes,

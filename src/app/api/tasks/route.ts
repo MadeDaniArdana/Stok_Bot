@@ -5,6 +5,7 @@ import { apiError } from '@/lib/error-log';
 import { getCurrentReportMonth, getReportMonthRange } from '@/lib/report-period';
 import type { Prisma } from '@prisma/client';
 import { personName } from '@/lib/deleted-account';
+import { formatItemQuantity, formatStock } from '@/lib/product-units';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -131,7 +132,7 @@ export async function GET(req: NextRequest) {
             orderBy: [{ completedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
             take: Math.min(requestedPage, 1000) * pageSize,
             include: {
-              product: { select: { name: true, sku: true, unit: true } },
+              product: { select: { name: true, sku: true, unit: true, packUnit: true, packSize: true } },
               creator: { select: { name: true } },
             },
           })
@@ -141,7 +142,7 @@ export async function GET(req: NextRequest) {
             where: distributionWhere,
             take: 2000,
             include: {
-              items: { orderBy: { id: 'asc' }, include: { product: { select: { name: true, sku: true } } } },
+              items: { orderBy: { id: 'asc' }, include: { product: { select: { name: true, sku: true, unit: true, packUnit: true, packSize: true } } } },
               creator: { select: { name: true } },
               proofs: { orderBy: { uploadedAt: 'asc' } },
             },
@@ -158,7 +159,7 @@ export async function GET(req: NextRequest) {
         sku: task.product.sku,
         unit: task.product.unit,
         quantity: task.quantity,
-        quantityLabel: `${task.quantity} ${task.product.unit}`,
+        quantityLabel: formatStock(task.product, task.quantity),
         assigneeName: task.assigneeName,
         location: task.location,
         notes: task.notes,
@@ -181,7 +182,7 @@ export async function GET(req: NextRequest) {
           sku: distribution.number,
           unit: first?.unit ?? '',
           quantity: first?.quantity ?? 0,
-          quantityLabel: distribution.items.map((item) => `${item.quantity} ${item.unit}`).join(' + ') || '-',
+          quantityLabel: distribution.items.map((item) => formatItemQuantity(item.quantity, item.unit, item.product)).join(' + ') || '-',
           assigneeName: distribution.handoverName,
           location: distribution.recipientUnit,
           notes: distribution.notes,

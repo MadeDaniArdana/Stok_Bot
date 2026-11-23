@@ -6,6 +6,7 @@ import { getStockGroup, isStockGroup, type StockGroup } from '@/lib/stock-groups
 import { NotificationService } from './notification.service';
 import { deleteTaskProof, saveTaskProof } from '@/lib/task-proof-storage';
 import { normalizeWhatsAppNumber } from '@/lib/phone';
+import { formatStock } from '@/lib/product-units';
 
 const PROOF_TOKEN_PATTERN = /^[a-f0-9]{64}$/i;
 const hashProofToken = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -51,7 +52,7 @@ export interface DistributionListFilter {
 
 const itemInclude = {
   items: {
-    include: { product: { select: { id: true, name: true, sku: true, unit: true } } },
+    include: { product: { select: { id: true, name: true, sku: true, unit: true, packUnit: true, packSize: true } } },
     orderBy: { id: 'asc' as const },
   },
   creator: { select: { id: true, name: true } },
@@ -188,7 +189,7 @@ export class DistributionService {
             const fresh = await tx.product.findUnique({ where: { id: product.id }, select: { currentStock: true } });
             // Melempar error membatalkan seluruh transaksi, termasuk barang lain yang sudah dikurangi.
             throw new Error(
-              `Stok "${product.name}" tidak cukup: diminta ${short.quantity} ${product.unit}, tersedia ${fresh?.currentStock ?? 0} ${product.unit}.`
+              `Stok "${product.name}" tidak cukup: diminta ${formatStock(product, short.quantity)}, tersedia ${formatStock(product, fresh?.currentStock ?? 0)}.`
             );
           }
 
@@ -419,7 +420,7 @@ export class DistributionService {
         where: summaryWhere,
         select: {
           recipientUnit: true,
-          items: { select: { quantity: true, unit: true, product: { select: { id: true, name: true, sku: true } } } },
+          items: { select: { quantity: true, unit: true, product: { select: { id: true, name: true, sku: true, unit: true, packUnit: true, packSize: true } } } },
         },
       }),
       // Bulan (WIB) yang memiliki dokumen, untuk pintasan pilihan bulan di halaman laporan.
@@ -434,7 +435,7 @@ export class DistributionService {
     ]);
 
     const byUnit = new Map<string, { unit: string; documents: number; itemLines: number }>();
-    const byProduct = new Map<string, { productId: string; name: string; sku: string; unit: string; quantity: number; documents: number }>();
+    const byProduct = new Map<string, { productId: string; name: string; sku: string; unit: string; packUnit: string | null; packSize: number | null; quantity: number; documents: number }>();
     let totalLines = 0;
 
     for (const row of summaryRows) {
@@ -451,6 +452,9 @@ export class DistributionService {
           name: item.product.name,
           sku: item.product.sku,
           unit: item.unit,
+          // Kemasan hanya berlaku bila satuan baris masih sama dengan satuan dasar barang saat ini.
+          packUnit: item.product.unit === item.unit ? item.product.packUnit : null,
+          packSize: item.product.unit === item.unit ? item.product.packSize : null,
           quantity: 0,
           documents: 0,
         };

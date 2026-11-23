@@ -21,6 +21,7 @@ import {
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
 import { personName } from '@/lib/deleted-account';
+import { formatStock } from '@/lib/product-units';
 
 export default function StockHistoryPage() {
   const { showToast } = useToast();
@@ -399,7 +400,7 @@ export default function StockHistoryPage() {
                           }
                         >
                           {isIncoming ? '+' : isReversal ? '↺ ' : '-'}
-                          {m.quantity} {m.product?.unit}
+                          {m.product ? formatStock(m.product, m.quantity) : m.quantity}
                         </span>
                       </td>
 
@@ -490,7 +491,7 @@ export default function StockHistoryPage() {
                 <p>
                   Kuantitas: {reversalTarget.type === 'IN' ? 'Masuk' : 'Keluar'}{' '}
                   <strong>
-                    {reversalTarget.quantity} {reversalTarget.product?.unit}
+                    {reversalTarget.product ? formatStock(reversalTarget.product, reversalTarget.quantity) : reversalTarget.quantity}
                   </strong>
                 </p>
                 <p className="text-[11px] text-purple-700 mt-2">

@@ -79,6 +79,8 @@ export class ReportService {
           sku: true,
           name: true,
           unit: true,
+          packUnit: true,
+          packSize: true,
           currentStock: true,
           minimumStock: true,
           category: { select: { name: true, stockGroup: true } },
@@ -103,7 +105,7 @@ export class ReportService {
       prisma.stockMovement.findMany({
         where: movementPeriodWhere,
         include: {
-          product: { select: { name: true, sku: true, unit: true } },
+          product: { select: { name: true, sku: true, unit: true, packUnit: true, packSize: true } },
           actor: { select: { name: true, role: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -151,14 +153,14 @@ export class ReportService {
     const productById = new Map(
       allActiveProducts.map((p) => [
         p.id,
-        { id: p.id, name: p.name, sku: p.sku, unit: p.unit, currentStock: p.currentStock, stockGroup: getStockGroup(p.category?.stockGroup).shortLabel },
+        { id: p.id, name: p.name, sku: p.sku, unit: p.unit, packUnit: p.packUnit, packSize: p.packSize, currentStock: p.currentStock, stockGroup: getStockGroup(p.category?.stockGroup).shortLabel },
       ])
     );
     const missingProductIds = topOutGroups.map((g) => g.productId).filter((id) => !productById.has(id));
     if (missingProductIds.length > 0) {
       const inactiveTopProducts = await prisma.product.findMany({
         where: { id: { in: missingProductIds } },
-        select: { id: true, name: true, sku: true, unit: true, currentStock: true, category: { select: { stockGroup: true } } },
+        select: { id: true, name: true, sku: true, unit: true, packUnit: true, packSize: true, currentStock: true, category: { select: { stockGroup: true } } },
       });
       for (const p of inactiveTopProducts) {
         productById.set(p.id, {
@@ -166,13 +168,15 @@ export class ReportService {
           name: p.name,
           sku: p.sku,
           unit: p.unit,
+          packUnit: p.packUnit,
+          packSize: p.packSize,
           currentStock: p.currentStock,
           stockGroup: getStockGroup(p.category?.stockGroup).shortLabel,
         });
       }
     }
     const topConsumed = topOutGroups.map((g) => ({
-      product: productById.get(g.productId) ?? { id: g.productId, name: '-', sku: '-', unit: '', currentStock: 0, stockGroup: '-' },
+      product: productById.get(g.productId) ?? { id: g.productId, name: '-', sku: '-', unit: '', packUnit: null, packSize: null, currentStock: 0, stockGroup: '-' },
       totalOut: g._sum.quantity ?? 0,
       txCount: g._count._all,
     }));

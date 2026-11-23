@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowDownLeft, ArrowUpRight, RotateCcw, Send, Globe, ArrowRight } from 'lucide-react';
 import { personName } from '@/lib/deleted-account';
+import { formatStock } from '@/lib/product-units';
 
 interface Movement {
   id: string;
@@ -102,7 +103,7 @@ export function RecentActivity({ movements }: RecentActivityProps) {
                     }`}
                   >
                     {isIncoming ? '+' : isReversal ? '↺ ' : '-'}
-                    {m.quantity} {m.product.unit}
+                    {formatStock(m.product, m.quantity)}
                   </span>
                 </div>
 

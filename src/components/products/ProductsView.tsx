@@ -4,6 +4,7 @@ import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import dynamic from 'next/dynamic';
 import { UnitInput } from '@/components/products/UnitInput';
 import { formatStock } from '@/lib/product-units';
+import { checkPackSetup, type PackCheck } from '@/lib/unit-guard';
 import { cn } from '@/lib/cn';
 import { getStockGroup, type StockGroup } from '@/lib/stock-groups';
 
@@ -101,6 +102,10 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   // Edit kemasan untuk barang yang sudah berkemasan.
   const [formPackUnit, setFormPackUnit] = useState('');
   const [formRemovePack, setFormRemovePack] = useState(false);
+  // Barang tanpa satuan beli: aktifkan "1 <satuan beli> = <isi> <satuan dasar>".
+  const [formUsePack, setFormUsePack] = useState(false);
+  // Angka stok yang tersimpan sekarang dihitung dalam satuan beli atau satuan dasar (null = tebak otomatis).
+  const [formStockInManual, setFormStockInManual] = useState<'beli' | 'dasar' | null>(null);
   const [formMinStock, setFormMinStock] = useState('5');
   const [formDesc, setFormDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -166,14 +171,61 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
     setFormPackSize(p.packSize ? String(p.packSize) : '');
     setFormPackUnit(p.packUnit || '');
     setFormRemovePack(false);
+    setFormUsePack(false);
+    setFormStockInManual(null);
     setFormMinStock(String(p.minimumStock));
     setFormDesc(p.description || '');
+  };
+
+  // Satuan stok sekarang: otomatis "beli" bila nama satuan beli sama dengan satuan barang saat ini.
+  const stockIn: 'beli' | 'dasar' =
+    formStockInManual ??
+    (editingProduct && formPackUnit.trim().toLowerCase() === String(editingProduct.unit).toLowerCase() ? 'beli' : 'dasar');
+
+  // Pengaturan kemasan yang sedang diisi: "1 <pack> = <size> <base>".
+  const packDraft: { pack: string; size: number; base: string; stock: number } | null = (() => {
+    if (!editingProduct) return null;
+    const size = Number(formPackSize);
+    if (editingProduct.packSize) {
+      return formRemovePack ? null : { pack: formPackUnit, size, base: formUnit, stock: editingProduct.currentStock };
+    }
+    if (formUsePack && formPackUnit.trim() && formSubUnit.trim()) {
+      const factor = stockIn === 'beli' && Number.isFinite(size) && size > 0 ? size : 1;
+      return { pack: formPackUnit, size, base: formSubUnit, stock: editingProduct.currentStock * factor };
+    }
+    return null;
+  })();
+  const packCheck = packDraft && formPackSize ? checkPackSetup(packDraft.pack, packDraft.size, packDraft.base) : null;
+
+  // Tukar kemasan <-> satuan dasar bila tertukar.
+  const swapPack = () => {
+    if (!editingProduct) return;
+    if (editingProduct.packSize) {
+      const pack = formPackUnit;
+      setFormPackUnit(formUnit);
+      setFormUnit(pack);
+    } else if (formUsePack) {
+      setFormPackUnit(formSubUnit);
+      setFormSubUnit(formPackUnit);
+      // Angka stok tetap milik nama satuan yang sama, jadi perannya ikut berpindah.
+      setFormStockInManual(stockIn === 'beli' ? 'dasar' : 'beli');
+    }
   };
 
   // Handle Update Product
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
+    if (packCheck?.errors.length) {
+      showToast('Periksa Satuan Kemasan', packCheck.errors[0], 'error');
+      return;
+    }
+    if (packCheck?.warnings.length && packDraft) {
+      const ok = confirm(
+        `Periksa lagi pengaturan kemasan:\n\n1 ${packDraft.pack} = ${packDraft.size} ${packDraft.base}\n\n- ${packCheck.warnings.join('\n- ')}\n\nTetap simpan?`
+      );
+      if (!ok) return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -184,13 +236,21 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
           name: formName.trim(),
           description: formDesc.trim(),
           categoryId: formCategoryId || null,
-          unit: formUnit.trim().toLowerCase(),
+          ...(!editingProduct.packSize && formUsePack && formPackUnit.trim() && formSubUnit.trim()
+            ? {}
+            : { unit: formUnit.trim().toLowerCase() }),
           minimumStock: Number(formMinStock),
           ...(editingProduct.packSize
             ? formRemovePack
               ? { removePack: true }
               : { packUnit: formPackUnit.trim().toLowerCase(), packSize: Number(formPackSize) }
-            : formSubUnit.trim() && { subUnit: formSubUnit.trim().toLowerCase(), packSize: Number(formPackSize) }),
+            : formUsePack && formPackUnit.trim() && formSubUnit.trim()
+              ? stockIn === 'beli'
+                ? // Angka sekarang dalam satuan beli -> dikalikan isi menjadi satuan dasar.
+                  { unit: formPackUnit.trim().toLowerCase(), subUnit: formSubUnit.trim().toLowerCase(), packSize: Number(formPackSize) }
+                : // Angka sekarang sudah dalam satuan dasar -> tidak dikonversi.
+                  { unit: formSubUnit.trim().toLowerCase(), packUnit: formPackUnit.trim().toLowerCase(), packSize: Number(formPackSize) }
+              : {}),
         }),
       });
 
@@ -408,7 +468,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                       </td>
                       <td className="py-3.5 px-4 text-center font-bold text-sm">
                         <span className={isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'}>
-                          {p.packSize ? formatStock(p, p.currentStock) : p.currentStock}
+                          {formatStock(p, p.currentStock)}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center text-slate-500">
@@ -418,6 +478,11 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                         <span className="font-medium bg-slate-100 px-2 py-0.5 rounded text-[11px] text-slate-700">
                           {p.unit}
                         </span>
+                        {p.packUnit && p.packSize ? (
+                          <span className="mt-1 block whitespace-nowrap text-[10px] text-slate-500">
+                            1 {p.packUnit} = {p.packSize} {p.unit}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         {isZero ? (
@@ -539,7 +604,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
 
             <form onSubmit={handleUpdate} className="space-y-4 pt-4 text-sm">
               <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
-                Stok saat ini: <strong>{editingProduct.currentStock} {editingProduct.unit}</strong>. Gunakan tombol <strong>Tambah Barang / Stok</strong> di atas tabel untuk mencatat penerimaan. Stok keluar tercatat melalui <strong>Form Distribusi</strong> atau laporan pemasangan.
+                Stok saat ini: <strong>{formatStock(editingProduct, editingProduct.currentStock)}</strong>. Gunakan tombol <strong>Tambah Barang / Stok</strong> di atas tabel untuk mencatat penerimaan. Stok keluar tercatat melalui <strong>Form Distribusi</strong> atau laporan pemasangan.
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -589,21 +654,17 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="edit-product-unit" className="block font-semibold text-slate-700 mb-1">
-                    Satuan Dasar
-                  </label>
-                  <UnitInput
-                    id="edit-product-unit"
-                    value={formUnit}
-                    onChange={setFormUnit}
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <div>
+                {!editingProduct.packSize && !formUsePack && (
+                  <div>
+                    <label htmlFor="edit-product-unit" className="block font-semibold text-slate-700 mb-1">
+                      Satuan Barang
+                    </label>
+                    <UnitInput id="edit-product-unit" value={formUnit} onChange={setFormUnit} disabled={isSubmitting} />
+                  </div>
+                )}
+                <div className={editingProduct.packSize || formUsePack ? 'col-span-2' : ''}>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Batas Minimum Stok
+                    Batas Minimum Stok <span className="font-normal text-slate-500">(dalam {!editingProduct.packSize && formUsePack ? (stockIn === 'beli' ? formPackUnit : formSubUnit) || editingProduct.unit : formUnit || editingProduct.unit})</span>
                   </label>
                   <input
                     type="number"
@@ -613,75 +674,126 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                     onChange={(e) => setFormMinStock(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
                   />
+                  {editingProduct.packSize && !formRemovePack && Number(formPackSize) >= 2 && formMinStock !== '' && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      = {formatStock({ unit: formUnit, packUnit: formPackUnit, packSize: Number(formPackSize) }, Number(formMinStock))}
+                    </p>
+                  )}
                 </div>
               </div>
 
               {editingProduct.packSize ? (
-                <div className="rounded-lg border border-dashed border-slate-300 p-3">
-                  <p className="mb-2 font-semibold text-slate-700">Satuan kemasan</p>
-                  {formRemovePack ? (
-                    <p className="text-[11px] text-amber-700">
-                      Satuan kemasan akan dihapus. Stok tetap dicatat dalam <strong>{formUnit || editingProduct.unit}</strong>.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label htmlFor="edit-product-packunit" className="block text-[11px] text-slate-500 mb-1">Satuan kemasan (mis. dus, krat)</label>
-                        <UnitInput id="edit-product-packunit" value={formPackUnit} onChange={setFormPackUnit} disabled={isSubmitting} />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Isi per 1 {formPackUnit || 'kemasan'} ({formUnit || editingProduct.unit})</label>
-                        <input
-                          type="number"
-                          min="2"
-                          step="1"
-                          required
-                          value={formPackSize}
-                          onChange={(e) => setFormPackSize(e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
-                        />
-                      </div>
-                    </div>
-                  )}
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] text-slate-500">
-                      Stok, batas minimum, dan riwayat tetap dalam {formUnit || editingProduct.unit}; angkanya tidak berubah.
-                    </p>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="font-semibold text-slate-700">Satuan beli &amp; satuan dasar</p>
                     <button
                       type="button"
                       onClick={() => setFormRemovePack((v) => !v)}
                       disabled={isSubmitting}
                       className="text-[11px] font-semibold text-maroon-700 hover:underline"
                     >
-                      {formRemovePack ? 'Batal hapus kemasan' : 'Hapus satuan kemasan'}
+                      {formRemovePack ? 'Batal hapus satuan beli' : 'Hapus satuan beli'}
                     </button>
                   </div>
+                  {formRemovePack ? (
+                    <div>
+                      <label htmlFor="edit-product-unit" className="block text-[11px] text-slate-500 mb-1">Satuan barang</label>
+                      <UnitInput id="edit-product-unit" value={formUnit} onChange={setFormUnit} disabled={isSubmitting} />
+                      <p className="mt-2 text-[11px] text-amber-700">
+                        Satuan beli akan dihapus. Stok tetap dicatat dalam <strong>{formUnit || editingProduct.unit}</strong>, angkanya tidak berubah.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <PackSentence
+                        packField={<UnitInput id="edit-product-packunit" value={formPackUnit} onChange={setFormPackUnit} disabled={isSubmitting} compact />}
+                        sizeValue={formPackSize}
+                        onSizeChange={setFormPackSize}
+                        baseField={<UnitInput id="edit-product-unit" value={formUnit} onChange={setFormUnit} disabled={isSubmitting} compact />}
+                        onSwap={swapPack}
+                        disabled={isSubmitting}
+                      />
+                      <PackCheckPanel
+                        draft={packDraft}
+                        check={packCheck}
+                        onSwap={swapPack}
+                        onUseSize={(size) => setFormPackSize(String(size))}
+                        note="Mengubah nama satuan atau isi tidak mengubah angka stok yang tersimpan; hanya cara tampilnya."
+                      />
+                    </>
+                  )}
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed border-slate-300 p-3">
-                  <p className="mb-2 font-semibold text-slate-700">Bisa diambil per satuan kecil? (opsional)</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label htmlFor="edit-product-subunit" className="block text-[11px] text-slate-500 mb-1">Satuan kecil (mis. pcs, gram)</label>
-                      <UnitInput id="edit-product-subunit" value={formSubUnit} onChange={setFormSubUnit} disabled={isSubmitting} />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Isi per 1 {formUnit || 'satuan'}</label>
-                      <input
-                        type="number"
-                        min="2"
-                        step="1"
-                        value={formPackSize}
-                        onChange={(e) => setFormPackSize(e.target.value)}
-                        placeholder="mis. 24 atau 1000"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                  <label className="flex cursor-pointer items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formUsePack}
+                      disabled={isSubmitting}
+                      onChange={(e) => {
+                        setFormUsePack(e.target.checked);
+                        setFormStockInManual(null);
+                        setFormPackSize('');
+                        setFormPackUnit('');
+                        setFormSubUnit(e.target.checked ? formUnit : '');
+                      }}
+                      className="mt-0.5 h-4 w-4 accent-maroon-800"
+                    />
+                    <span>
+                      <span className="block font-semibold text-slate-700">Pakai satuan beli (opsional)</span>
+                      <span className="block text-[11px] text-slate-500">
+                        Jika barang dibeli dalam satuan lain dari saat distribusi, mis. beli per dus / liter, keluar per pcs / ml.
+                      </span>
+                    </span>
+                  </label>
+
+                  {formUsePack && (
+                    <div className="mt-3">
+                      <PackSentence
+                        packField={<UnitInput id="edit-product-packunit" value={formPackUnit} onChange={setFormPackUnit} disabled={isSubmitting} compact />}
+                        sizeValue={formPackSize}
+                        onSizeChange={setFormPackSize}
+                        baseField={<UnitInput id="edit-product-subunit" value={formSubUnit} onChange={setFormSubUnit} disabled={isSubmitting} compact />}
+                        onSwap={swapPack}
+                        disabled={isSubmitting}
+                      />
+
+                      {formPackUnit.trim() && formSubUnit.trim() && (
+                        <fieldset className="mt-3 rounded-md border border-slate-200 bg-white px-2.5 py-2">
+                          <legend className="px-1 text-[11px] font-semibold text-slate-600">
+                            Stok sekarang ({editingProduct.currentStock}) dihitung dalam:
+                          </legend>
+                          <div className="flex flex-wrap gap-4 text-xs">
+                            {(['beli', 'dasar'] as const).map((role) => (
+                              <label key={role} className="inline-flex cursor-pointer items-center gap-1.5">
+                                <input
+                                  type="radio"
+                                  name="stock-in"
+                                  checked={stockIn === role}
+                                  onChange={() => setFormStockInManual(role)}
+                                  className="accent-maroon-800"
+                                />
+                                <strong>{role === 'beli' ? formPackUnit : formSubUnit}</strong>
+                                <span className="text-slate-500">({role === 'beli' ? 'satuan beli' : 'satuan dasar'})</span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      )}
+
+                      <PackCheckPanel
+                        draft={packDraft}
+                        check={packCheck}
+                        onSwap={swapPack}
+                        onUseSize={(size) => setFormPackSize(String(size))}
+                        note={
+                          stockIn === 'beli'
+                            ? `Stok, batas minimum, dan riwayat akan dikalikan ${formPackSize || '?'} dan dicatat dalam ${formSubUnit || 'satuan dasar'}. Tidak bisa dibatalkan.`
+                            : `Angka stok tetap; dicatat dalam ${formSubUnit || 'satuan dasar'} tanpa konversi.`
+                        }
+                        noteTone={stockIn === 'beli' ? 'warn' : 'muted'}
                       />
                     </div>
-                  </div>
-                  {formSubUnit.trim() && (
-                    <p className="mt-2 text-[11px] text-amber-700">
-                      Stok, batas minimum, dan riwayat barang ini akan dikonversi ke {formSubUnit.trim()} (1 {formUnit} = {formPackSize || '?'} {formSubUnit.trim()}). Tidak bisa dibatalkan.
-                    </p>
                   )}
                 </div>
               )}
@@ -708,7 +820,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={Boolean(packCheck?.errors.length) || isSubmitting}
                   className="px-4 py-2 rounded-lg bg-maroon-800 hover:bg-maroon-900 active:bg-maroon-950 text-white font-semibold transition-colors disabled:opacity-50"
                 >
                   {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
@@ -729,5 +841,128 @@ export function ProductsView({ stockGroup }: { stockGroup: StockGroup | null }) 
     <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Memuat Master Barang...</div>}>
       <ProductsContent key={stockGroup ?? 'all'} stockGroup={stockGroup} />
     </Suspense>
+  );
+}
+
+/** Kalimat kemasan: "1 [kemasan] berisi [isi] [satuan dasar]" dengan label besar/kecil yang jelas. */
+function PackSentence({
+  packField,
+  sizeValue,
+  onSizeChange,
+  baseField,
+  onSwap,
+  disabled,
+}: {
+  packField: React.ReactNode;
+  sizeValue: string;
+  onSizeChange: (value: string) => void;
+  baseField: React.ReactNode;
+  onSwap: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_5.5rem_minmax(0,1fr)] items-start gap-2">
+      <span className="pt-2.5 text-sm font-bold text-slate-700">1</span>
+      <div>
+        {packField}
+        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Satuan beli (saat tambah stok)</p>
+      </div>
+      <div className="flex flex-col items-center">
+        <span className="pt-2.5 text-xs text-slate-500">berisi</span>
+        <button
+          type="button"
+          onClick={onSwap}
+          disabled={disabled}
+          title="Tukar satuan beli dan satuan dasar"
+          className="mt-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
+        >
+          ⇄ Tukar
+        </button>
+      </div>
+      <div>
+        <input
+          type="number"
+          min="2"
+          step="1"
+          required
+          value={sizeValue}
+          onChange={(e) => onSizeChange(e.target.value)}
+          placeholder="isi"
+          aria-label="Isi per kemasan"
+          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2.5 text-center text-slate-800 focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500/20"
+        />
+        <p className="mt-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Isi</p>
+      </div>
+      <div>
+        {baseField}
+        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Satuan dasar (kecil)</p>
+      </div>
+    </div>
+  );
+}
+
+/** Satuan yang tidak bisa diubah di mode ini (mis. satuan barang saat ini). */
+function FixedUnit({ unit }: { unit: string }) {
+  return (
+    <div className="flex h-[42px] items-center rounded-lg border border-slate-200 bg-slate-100 px-3 font-semibold text-slate-700">
+      {unit || '-'}
+    </div>
+  );
+}
+
+/** Ringkasan + pemeriksaan kemasan: kalimat hasil, contoh tampilan stok, error/peringatan dengan tombol perbaikan. */
+function PackCheckPanel({
+  draft,
+  check,
+  onSwap,
+  onUseSize,
+  note,
+  noteTone = 'muted',
+}: {
+  draft: { pack: string; size: number; base: string; stock: number } | null;
+  check: PackCheck | null;
+  onSwap: () => void;
+  onUseSize: (size: number) => void;
+  note: string;
+  noteTone?: 'muted' | 'warn';
+}) {
+  const pack = draft?.pack.trim().toLowerCase() || '';
+  const base = draft?.base.trim().toLowerCase() || '';
+  const valid = Boolean(draft && pack && base && Number.isSafeInteger(draft.size) && draft.size >= 2);
+  return (
+    <div className="mt-3 space-y-2 text-[11px]">
+      {valid && draft && (
+        <div className={cn('rounded-md border px-2.5 py-2', check?.errors.length ? 'border-rose-200 bg-rose-50' : check?.warnings.length ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50')}>
+          <p className="text-[13px] font-bold text-slate-900">
+            1 {pack} = {draft.size} {base}
+          </p>
+          <p className="text-slate-600">
+            Stok sekarang akan tampil: <strong>{formatStock({ unit: base, packUnit: pack, packSize: draft.size }, draft.stock)}</strong>
+            {' '}· contoh 1.5 {pack} = {formatStock({ unit: base, packUnit: pack, packSize: draft.size }, Math.round(draft.size * 1.5))}
+          </p>
+        </div>
+      )}
+      {check?.errors.map((msg) => (
+        <p key={msg} className="rounded-md bg-rose-50 px-2 py-1 font-medium text-rose-700">✖ {msg}</p>
+      ))}
+      {check?.warnings.map((msg) => (
+        <p key={msg} className="rounded-md bg-amber-50 px-2 py-1 text-amber-800">⚠ {msg}</p>
+      ))}
+      {(check?.maybeSwapped || check?.suggestedSize) && (
+        <div className="flex flex-wrap gap-2">
+          {check.maybeSwapped && (
+            <button type="button" onClick={onSwap} className="rounded-md border border-maroon-200 bg-white px-2 py-1 font-semibold text-maroon-800 hover:bg-maroon-50">
+              ⇄ Tukar satuan beli &amp; satuan dasar
+            </button>
+          )}
+          {check.suggestedSize && (
+            <button type="button" onClick={() => onUseSize(check.suggestedSize!)} className="rounded-md border border-maroon-200 bg-white px-2 py-1 font-semibold text-maroon-800 hover:bg-maroon-50">
+              Pakai isi {check.suggestedSize}
+            </button>
+          )}
+        </div>
+      )}
+      <p className={noteTone === 'warn' ? 'text-amber-700' : 'text-slate-500'}>{note}</p>
+    </div>
   );
 }

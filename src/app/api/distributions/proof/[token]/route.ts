@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
 import { DistributionService } from '@/services/distribution.service';
+import { formatItemQuantity } from '@/lib/product-units';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +27,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
         location,
         items: distribution.items
           .filter((item) => (item.location || distribution.recipientUnit) === location)
-          .map((item) => `${item.product.name} - ${item.quantity} ${item.unit}`)
+          .map((item) => `${item.product.name} - ${formatItemQuantity(item.quantity, item.unit, item.product)}`)
           .join(', '),
         done: Boolean(proof) || legacy,
         photoUrl: proof || legacy ? `${base}?location=${encodeURIComponent(location)}` : null,
@@ -38,7 +39,7 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
       productName: first?.product.name ?? '-',
       quantity: first?.quantity ?? 0,
       unit: first?.unit ?? '',
-      itemsSummary: distribution.items.map((item) => `${item.product.name} - ${item.quantity} ${item.unit}`).join(', '),
+      itemsSummary: distribution.items.map((item) => `${item.product.name} - ${formatItemQuantity(item.quantity, item.unit, item.product)}`).join(', '),
       assigneeName: distribution.handoverName,
       location: distribution.recipientUnit,
       notes: distribution.notes,

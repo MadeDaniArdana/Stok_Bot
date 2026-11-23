@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         take: limit,
         include: {
           product: {
-            select: { id: true, name: true, sku: true, unit: true },
+            select: { id: true, name: true, sku: true, unit: true, packUnit: true, packSize: true },
           },
           actor: {
             select: { id: true, name: true, role: true, email: true, telegram: { select: { username: true } } },

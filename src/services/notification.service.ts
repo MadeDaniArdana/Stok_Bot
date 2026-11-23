@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage, sendTelegramPhoto } from '@/lib/telegram-client';
 import { readTaskProof } from '@/lib/task-proof-storage';
 import { logError } from '@/lib/error-log';
+import { formatStock } from '@/lib/product-units';
 
 export class NotificationService {
   /**
@@ -28,7 +29,7 @@ export class NotificationService {
           data: {
             productId,
             type: 'OUT_OF_STOCK',
-            message: `PERINGATAN KRITIS: ${product.name} (SKU: ${product.sku}) telah HABIS (Stok: 0 ${product.unit}). Segera lakukan pengadaan!`,
+            message: `PERINGATAN KRITIS: ${product.name} (SKU: ${product.sku}) telah HABIS (Stok: ${formatStock(product, 0)}). Segera lakukan pengadaan!`,
             dedupeKey,
             isRead: false,
           },
@@ -50,7 +51,7 @@ export class NotificationService {
           data: {
             productId,
             type: 'LOW_STOCK',
-            message: `PERHATIAN: Stok ${product.name} tersisa ${stockAfter} ${product.unit}, sudah di bawah/mencapai batas minimum (${product.minimumStock} ${product.unit}).`,
+            message: `PERHATIAN: Stok ${product.name} tersisa ${formatStock(product, stockAfter)}, sudah di bawah/mencapai batas minimum (${formatStock(product, product.minimumStock)}).`,
             dedupeKey,
             isRead: false,
           },
