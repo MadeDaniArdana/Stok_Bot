@@ -54,14 +54,15 @@ async function loadImageDataUrl(src: string): Promise<string | null> {
 /** Buat & unduh PDF A4 Riwayat Stok (Stok Lama, Stok Baru, Total, Keluar, Sisa Akhir) di browser. */
 export async function downloadStockPositionPdf(
   report: StockPositionPdfReport,
-  options: { groupLabel: string; groupSlug: string; rows?: StockPositionPdfRow[] }
+  /** scopeLabel: judul cakupan di kop, mis. "Jenis Stok" (bawaan) atau "Kategori". */
+  options: { groupLabel: string; groupSlug: string; rows?: StockPositionPdfRow[]; scopeLabel?: string }
 ) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 12;
   const rows = options.rows ?? report.rows;
-  const showAdj = report.hasAdjustment;
+  const showAdj = options.rows ? rows.some((r) => r.adjustment !== 0) : report.hasAdjustment;
 
   // Kop
   const logo = await loadImageDataUrl('/logo-yayasan.png');
@@ -90,7 +91,7 @@ export async function downloadStockPositionPdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text(
-    `Jenis Stok: ${options.groupLabel}  ·  Periode: ${report.period.label}  ·  Dicetak: ${today}`,
+    `${options.scopeLabel ?? 'Jenis Stok'}: ${options.groupLabel}  ·  Periode: ${report.period.label}  ·  Dicetak: ${today}`,
     pageWidth / 2,
     39,
     { align: 'center' }

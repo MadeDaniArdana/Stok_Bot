@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config: Config = {
   content: [
@@ -48,6 +49,9 @@ const config: Config = {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    // Sidebar ringkas: atribut di <html> dipasang sebelum halaman digambar (lihat app/layout.tsx), jadi tanpa kedip.
+    plugin(({ addVariant }) => addVariant("mini", 'html[data-sidebar="mini"] &')),
+  ],
 };
 export default config;

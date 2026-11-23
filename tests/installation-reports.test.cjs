@@ -279,3 +279,14 @@ test('permintaan tanpa sesi admin ditolak 401 sebelum menyentuh database', async
   assert.equal(res.status, 401);
   assert.equal(api.calls.length, 0);
 });
+
+test('shiftMonth melintasi pergantian tahun (dipakai cache sisa akhir bulanan)', () => {
+  const { shiftMonth } = loadTypeScript('src/services/stock-snapshot.service.ts', {
+    '@/lib/prisma': { prisma: {} },
+    '@/lib/report-period': period,
+  });
+  assert.equal(shiftMonth('2026-11', 1), '2026-12');
+  assert.equal(shiftMonth('2026-12', 1), '2027-01');
+  assert.equal(shiftMonth('2027-01', -1), '2026-12');
+  assert.equal(shiftMonth('2026-03', -15), '2024-12');
+});

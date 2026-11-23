@@ -55,6 +55,7 @@ model Product {
   distributionItems DistributionItem[]
   templateItems     DistributionTemplateItem[]
   notifications     Notification[]
+  monthlySnapshots  StockMonthlySnapshot[]
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
 
@@ -85,6 +86,20 @@ model StockMovement {
   @@index([createdAt])
   // Mencari transaksi milik dokumen distribusi/tugas dan transaksi pembalik.
   @@index([referenceId])
+}
+
+/// Sisa stok akhir bulan per barang (cache laporan), hanya untuk bulan yang sudah lewat (WIB).
+/// Dibuat otomatis saat laporan dibuka; aman dihapus kapan saja (akan dihitung ulang dari riwayat).
+model StockMonthlySnapshot {
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Bulan WIB, format YYYY-MM.
+  month        String
+  closingStock Int
+  createdAt    DateTime @default(now())
+
+  @@id([productId, month])
+  @@index([month])
 }
 
 model TelegramUser {
@@ -188,8 +203,8 @@ model Notification {
 // Form Distribusi Barang (pengiriman barang ke unit/ruang). Setiap item mengurangi stok
 // lewat StockMovement OUT dengan referenceId = id distribusi.
 model Distribution {
-  id              String             @id @default(uuid())
-  number          String             @unique // contoh: ATK-202611-001
+  id              String              @id @default(uuid())
+  number          String              @unique // contoh: ATK-202611-001
   stockGroup      String // LISTRIK, LOGISTIK, ATK
   recipientUnit   String // "Kepada" (unit/bagian) atau "Ruang" untuk peralatan listrik
   orderNumber     String? // No. Nota Pesanan
@@ -199,7 +214,7 @@ model Distribution {
   handoverName    String // Yang menyerahkan / petugas
   officerPhone    String? // No. WhatsApp petugas (opsional, format 62xxx), untuk kirim link foto
   notes           String?
-  status          String             @default("COMPLETED") // COMPLETED, CANCELLED
+  status          String              @default("COMPLETED") // COMPLETED, CANCELLED
   cancelReason    String?
   cancelledAt     DateTime?
   // Foto bukti lewat link (khusus Peralatan Listrik), mirip tugas pemasangan di Telegram.
@@ -208,12 +223,12 @@ model Distribution {
   proofMimeType   String?
   proofUploadedAt DateTime?
   creatorUserId   String?
-  creator         User?              @relation(fields: [creatorUserId], references: [id], onDelete: SetNull)
+  creator         User?               @relation(fields: [creatorUserId], references: [id], onDelete: SetNull)
   creatorName     String? // nama pencatat, disalin saat akunnya dihapus
   items           DistributionItem[]
   // Foto bukti per lokasi pemasangan (Peralatan Listrik dengan lebih dari satu ruang).
   proofs          DistributionProof[]
-  createdAt       DateTime           @default(now())
+  createdAt       DateTime            @default(now())
 
   @@index([stockGroup, distributedAt])
   @@index([status])

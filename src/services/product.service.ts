@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { StockSnapshotService } from './stock-snapshot.service';
 import { normalizeProductUnit } from '@/lib/product-units';
 import { checkPackSetup } from '@/lib/unit-guard';
 import type { StockGroup } from '@/lib/stock-groups';
@@ -243,6 +244,8 @@ export class ProductService {
           data: { quantity: { multiply: size }, stockBefore: { multiply: size }, stockAfter: { multiply: size } },
         });
         await tx.distributionTemplateItem.updateMany({ where: { productId: id }, data: { quantity: { multiply: size } } });
+        // Riwayat lama berubah angka -> cache sisa akhir bulanan barang ini dihitung ulang.
+        await StockSnapshotService.invalidateProduct(id, tx);
         await tx.installationTask.updateMany({ where: { productId: id }, data: { quantity: { multiply: size } } });
         await tx.product.update({ where: { id }, data: { currentStock: { multiply: size }, minimumStock: { multiply: size } } });
         pack = { unit: subUnit, packUnit: input.unit !== undefined ? normalizeProductUnit(input.unit) : existing.unit, packSize: size };

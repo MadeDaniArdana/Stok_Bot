@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Bell,
   Send,
   Clock,
@@ -39,9 +41,11 @@ function HeaderClock() {
 
 interface HeaderProps {
   onToggleMobile: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export function Header({ onToggleMobile }: HeaderProps) {
+export function Header({ onToggleMobile, sidebarCollapsed, onToggleSidebar }: HeaderProps) {
   const { currentUser, logout } = useAuth();
   const { showToast } = useToast();
 
@@ -143,6 +147,18 @@ export function Header({ onToggleMobile }: HeaderProps) {
         >
           <Menu className="w-5 h-5" />
         </button>
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="hidden lg:inline-flex p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+            aria-label={sidebarCollapsed ? 'Tampilkan menu samping' : 'Ringkas menu samping'}
+            title={sidebarCollapsed ? 'Tampilkan menu' : 'Sembunyikan menu'}
+          >
+            <PanelLeftClose className="w-5 h-5 mini:hidden" />
+            <PanelLeftOpen className="w-5 h-5 hidden mini:block" />
+          </button>
+        )}
 
         <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
           <Clock className="w-3.5 h-3.5 text-maroon-700" />

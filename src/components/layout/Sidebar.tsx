@@ -14,6 +14,8 @@ import {
   ShieldCheck,
   UserCheck,
   Truck,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { prefetchDistributionBootstrap } from '@/lib/distribution-bootstrap';
@@ -24,6 +26,10 @@ import { parseStockGroup } from '@/lib/stock-groups';
 interface SidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  /** Desktop: hanya ikon. Di HP laci menu selalu tampil penuh. */
+  collapsed?: boolean;
+  onExpand?: () => void;
+  onToggleCollapse?: () => void;
 }
 
 interface NavChild {
@@ -113,7 +119,11 @@ const NAV_ITEMS: NavSection[] = [
   },
 ];
 
-export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collapsed = false, onExpand, onToggleCollapse }: SidebarProps) {
+  // Kelas yang hanya berlaku di desktop saat sidebar diringkas (laci HP tetap penuh).
+  // Gaya ringkas lewat CSS (variant mini:), bukan state, agar tidak berkedip saat halaman pertama dimuat.
+  const hideMini = 'lg:mini:hidden';
+  const centerMini = 'lg:mini:justify-center lg:mini:px-0';
   const pathname = usePathname();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -186,16 +196,14 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-white border-r border-slate-200 flex flex-col transition-[transform,width] duration-300 ease-in-out lg:translate-x-0 lg:mini:w-[4.5rem] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-gradient-to-r from-white via-white to-maroon-50/40">
+        <div className={`h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-gradient-to-r from-white via-white to-maroon-50/40 ${centerMini}`}>
           <Link href="/dashboard" className="flex items-center gap-3 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-yayasan.png" alt="Logo Yayasan Pendidikan Teknokrat" width={40} height={40} className="h-10 w-10 object-contain group-hover:scale-105 transition-transform" />
-            <div>
+            <div className={hideMini}>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-lg tracking-tight text-slate-900">Stock</span>
                 <span className="font-bold text-lg tracking-tight text-maroon-800">Flow</span>
@@ -213,12 +221,13 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
         </div>
 
         {/* Navigation list */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-6 lg:mini:space-y-3">
           {NAV_ITEMS.map((section, idx) => (
             <div key={idx} className="space-y-1">
-              <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <p className={`px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 ${hideMini}`}>
                 {section.title}
               </p>
+              {idx > 0 && <div className="hidden lg:mini:block mx-2 mb-2 border-t border-slate-200" />}
               {section.items.map((item) => {
                 if (item.adminOnly && !isAdmin) return null;
                 const Icon = item.icon;
@@ -232,21 +241,32 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
                     <div key={item.href}>
                       <button
                         type="button"
-                        onClick={() => toggleMenu(item.href)}
+                        onClick={() => {
+                          // Mode ringkas: klik ikon membuka sidebar lalu sub menunya.
+                          if (collapsed && window.matchMedia('(min-width: 1024px)').matches) {
+                            onExpand?.();
+                            setOpenMenus((current) => new Set(current).add(item.href));
+                            return;
+                          }
+                          toggleMenu(item.href);
+                        }}
                         aria-expanded={open}
                         aria-controls={menuId}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm leading-6 font-medium transition-all group ${
-                          childActive ? 'text-maroon-900 font-semibold' : 'text-slate-600 hover:text-maroon-900 hover:bg-maroon-50/50'
+                        title={collapsed ? item.name : undefined}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm leading-6 font-medium transition-all group ${centerMini} ${
+                          childActive
+                            ? 'text-maroon-900 font-semibold lg:mini:bg-maroon-50'
+                            : 'text-slate-600 hover:text-maroon-900 hover:bg-maroon-50/50'
                         }`}
                       >
                         <span className="flex items-center gap-3">
-                          <Icon className={`w-4 h-4 transition-colors ${childActive ? 'text-maroon-800' : 'text-slate-400 group-hover:text-maroon-700'}`} />
-                          {item.name}
+                          <Icon className={`w-4 h-4 shrink-0 transition-colors ${childActive ? 'text-maroon-800' : 'text-slate-400 group-hover:text-maroon-700'}`} />
+                          <span className={`whitespace-nowrap ${hideMini}`}>{item.name}</span>
                         </span>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''} ${hideMini}`} />
                       </button>
                       {open && (
-                        <div id={menuId} className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-3">
+                        <div id={menuId} className={`ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-3 ${hideMini}`}>
                           {children.map((child) => {
                             const active = matches(child.href);
                             const warm = () => warmHref(child.href);
@@ -283,7 +303,8 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
                     onClick={onCloseMobile}
                     onMouseEnter={() => warmHref(item.href)}
                     onFocus={() => warmHref(item.href)}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm leading-6 font-medium transition-all group ${
+                    title={collapsed ? item.name : undefined}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm leading-6 font-medium transition-all group ${centerMini} ${
                       isActive
                         ? 'bg-maroon-50 text-maroon-900 font-semibold shadow-sm'
                         : 'text-slate-600 hover:text-maroon-900 hover:bg-maroon-50/50'
@@ -291,16 +312,16 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
                   >
                     <div className="flex items-center gap-3">
                       <Icon
-                        className={`w-4 h-4 transition-colors ${
+                        className={`w-4 h-4 shrink-0 transition-colors ${
                           isActive ? 'text-maroon-800' : 'text-slate-400 group-hover:text-maroon-700'
                         }`}
                       />
-                      <span>{item.name}</span>
+                      <span className={`whitespace-nowrap ${hideMini}`}>{item.name}</span>
                     </div>
 
                     {item.badge && (
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${hideMini} ${
                           item.badge === 'IN'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-maroon-100 text-maroon-800 border border-maroon-200'
@@ -318,9 +339,25 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
 
         {/* User Card at bottom of sidebar */}
         <div className="p-3 border-t border-slate-100 bg-slate-50/70">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-white border border-slate-200/80 shadow-soft">
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className={`hidden lg:flex w-full items-center gap-2 mb-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-maroon-900 hover:bg-white ${centerMini}`}
+              title={collapsed ? 'Tampilkan menu' : 'Sembunyikan menu'}
+              aria-label={collapsed ? 'Tampilkan menu samping' : 'Ringkas menu samping'}
+            >
+              <ChevronsLeft className="w-4 h-4 mini:hidden" />
+              <ChevronsRight className="w-4 h-4 hidden mini:block" />
+              <span className={hideMini}>Sembunyikan menu</span>
+            </button>
+          )}
+          <div
+            className="flex items-center gap-3 p-2 rounded-xl bg-white border border-slate-200/80 shadow-soft lg:mini:justify-center lg:mini:border-0 lg:mini:bg-transparent lg:mini:shadow-none lg:mini:p-0"
+            title={collapsed ? currentUser?.name : undefined}
+          >
             <div
-              className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-xs ${
+              className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center font-bold text-white text-xs ${
                 isAdmin
                   ? 'bg-gradient-to-br from-maroon-800 to-maroon-950'
                   : 'bg-gradient-to-br from-slate-600 to-slate-800'
@@ -328,7 +365,7 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile }: Side
             >
               {currentUser?.name ? currentUser.name.substring(0, 2).toUpperCase() : 'SF'}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className={`flex-1 min-w-0 ${hideMini}`}>
               <p className="text-sm font-medium text-slate-800 truncate">
                 {currentUser?.name || 'Memuat...'}
               </p>

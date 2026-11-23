@@ -7,6 +7,7 @@ import { formatStock } from '@/lib/product-units';
 import { checkPackSetup, type PackCheck } from '@/lib/unit-guard';
 import { cn } from '@/lib/cn';
 import { getStockGroup, type StockGroup } from '@/lib/stock-groups';
+import { getCurrentReportMonth } from '@/lib/report-period';
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -16,6 +17,7 @@ import {
   Edit2,
   Power,
   Trash2,
+  Scale,
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
@@ -31,6 +33,18 @@ const StockEntryForm = dynamic(
   () => import('@/components/products/StockEntryForm').then((mod) => mod.StockEntryForm),
   { ssr: false, loading: () => <p className="p-6 text-sm text-slate-500">Memuat formulir...</p> }
 );
+
+/** Baris laporan posisi stok -> Map per id barang. */
+function toPositionMap(report: any): Map<string, any> {
+  return new Map((report?.rows || []).map((row: any) => [row.id, row]));
+}
+
+/** Label bulan "2026-11" -> "November 2026". */
+function monthLabel(value: string) {
+  const [y, m] = value.split('-').map(Number);
+  if (!y || !m) return value;
+  return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, 15)));
+}
 
 function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const router = useRouter();
@@ -110,6 +124,20 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const [formDesc, setFormDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Penyesuaian stok (stok opname) di modal edit.
+  const [adjQty, setAdjQty] = useState('');
+  const [adjUnit, setAdjUnit] = useState<'base' | 'pack'>('base');
+  const [adjReason, setAdjReason] = useState('');
+  const [adjSubmitting, setAdjSubmitting] = useState(false);
+
+  // Posisi stok per bulan (stok sisa, baru, total, keluar, sisa akhir) untuk kolom tabel.
+  const currentMonth = getCurrentReportMonth();
+  const [periodMonth, setPeriodMonth] = useState(currentMonth);
+  const positionUrl = `/api/reports/stock-position?periode=${periodMonth}${stockGroup ? `&jenis=${stockGroup}` : ''}`;
+  const [positions, setPositions] = useState<Map<string, any>>(() => toPositionMap(getSwrCache<any>(positionUrl)));
+  const [positionLoading, setPositionLoading] = useState(false);
+  const isCurrentMonth = periodMonth === currentMonth;
+
   // Fetch products
   // Penanda permintaan terbaru + AbortController agar respons lama tidak menimpa hasil filter terbaru.
   const latestRequest = useRef(0);
@@ -136,6 +164,27 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
       if (requestId === latestRequest.current) setLoading(false);
     }
   };
+
+  const positionRequest = useRef(0);
+  const fetchPositions = async (force = false) => {
+    if (!isAdmin) return;
+    const requestId = ++positionRequest.current;
+    const cached = getSwrCache<any>(positionUrl);
+    if (cached && !force) setPositions(toPositionMap(cached));
+    else setPositionLoading(true);
+    try {
+      const data = await fetchSwrJson<any>(positionUrl, { force });
+      if (requestId === positionRequest.current) setPositions(toPositionMap(data));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (requestId === positionRequest.current) setPositionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPositions();
+  }, [positionUrl, isAdmin]);
 
   // Fetch categories
   const fetchCategories = async () => {
@@ -175,6 +224,64 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
     setFormStockInManual(null);
     setFormMinStock(String(p.minimumStock));
     setFormDesc(p.description || '');
+    setAdjQty('');
+    setAdjUnit('base');
+    setAdjReason('');
+  };
+
+  // Stok fisik yang diisi, dikonversi ke satuan dasar.
+  const adjActual = (() => {
+    if (!editingProduct || adjQty.trim() === '') return null;
+    const n = Number(adjQty);
+    if (!Number.isFinite(n) || n < 0) return null;
+    const factor = adjUnit === 'pack' && editingProduct.packSize ? editingProduct.packSize : 1;
+    const base = n * factor;
+    return Number.isSafeInteger(base) ? base : null;
+  })();
+  const adjDiff = adjActual === null || !editingProduct ? null : adjActual - editingProduct.currentStock;
+
+  const refreshAfterStockChange = () => {
+    invalidateSwrPrefix('/api/products');
+    invalidateSwrPrefix('/api/reports');
+    invalidateSwrPrefix('/api/stock');
+    clearDistributionBootstrapCache();
+    fetchProducts(true);
+    fetchPositions(true);
+  };
+
+  const handleAdjust = async () => {
+    if (!editingProduct || adjActual === null || !adjDiff) return;
+    if (!adjReason.trim()) {
+      showToast('Alasan Wajib Diisi', 'Tulis alasan penyesuaian, mis. hasil stok opname, barang rusak, atau salah input.', 'error');
+      return;
+    }
+    const sign = adjDiff > 0 ? '+' : '-';
+    if (!confirm(`Sesuaikan stok "${editingProduct.name}"?
+
+${formatStock(editingProduct, editingProduct.currentStock)} -> ${formatStock(editingProduct, adjActual)} (${sign}${formatStock(editingProduct, Math.abs(adjDiff))})
+
+Alasan: ${adjReason.trim()}`)) return;
+
+    try {
+      setAdjSubmitting(true);
+      const res = await fetch('/api/stock/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: editingProduct.id, actualStock: adjActual, reason: adjReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Penyesuaian gagal disimpan.');
+
+      showToast('Stok Disesuaikan', `Stok "${editingProduct.name}" sekarang ${formatStock(editingProduct, adjActual)}.`);
+      setEditingProduct({ ...editingProduct, currentStock: adjActual });
+      setAdjQty('');
+      setAdjReason('');
+      refreshAfterStockChange();
+    } catch (err: any) {
+      showToast('Gagal Menyesuaikan', err.message, 'error');
+    } finally {
+      setAdjSubmitting(false);
+    }
   };
 
   // Satuan stok sekarang: otomatis "beli" bila nama satuan beli sama dengan satuan barang saat ini.
@@ -354,7 +461,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-soft space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-3', isAdmin ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
           {/* Search Input */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -409,7 +516,37 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
               <option value="inactive">Nonaktif Saja</option>
             </select>
           </div>
+
+          {/* Periode kolom stok */}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={periodMonth}
+                max={currentMonth}
+                onChange={(e) => e.target.value && setPeriodMonth(e.target.value)}
+                aria-label="Periode stok per bulan"
+                title="Periode kolom stok sisa / baru / keluar"
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
+              />
+              {!isCurrentMonth && (
+                <button
+                  type="button"
+                  onClick={() => setPeriodMonth(currentMonth)}
+                  className="shrink-0 text-[11px] font-semibold text-maroon-700 hover:underline"
+                >
+                  Bulan ini
+                </button>
+              )}
+            </div>
+          )}
         </div>
+        {isAdmin && (
+          <p className="text-[11px] text-slate-500">
+            Kolom stok periode <strong>{monthLabel(periodMonth)}</strong>: Stok Sisa = sisa dari bulan sebelumnya, Stok Baru = barang masuk bulan ini, Total = Sisa + Baru, Sisa Akhir = Total − Keluar ± penyesuaian.
+            {positionLoading && ' Memuat...'}
+          </p>
+        )}
       </div>
 
       {/* Table Card */}
@@ -421,7 +558,17 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                 <th className="py-3.5 px-4">Kode SKU</th>
                 <th className="py-3.5 px-4">Nama Barang</th>
                 <th className="py-3.5 px-4">Kategori</th>
-                <th className="py-3.5 px-4 text-center">Stok Saat Ini</th>
+                {isAdmin ? (
+                  <>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Stok Sisa</th>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Stok Baru</th>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Total Stok</th>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Barang Keluar</th>
+                    <th className="py-3.5 px-3 text-center whitespace-nowrap">{isCurrentMonth ? 'Stok Saat Ini' : 'Sisa Akhir'}</th>
+                  </>
+                ) : (
+                  <th className="py-3.5 px-4 text-center">Stok Saat Ini</th>
+                )}
                 <th className="py-3.5 px-4 text-center">Batas Min</th>
                 <th className="py-3.5 px-4 text-center">Satuan</th>
                 <th className="py-3.5 px-4 text-center">Kondisi</th>
@@ -432,13 +579,13 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 13 : 9} className="py-12 text-center text-slate-400">
                     Memuat data barang...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 13 : 9} className="py-12 text-center text-slate-400">
                     Belum ada data barang yang cocok dengan kriteria pencarian.
                   </td>
                 </tr>
@@ -466,11 +613,42 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-center font-bold text-sm">
-                        <span className={isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'}>
-                          {formatStock(p, p.currentStock)}
-                        </span>
-                      </td>
+                      {isAdmin ? (
+                        (() => {
+                          const pos = positions.get(p.id);
+                          const cell = (value: number | undefined) =>
+                            value === undefined ? <span className="text-slate-300">-</span> : formatStock(p, value);
+                          const closing = isCurrentMonth ? p.currentStock : pos?.closingStock;
+                          return (
+                            <>
+                              <td className="py-3.5 px-3 text-center text-slate-600 whitespace-nowrap">{cell(pos?.openingStock)}</td>
+                              <td className="py-3.5 px-3 text-center whitespace-nowrap text-emerald-700">
+                                {pos?.inQty ? `+${formatStock(p, pos.inQty)}` : cell(pos ? 0 : undefined)}
+                              </td>
+                              <td className="py-3.5 px-3 text-center font-semibold text-slate-800 whitespace-nowrap">{cell(pos?.totalAvailable)}</td>
+                              <td className="py-3.5 px-3 text-center whitespace-nowrap text-rose-700">
+                                {pos?.outQty ? `-${formatStock(p, pos.outQty)}` : cell(pos ? 0 : undefined)}
+                              </td>
+                              <td className="py-3.5 px-3 text-center font-bold text-sm whitespace-nowrap">
+                                <span className={isCurrentMonth ? (isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900') : 'text-slate-900'}>
+                                  {cell(closing)}
+                                </span>
+                                {pos?.adjustment ? (
+                                  <span className="mt-0.5 block text-[10px] font-medium text-sky-700">
+                                    penyesuaian {pos.adjustment > 0 ? '+' : '-'}{formatStock(p, Math.abs(pos.adjustment))}
+                                  </span>
+                                ) : null}
+                              </td>
+                            </>
+                          );
+                        })()
+                      ) : (
+                        <td className="py-3.5 px-4 text-center font-bold text-sm">
+                          <span className={isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'}>
+                            {formatStock(p, p.currentStock)}
+                          </span>
+                        </td>
+                      )}
                       <td className="py-3.5 px-4 text-center text-slate-500">
                         {p.minimumStock}
                       </td>
@@ -575,10 +753,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
               onCancel={closeStockEntry}
               onSaved={() => {
                 closeStockEntry();
-                invalidateSwrPrefix('/api/products');
-                invalidateSwrPrefix('/api/reports/summary');
-                clearDistributionBootstrapCache();
-                fetchProducts(true);
+                refreshAfterStockChange();
               }}
             />
           </div>
@@ -604,7 +779,78 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
 
             <form onSubmit={handleUpdate} className="space-y-4 pt-4 text-sm">
               <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
-                Stok saat ini: <strong>{formatStock(editingProduct, editingProduct.currentStock)}</strong>. Gunakan tombol <strong>Tambah Barang / Stok</strong> di atas tabel untuk mencatat penerimaan. Stok keluar tercatat melalui <strong>Form Distribusi</strong> atau laporan pemasangan.
+                Stok saat ini: <strong>{formatStock(editingProduct, editingProduct.currentStock)}</strong>. Penerimaan dicatat lewat <strong>Tambah Barang / Stok</strong>, stok keluar lewat <strong>Form Distribusi</strong>. Jika jumlah fisik di gudang berbeda (stok opname, rusak, salah input), gunakan <strong>Penyesuaian Stok</strong> di bawah.
+              </div>
+
+              <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3">
+                <p className="flex items-center gap-1.5 font-semibold text-slate-700">
+                  <Scale className="h-4 w-4 text-sky-700" />
+                  Penyesuaian Stok (stok opname)
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Isi jumlah fisik yang benar-benar ada. Selisihnya dicatat di riwayat sebagai penyesuaian, bukan barang masuk/keluar.
+                </p>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={adjQty}
+                    onChange={(e) => setAdjQty(e.target.value)}
+                    placeholder="Stok sebenarnya"
+                    aria-label="Stok sebenarnya"
+                    onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+                    disabled={adjSubmitting}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                  />
+                  {editingProduct.packUnit && editingProduct.packSize ? (
+                    <select
+                      value={adjUnit}
+                      onChange={(e) => setAdjUnit(e.target.value as 'base' | 'pack')}
+                      aria-label="Satuan stok sebenarnya"
+                      disabled={adjSubmitting}
+                      className="px-2 py-2 border border-slate-200 rounded-lg bg-white text-xs"
+                    >
+                      <option value="base">{editingProduct.unit}</option>
+                      <option value="pack">{editingProduct.packUnit}</option>
+                    </select>
+                  ) : (
+                    <FixedUnit unit={editingProduct.unit} />
+                  )}
+                </div>
+                {adjQty.trim() !== '' && adjActual === null && (
+                  <p className="mt-1 text-[11px] text-rose-600">
+                    Jumlah harus bilangan bulat 0 atau lebih{adjUnit === 'pack' ? ` (hasil dalam ${editingProduct.unit} harus bulat)` : ''}.
+                  </p>
+                )}
+                {adjActual !== null && adjDiff !== null && (
+                  <p className={cn('mt-1 text-[11px] font-medium', adjDiff === 0 ? 'text-slate-500' : adjDiff > 0 ? 'text-emerald-700' : 'text-rose-700')}>
+                    {adjDiff === 0
+                      ? 'Sama dengan stok sistem, tidak ada selisih.'
+                      : `${formatStock(editingProduct, editingProduct.currentStock)} -> ${formatStock(editingProduct, adjActual)} (selisih ${adjDiff > 0 ? '+' : '-'}${formatStock(editingProduct, Math.abs(adjDiff))})`}
+                  </p>
+                )}
+                <input
+                  type="text"
+                  value={adjReason}
+                  onChange={(e) => setAdjReason(e.target.value)}
+                  placeholder="Alasan, mis. hasil stok opname / barang rusak / salah input"
+                  aria-label="Alasan penyesuaian"
+                    onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+                  maxLength={200}
+                  disabled={adjSubmitting}
+                  className="mt-2 w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAdjust}
+                    disabled={adjSubmitting || adjActual === null || !adjDiff || !adjReason.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold disabled:opacity-50"
+                  >
+                    {adjSubmitting ? 'Menyimpan...' : 'Simpan Penyesuaian'}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

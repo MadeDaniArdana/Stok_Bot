@@ -28,7 +28,63 @@ export interface ReversalParams {
   reason: string;
 }
 
+export interface AdjustmentParams {
+  productId: string;
+  /** Stok fisik hasil hitung ulang, dalam satuan dasar barang. */
+  actualStock: number;
+  reason: string;
+  actorUserId?: string | null;
+}
+
 export class InventoryService {
+  /**
+   * Penyesuaian stok (stok opname): samakan stok sistem dengan hasil hitung fisik.
+   * Dicatat sebagai movement ADJUSTMENT (selisih +/-) sehingga riwayat & laporan bulanan tetap konsisten.
+   */
+  static async recordAdjustment(params: AdjustmentParams) {
+    const { productId, actualStock, reason, actorUserId } = params;
+
+    if (!productId) throw new Error('ID Barang wajib diisi.');
+    if (!Number.isSafeInteger(actualStock) || actualStock < 0) {
+      throw new Error('Stok sebenarnya harus bilangan bulat 0 atau lebih.');
+    }
+    if (!reason || !reason.trim()) throw new Error('Alasan penyesuaian wajib diisi.');
+
+    const result = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({ where: { id: productId } });
+      if (!product) throw new Error('Barang tidak ditemukan.');
+
+      const stockBefore = product.currentStock;
+      const diff = actualStock - stockBefore;
+      if (diff === 0) throw new Error('Stok sebenarnya sama dengan stok sistem, tidak ada yang perlu disesuaikan.');
+
+      // Kunci optimistis: gagal jika stok berubah oleh transaksi lain di antara baca & tulis.
+      const updated = await tx.product.updateMany({
+        where: { id: productId, currentStock: stockBefore },
+        data: { currentStock: actualStock },
+      });
+      if (updated.count === 0) throw new Error('Stok barang baru saja berubah. Muat ulang lalu coba lagi.');
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          productId,
+          actorUserId: actorUserId || null,
+          type: 'ADJUSTMENT',
+          quantity: Math.abs(diff),
+          stockBefore,
+          stockAfter: actualStock,
+          source: 'WEB',
+          notes: `Penyesuaian stok (${diff > 0 ? '+' : '-'}${formatStock(product, Math.abs(diff))}). Alasan: ${reason.trim()}`,
+        },
+      });
+
+      return { movement, stockBefore, stockAfter: actualStock, diff };
+    });
+
+    await NotificationService.checkStockLevelAndAlert(productId, result.stockAfter, actorUserId);
+    return result;
+  }
+
   /**
    * Catat Barang Masuk (Stock In)
    * Dilakukan dalam 1 transaksi atomik

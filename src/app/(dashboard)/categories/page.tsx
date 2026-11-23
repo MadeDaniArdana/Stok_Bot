@@ -4,9 +4,10 @@ import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { getCategoryAppearance } from '@/lib/category-appearance';
 import { DEFAULT_STOCK_GROUP, STOCK_GROUPS, getStockGroup } from '@/lib/stock-groups';
 import { cn } from '@/lib/cn';
+import { getCurrentReportMonth } from '@/lib/report-period';
 
 import React, { useState, useEffect } from 'react';
-import { Tags, Plus, Edit2, Trash2, X, Package, Layers } from 'lucide-react';
+import { Tags, Plus, Edit2, Trash2, X, Package, Layers, FileDown, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
 
@@ -28,6 +29,42 @@ export default function CategoriesPage() {
   const [stockGroup, setStockGroup] = useState<string>(DEFAULT_STOCK_GROUP);
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Export PDF per kategori: periode bulan (YYYY-MM) atau tahun (YYYY).
+  const currentMonth = getCurrentReportMonth();
+  const [pdfPeriodKind, setPdfPeriodKind] = useState<'month' | 'year'>('month');
+  const [pdfMonth, setPdfMonth] = useState(currentMonth);
+  const [pdfYear, setPdfYear] = useState(currentMonth.slice(0, 4));
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const pdfPeriode = pdfPeriodKind === 'year' ? pdfYear : pdfMonth;
+  const yearOptions = Array.from({ length: 5 }, (_, i) => String(Number(currentMonth.slice(0, 4)) - i));
+
+  const handleExportPdf = async (cat: any) => {
+    try {
+      setExportingId(cat.id);
+      const group = getStockGroup(cat.stockGroup);
+      const res = await fetch(`/api/reports/stock-position?periode=${pdfPeriode}&jenis=${group.id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Data laporan tidak dapat dimuat.');
+      const rows = (data.rows || []).filter((row: any) => row.categoryId === cat.id);
+      if (rows.length === 0) {
+        showToast('Tidak Ada Data', `Kategori "${cat.name}" belum punya barang pada periode ${data.period?.label || pdfPeriode}.`, 'error');
+        return;
+      }
+      const { downloadStockPositionPdf } = await import('@/lib/stock-position-pdf');
+      const slug = cat.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'kategori';
+      await downloadStockPositionPdf(data, {
+        rows,
+        scopeLabel: 'Kategori',
+        groupLabel: `${cat.name} (${group.label})`,
+        groupSlug: `kategori-${slug}`,
+      });
+    } catch (err: any) {
+      showToast('Gagal Export PDF', err.message, 'error');
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -165,6 +202,45 @@ export default function CategoriesPage() {
         ))}
       </div>
 
+      {/* Periode export PDF per kategori */}
+      {isAdmin && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs shadow-soft">
+          <FileDown className="h-4 w-4 text-maroon-800" />
+          <span className="font-semibold text-slate-700">Periode export PDF per kategori:</span>
+          <select
+            value={pdfPeriodKind}
+            onChange={(e) => setPdfPeriodKind(e.target.value as 'month' | 'year')}
+            aria-label="Jenis periode"
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+          >
+            <option value="month">Per Bulan</option>
+            <option value="year">Per Tahun</option>
+          </select>
+          {pdfPeriodKind === 'month' ? (
+            <input
+              type="month"
+              value={pdfMonth}
+              max={currentMonth}
+              onChange={(e) => e.target.value && setPdfMonth(e.target.value)}
+              aria-label="Bulan"
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1"
+            />
+          ) : (
+            <select
+              value={pdfYear}
+              onChange={(e) => setPdfYear(e.target.value)}
+              aria-label="Tahun"
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          )}
+          <span className="text-slate-500">Isi PDF: stok lama, stok baru, total, keluar, dan sisa akhir tiap barang di kategori.</span>
+        </div>
+      )}
+
       {/* Grid of Categories */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
@@ -207,6 +283,17 @@ export default function CategoriesPage() {
 
               {isAdmin && (
                 <div className="flex items-center justify-end gap-1 pt-4 mt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => handleExportPdf(cat)}
+                    disabled={exportingId !== null || !cat._count?.products}
+                    className="mr-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-maroon-50 hover:text-maroon-900 disabled:opacity-50"
+                    title={cat._count?.products ? `Export PDF kategori ${cat.name}` : 'Kategori belum punya barang'}
+                  >
+                    {exportingId === cat.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                    Export PDF
+                  </button>
+
                   <button
                     onClick={() => {
                       setEditingCategory(cat);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
@@ -8,11 +8,32 @@ import { AuthProvider } from "./AuthContext";
 import { ToastProvider } from "../ui/Toast";
 import { BrowserErrorReporter } from "../BrowserErrorReporter";
 
+const SIDEBAR_KEY = "stockflow:sidebar-collapsed";
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isAssistant = usePathname() === "/assistant";
   const closeMobile = useCallback(() => setMobileOpen(false), []);
   const toggleMobile = useCallback(() => setMobileOpen((open) => !open), []);
+
+  // Sidebar desktop bisa diringkas jadi deretan ikon; pilihan diingat per browser.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(document.documentElement.dataset.sidebar === "mini");
+    } catch {}
+  }, []);
+  const setCollapsedSaved = useCallback((value: boolean) => {
+    setCollapsed(value);
+    // Tampilan diatur CSS lewat atribut ini; state hanya untuk logika (label, klik ikon).
+    if (value) document.documentElement.dataset.sidebar = "mini";
+    else delete document.documentElement.dataset.sidebar;
+    try {
+      localStorage.setItem(SIDEBAR_KEY, value ? "1" : "0");
+    } catch {}
+  }, []);
+  const toggleCollapsed = useCallback(() => setCollapsedSaved(!collapsed), [collapsed, setCollapsedSaved]);
+  const expandSidebar = useCallback(() => setCollapsedSaved(false), [setCollapsedSaved]);
 
   return (
     <AuthProvider>
@@ -28,11 +49,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <Sidebar
             mobileOpen={mobileOpen}
             onCloseMobile={closeMobile}
+            collapsed={collapsed}
+            onExpand={expandSidebar}
+            onToggleCollapse={toggleCollapsed}
           />
 
           {/* Main Area */}
-          <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-            <Header onToggleMobile={toggleMobile} />
+          <div
+            className="flex-1 flex flex-col min-w-0 transition-[padding] duration-300 lg:pl-64 lg:mini:pl-[4.5rem]"
+          >
+            <Header onToggleMobile={toggleMobile} sidebarCollapsed={collapsed} onToggleSidebar={toggleCollapsed} />
             <main
               className={
                 isAssistant
