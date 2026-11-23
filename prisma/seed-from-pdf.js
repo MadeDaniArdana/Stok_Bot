@@ -127,7 +127,7 @@ const LOGISTIK_ITEMS = [
 
   // cat-clean (18 items)
   ['cat-clean', 'Pengharum Kamar Mandi SOS Carbol 800gr', 'dus', null, null, 0, 3, 1, 'Alfamart', 142800, 'SOS Carbol 800gr', 'Perlengkapan Petugas Kebersihan'],
-  ['cat-clean', 'Sabun Cuci Piring Sunlight', 'pcs', null, null, 0, 24, 5, 'Alfamart', 10000, 'Sunglight', 'Perlengkapan Petugas Kebersihan'],
+  ['cat-clean', 'Sabun Cuci Piring Sunlight', 'botol 330ml', null, null, 0, 24, 5, 'Alfamart', 10000, 'Sunglight', 'Perlengkapan Petugas Kebersihan'],
   ['cat-clean', 'Sabun Colek Wings 1000 Biru', 'dus', null, null, 0, 2, 1, 'Puti Minang Grosir', 60000, 'Wings 1000 Biru', 'Perlengkapan Petugas Kebersihan'],
   ['cat-clean', 'Ijo-Ijo Scotch Brite', 'pcs', null, null, 0, 25, 5, 'Chandra Departemen Store', 8500, 'Scote Brite', 'Perlengkapan Petugas Kebersihan'],
   ['cat-clean', 'Spons Cuci Piring Scotch Brite', 'pcs', null, null, 0, 2, 1, 'Chandra Departemen Store', 4000, 'Scote Brite', 'Perlengkapan Petugas Kebersihan'],

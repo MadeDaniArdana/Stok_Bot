@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import type { StockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -343,6 +344,128 @@ export class ReportService {
       topUnits,
       dailyTrends,
       categoryStats,
+    };
+  }
+
+  /**
+   * Posisi stok per periode (bulan/tahun) per barang:
+   * Stok Lama (awal periode) + Stok Baru (masuk) = Total Tersedia, dikurangi Keluar (± penyesuaian) = Sisa Akhir.
+   * Stok awal/akhir dihitung mundur dari stok saat ini memakai selisih stockAfter - stockBefore setiap mutasi,
+   * sehingga pembatalan (REVERSAL) dan penyesuaian ikut terhitung dengan benar.
+   */
+  static async getStockPositionReport(period: StockReportPeriod, stockGroup?: StockGroup) {
+    const start = period.gte;
+    const end = period.lt;
+
+    const deltas = await prisma.$queryRaw<
+      Array<{
+        productId: string;
+        deltaSinceStart: number;
+        deltaAfterEnd: number;
+        inQty: number;
+        outQty: number;
+        cancelOut: number;
+        cancelIn: number;
+        adjustment: number;
+      }>
+    >`
+      SELECT
+        m."productId" AS "productId",
+        COALESCE(SUM(m."stockAfter" - m."stockBefore"), 0)::int AS "deltaSinceStart",
+        COALESCE(SUM(CASE WHEN m."createdAt" >= ${end} THEN m."stockAfter" - m."stockBefore" ELSE 0 END), 0)::int AS "deltaAfterEnd",
+        COALESCE(SUM(CASE WHEN m."createdAt" < ${end} AND m.type = 'IN' THEN m."stockAfter" - m."stockBefore" ELSE 0 END), 0)::int AS "inQty",
+        COALESCE(SUM(CASE WHEN m."createdAt" < ${end} AND m.type = 'OUT' THEN m."stockBefore" - m."stockAfter" ELSE 0 END), 0)::int AS "outQty",
+        COALESCE(SUM(CASE WHEN m."createdAt" < ${end} AND m.type = 'REVERSAL' AND m."stockAfter" > m."stockBefore" THEN m."stockAfter" - m."stockBefore" ELSE 0 END), 0)::int AS "cancelOut",
+        COALESCE(SUM(CASE WHEN m."createdAt" < ${end} AND m.type = 'REVERSAL' AND m."stockAfter" < m."stockBefore" THEN m."stockBefore" - m."stockAfter" ELSE 0 END), 0)::int AS "cancelIn",
+        COALESCE(SUM(CASE WHEN m."createdAt" < ${end} AND m.type NOT IN ('IN', 'OUT', 'REVERSAL') THEN m."stockAfter" - m."stockBefore" ELSE 0 END), 0)::int AS "adjustment"
+      FROM "StockMovement" m
+      WHERE m."createdAt" >= ${start}
+      GROUP BY m."productId"
+    `;
+    const deltaById = new Map(deltas.map((row) => [row.productId, row]));
+
+    const products = await prisma.product.findMany({
+      where: {
+        createdAt: { lt: end },
+        OR: [{ isActive: true }, { id: { in: Array.from(deltaById.keys()) } }],
+        ...(stockGroup ? { category: { stockGroup } } : {}),
+      },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        unit: true,
+        packUnit: true,
+        packSize: true,
+        currentStock: true,
+        isActive: true,
+        category: { select: { name: true, stockGroup: true } },
+      },
+    });
+
+    const rows = products
+      .map((p) => {
+        const d = deltaById.get(p.id);
+        const openingStock = p.currentStock - Number(d?.deltaSinceStart ?? 0);
+        const closingStock = p.currentStock - Number(d?.deltaAfterEnd ?? 0);
+        const inQty = Number(d?.inQty ?? 0) - Number(d?.cancelIn ?? 0);
+        const outQty = Number(d?.outQty ?? 0) - Number(d?.cancelOut ?? 0);
+        const adjustment = Number(d?.adjustment ?? 0);
+        const group = getStockGroup(p.category?.stockGroup);
+        return {
+          id: p.id,
+          sku: p.sku,
+          name: p.name,
+          category: p.category?.name || 'Tanpa Kategori',
+          stockGroup: group.id,
+          stockGroupLabel: group.shortLabel,
+          unit: p.unit,
+          packUnit: p.packUnit,
+          packSize: p.packSize,
+          isActive: p.isActive,
+          openingStock,
+          inQty,
+          totalAvailable: openingStock + inQty,
+          outQty,
+          adjustment,
+          closingStock,
+        };
+      })
+      .sort(
+        (a, b) =>
+          a.stockGroupLabel.localeCompare(b.stockGroupLabel, 'id') ||
+          a.category.localeCompare(b.category, 'id') ||
+          a.name.localeCompare(b.name, 'id')
+      );
+
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.openingStock += r.openingStock;
+        acc.inQty += r.inQty;
+        acc.totalAvailable += r.totalAvailable;
+        acc.outQty += r.outQty;
+        acc.adjustment += r.adjustment;
+        acc.closingStock += r.closingStock;
+        if (r.inQty > 0) acc.itemsWithIn += 1;
+        if (r.outQty > 0) acc.itemsWithOut += 1;
+        return acc;
+      },
+      { openingStock: 0, inQty: 0, totalAvailable: 0, outQty: 0, adjustment: 0, closingStock: 0, itemsWithIn: 0, itemsWithOut: 0 }
+    );
+
+    return {
+      period: {
+        kind: period.kind,
+        value: period.value,
+        label: period.label,
+        openingLabel: period.openingLabel,
+        start: start.toISOString(),
+        end: end.toISOString(),
+      },
+      stockGroup: stockGroup ?? null,
+      hasAdjustment: rows.some((r) => r.adjustment !== 0),
+      totals: { ...totals, itemCount: rows.length },
+      rows,
     };
   }
 }

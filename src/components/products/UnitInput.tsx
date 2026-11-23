@@ -134,7 +134,7 @@ export function UnitInput({ id, value, onChange, disabled = false }: UnitInputPr
           ))}
         </ul>
       )}
-      <p id={`${id}-hint`} className="mt-1 text-[11px] text-slate-500">Pilih satuan atau ketik sendiri, misalnya kg atau pasang.</p>
+      <p id={`${id}-hint`} className="mt-1 text-[11px] text-slate-500">Pilih satuan atau ketik sendiri. Boleh menyertakan ukuran isi, misalnya botol 330ml atau botol 800gr.</p>
     </div>
   );
 }

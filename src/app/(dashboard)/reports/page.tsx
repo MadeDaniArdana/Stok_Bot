@@ -17,6 +17,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
+import { StockPositionSection } from '@/components/dashboard/StockPositionSection';
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 
@@ -364,6 +365,9 @@ export default function ReportsPage() {
           </>
         )}
       </section>
+
+      {/* Riwayat Stok Lama & Stok Baru per Bulan / Tahun */}
+      <StockPositionSection jenis={groupFilter === 'ALL' ? undefined : groupFilter} />
 
       {/* Analitik Bawah: Top Barang Dipakai, Unit/Gedung Aktif, & Sebaran Kategori */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">

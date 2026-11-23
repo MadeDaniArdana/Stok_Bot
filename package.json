@@ -15,6 +15,7 @@
     "db:seed-pdf": "node --env-file=.env prisma/seed-from-pdf.js",
     "db:seed-templates": "node --env-file=.env prisma/seed-listrik-and-templates.js",
     "admin:reset": "node --env-file=.env prisma/reset-admin.js",
+    "db:satuan-ukuran": "node --env-file=.env prisma/update-satuan-ukuran.js",
     "db:studio": "prisma studio"
   },
   "dependencies": {

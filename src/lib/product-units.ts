@@ -1,7 +1,20 @@
-export const DEFAULT_PRODUCT_UNITS = ['pcs', 'box', 'rim', 'unit', 'roll', 'meter', 'jerigen', 'liter'];
+export const DEFAULT_PRODUCT_UNITS = [
+  'pcs', 'box', 'rim', 'unit', 'roll', 'meter', 'jerigen', 'liter',
+  'botol', 'dus', 'drigen', 'kaleng', 'pack', 'ball', 'kotak', 'lusin', 'kg', 'gram', 'ml',
+  // Satuan yang menyertakan ukuran isi, agar jelas per satuannya (mis. Sunlight 330ml, SOS Carbol 800gr).
+  'botol 330ml', 'botol 800gr', 'pouch',
+];
 
+/**
+ * Rapikan satuan: huruf kecil, spasi tunggal, dan ukuran isi dirapatkan
+ * ("Botol 330 ML" -> "botol 330ml", "botol 800 gr" -> "botol 800gr").
+ */
 export function normalizeProductUnit(unit: string) {
-  return unit.trim().replace(/\s+/g, ' ').toLocaleLowerCase('id-ID');
+  return unit
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('id-ID')
+    .replace(/(\d+(?:[.,]\d+)?)\s+(ml|l|liter|gr|g|gram|kg|cc|oz)(?![a-z])/g, '$1$2');
 }
 
 export function getProductUnitOptions(units: string[]) {
