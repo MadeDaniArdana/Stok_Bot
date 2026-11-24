@@ -12,11 +12,12 @@ model User {
   name              String
   email             String             @unique
   passwordHash      String?
-  role              String             @default("USER") // ADMIN, USER
+  role              String             @default("USER") // ADMIN, DIVISI (pengaju barang), USER
   isActive          Boolean            @default(true)
   movements         StockMovement[]
   installationTasks InstallationTask[] @relation("TaskCreator")
   distributions     Distribution[]
+  itemRequests      ItemRequest[]
   telegram          TelegramUser?
   notifications     Notification[]
   createdAt         DateTime           @default(now())
@@ -53,6 +54,7 @@ model Product {
   movements         StockMovement[]
   installationTasks InstallationTask[]
   distributionItems DistributionItem[]
+  requestItems      ItemRequestItem[]
   templateItems     DistributionTemplateItem[]
   notifications     Notification[]
   monthlySnapshots  StockMonthlySnapshot[]
@@ -292,4 +294,38 @@ model DistributionTemplateItem {
 
   @@unique([templateId, productId])
   @@index([productId])
+}
+
+// Pengajuan barang dari akun divisi. Disetujui admin -> otomatis menjadi dokumen Distribusi (stok berkurang).
+model ItemRequest {
+  id                 String            @id @default(uuid())
+  number             String            @unique // contoh: PJ-202611-001
+  stockGroup         String // ATK atau LOGISTIK
+  requesterId        String?
+  requester          User?             @relation(fields: [requesterId], references: [id], onDelete: SetNull)
+  requesterName      String // disalin agar tetap ada bila akun dihapus
+  divisionName       String
+  notes              String?
+  status             String            @default("PENDING") // PENDING, PROCESSING, APPROVED, REJECTED
+  rejectReason       String?
+  decidedAt          DateTime?
+  decidedByName      String?
+  distributionId     String?
+  distributionNumber String?
+  items              ItemRequestItem[]
+  createdAt          DateTime          @default(now())
+
+  @@index([status, createdAt])
+  @@index([requesterId])
+}
+
+model ItemRequestItem {
+  id        String      @id @default(uuid())
+  requestId String
+  request   ItemRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int
+
+  @@index([requestId])
 }

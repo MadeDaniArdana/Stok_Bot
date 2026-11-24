@@ -37,3 +37,6 @@ dev.db
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# db backups (berisi data sensitif)
+/backups/

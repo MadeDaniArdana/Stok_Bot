@@ -3,6 +3,7 @@ import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
 import { requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
+import { hashPassword } from '@/lib/password';
 
 export async function GET() {
   try {
@@ -30,10 +31,16 @@ export async function POST(req: NextRequest) {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
 
-    const { name, email, role, telegramUserId, telegramUsername } = await req.json();
+    const { name, email, role, password, telegramUserId, telegramUsername } = await req.json();
 
     if (!name || !name.trim() || !email || !email.trim()) {
       return NextResponse.json({ error: 'Nama dan email wajib diisi' }, { status: 400 });
+    }
+
+    const newRole = role === 'ADMIN' ? 'ADMIN' : role === 'DIVISI' ? 'DIVISI' : 'USER';
+    const hasPassword = typeof password === 'string' && password.length > 0;
+    if ((newRole === 'DIVISI' && !hasPassword) || (hasPassword && password.length < 8)) {
+      return NextResponse.json({ error: 'Akun divisi wajib memakai kata sandi minimal 8 karakter.' }, { status: 400 });
     }
 
     const existing = await prisma.user.findUnique({
@@ -49,7 +56,8 @@ export async function POST(req: NextRequest) {
       data: {
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        role: role === 'ADMIN' ? 'ADMIN' : 'USER',
+        role: newRole,
+        passwordHash: hasPassword ? await hashPassword(password) : undefined,
         isActive: true,
         ...(telegramUserId
           ? {

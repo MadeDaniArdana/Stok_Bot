@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEnvAdminIds } from '@/lib/telegram-admins';
 import { requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
+import { hashPassword } from '@/lib/password';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
 
@@ -11,9 +12,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (auth.error) return auth.error;
     const currentUser = auth.user;
 
-    const { name, role, isActive, telegramUserId, telegramUsername, unlinkTelegram } = await req.json();
+    const { name, role, password, isActive, telegramUserId, telegramUsername, unlinkTelegram } = await req.json();
 
-    if (role !== undefined && role !== 'ADMIN' && role !== 'USER') {
+    if (password !== undefined && (typeof password !== 'string' || password.length < 8)) {
+      return NextResponse.json({ error: 'Kata sandi minimal 8 karakter.' }, { status: 400 });
+    }
+    if (role !== undefined && role !== 'ADMIN' && role !== 'USER' && role !== 'DIVISI') {
       return NextResponse.json({ error: 'Peran pengguna tidak valid.' }, { status: 400 });
     }
     if (currentUser.id === params.id) {
@@ -45,6 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data: {
         name: typeof name === 'string' && name.trim() ? name.trim() : undefined,
         role: role ?? undefined,
+        passwordHash: password ? await hashPassword(password) : undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
       },
       select: { id: true },

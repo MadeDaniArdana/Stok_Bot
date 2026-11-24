@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     // Tetap jalankan scrypt untuk mencegah enumerasi akun lewat perbedaan waktu respons.
     const valid = await verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
-    if (!user || !user.passwordHash || !valid || !user.isActive || user.role !== 'ADMIN') {
+    if (!user || !user.passwordHash || !valid || !user.isActive || (user.role !== 'ADMIN' && user.role !== 'DIVISI')) {
       recordFailure(ipKey, now);
       recordFailure(emailKey, now);
       return NextResponse.json({ error: 'Email atau kata sandi salah.' }, { status: 401 });
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     failureBuckets.delete(ipKey);
 
     const token = await createSessionToken(user.id, user.role);
-    const response = NextResponse.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+    const response = NextResponse.json({ success: true, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

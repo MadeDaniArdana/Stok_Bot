@@ -38,7 +38,8 @@ export default function UsersPage() {
   // Form State
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formRole, setFormRole] = useState<'ADMIN' | 'USER'>('USER');
+  const [formRole, setFormRole] = useState<'ADMIN' | 'USER' | 'DIVISI'>('USER');
+  const [formPassword, setFormPassword] = useState('');
   const [formTgId, setFormTgId] = useState('');
   const [formTgUsername, setFormTgUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,6 +76,7 @@ export default function UsersPage() {
           name: formName.trim(),
           email: formEmail.trim(),
           role: formRole,
+          password: formPassword || undefined,
           telegramUserId: formTgId.trim() || undefined,
           telegramUsername: formTgUsername.trim() || undefined,
         }),
@@ -106,6 +108,7 @@ export default function UsersPage() {
         body: JSON.stringify({
           name: formName.trim(),
           role: formRole,
+          password: formPassword || undefined,
           telegramUserId: formTgId.trim() || undefined,
           telegramUsername: formTgUsername.trim() || undefined,
         }),
@@ -182,6 +185,7 @@ export default function UsersPage() {
     setFormName('');
     setFormEmail('');
     setFormRole('USER');
+    setFormPassword('');
     setFormTgId('');
     setFormTgUsername('');
   };
@@ -262,6 +266,10 @@ export default function UsersPage() {
                         {u.role === 'ADMIN' ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded-full border border-maroon-200">
                             <ShieldCheck className="w-3 h-3" /> Admin
+                          </span>
+                        ) : u.role === 'DIVISI' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
+                            <UserCheck className="w-3 h-3" /> Divisi
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -427,8 +435,28 @@ export default function UsersPage() {
                 >
                   <option value="USER">Staff Gudang (Pengambilan & Cek Stok)</option>
                   <option value="ADMIN">Administrator (Hak Penuh Gudang)</option>
+                  <option value="DIVISI">Akun Divisi (Pengajuan Barang)</option>
                 </select>
               </div>
+
+              {formRole === 'DIVISI' && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Kata Sandi Login {!editingUser && <span className="text-rose-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    required={!editingUser}
+                    minLength={8}
+                    autoComplete="off"
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    placeholder={editingUser ? 'Kosongkan jika tidak diubah' : 'Minimal 8 karakter'}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">Nama akun dipakai sebagai nama divisi di pengajuan (misal: Divisi Keuangan). Berikan email dan kata sandi ini kepada divisi.</p>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-slate-100">
                 <p className="font-bold text-slate-800 mb-2 flex items-center gap-1.5 text-xs text-sky-700">

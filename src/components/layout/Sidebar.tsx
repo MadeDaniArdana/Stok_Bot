@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   UserCheck,
   Truck,
+  ClipboardList,
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
@@ -24,6 +25,8 @@ import { getCurrentReportMonth } from '@/lib/report-period';
 import { parseStockGroup } from '@/lib/stock-groups';
 
 interface SidebarProps {
+  /** divisi = menu akun divisi (Dashboard, Pengajuan, Riwayat). */
+  variant?: 'admin' | 'divisi';
   mobileOpen: boolean;
   onCloseMobile: () => void;
   /** Desktop: hanya ikon. Di HP laci menu selalu tampil penuh. */
@@ -46,6 +49,8 @@ interface NavItem {
   icon: any;
   badge?: string;
   adminOnly?: boolean;
+  /** Aktif hanya pada path persis (untuk halaman induk seperti /divisi). */
+  exact?: boolean;
 }
 
 interface NavSection {
@@ -86,6 +91,15 @@ const NAV_ITEMS: NavSection[] = [
           { name: 'Distribusi Logistik', href: '/distribution/logistik' },
         ],
       },
+      {
+        name: 'Pengajuan',
+        href: '/requests',
+        icon: ClipboardList,
+        children: [
+          { name: 'Pengajuan Masuk', href: '/requests/incoming' },
+          { name: 'Riwayat Pengajuan', href: '/requests/history' },
+        ],
+      },
       { name: 'Riwayat Stok', href: '/stock/history', icon: History },
     ],
   },
@@ -119,7 +133,18 @@ const NAV_ITEMS: NavSection[] = [
   },
 ];
 
-export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collapsed = false, onExpand, onToggleCollapse }: SidebarProps) {
+const DIVISI_NAV: NavSection[] = [
+  {
+    title: 'Menu Utama',
+    items: [
+      { name: 'Dashboard', href: '/divisi', icon: LayoutDashboard, exact: true },
+      { name: 'Pengajuan', href: '/divisi/pengajuan', icon: ClipboardList },
+      { name: 'Riwayat', href: '/divisi/riwayat', icon: History },
+    ],
+  },
+];
+
+export const Sidebar = memo(function Sidebar({ variant = 'admin', mobileOpen, onCloseMobile, collapsed = false, onExpand, onToggleCollapse }: SidebarProps) {
   // Kelas yang hanya berlaku di desktop saat sidebar diringkas (laci HP tetap penuh).
   // Gaya ringkas lewat CSS (variant mini:), bukan state, agar tidak berkedip saat halaman pertama dimuat.
   const hideMini = 'lg:mini:hidden';
@@ -127,6 +152,9 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collap
   const pathname = usePathname();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
+  const isDivisi = variant === 'divisi';
+  const navSections = isDivisi ? DIVISI_NAV : NAV_ITEMS;
+  const homeHref = isDivisi ? '/divisi' : '/dashboard';
 
   // Cocok persis atau sub-halaman (/stock/history/...), bukan sekadar awalan teks:
   // /distribution tidak boleh ikut aktif saat membuka /distribution-reports.
@@ -135,7 +163,7 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collap
   // Menu induk terbuka otomatis bila salah satu sub menunya sedang dibuka.
   const [openMenus, setOpenMenus] = useState<Set<string>>(new Set());
   useEffect(() => {
-    const activeParent = NAV_ITEMS
+    const activeParent = navSections
       .flatMap((section) => section.items)
       .find((item) => item.children?.some((child) => matches(child.href)));
     if (activeParent) setOpenMenus((current) => (current.has(activeParent.href) ? current : new Set(current).add(activeParent.href)));
@@ -200,7 +228,7 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collap
       >
         {/* Brand Header */}
         <div className={`h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-gradient-to-r from-white via-white to-maroon-50/40 ${centerMini}`}>
-          <Link href="/dashboard" className="flex items-center gap-3 group">
+          <Link href={homeHref} className="flex items-center gap-3 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo-yayasan.png" alt="Logo Yayasan Pendidikan Teknokrat" width={40} height={40} className="h-10 w-10 object-contain group-hover:scale-105 transition-transform" />
             <div className={hideMini}>
@@ -222,7 +250,7 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collap
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-6 lg:mini:space-y-3">
-          {NAV_ITEMS.map((section, idx) => (
+          {navSections.map((section, idx) => (
             <div key={idx} className="space-y-1">
               <p className={`px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 ${hideMini}`}>
                 {section.title}
@@ -294,7 +322,7 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collap
                   );
                 }
 
-                const isActive = matches(item.href);
+                const isActive = item.exact ? pathname === item.href : matches(item.href);
 
                 return (
                   <Link
@@ -378,10 +406,10 @@ export const Sidebar = memo(function Sidebar({ mobileOpen, onCloseMobile, collap
                 ) : (
                   <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
                     <UserCheck className="w-2.5 h-2.5" />
-                    Staff
+                    {isDivisi ? 'Divisi' : 'Staff'}
                   </span>
                 )}
-                {currentUser?.telegram && (
+                {!isDivisi && currentUser?.telegram && (
                   <span className="text-[10px] text-sky-600 bg-sky-50 px-1 py-0.2 rounded">TG</span>
                 )}
               </div>

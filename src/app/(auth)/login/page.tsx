@@ -28,7 +28,8 @@ function LoginForm() {
 
       // Hanya izinkan redirect ke path internal.
       const next = searchParams.get('next');
-      window.location.href = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
+      window.location.href =
+        data.user?.role === 'DIVISI' ? '/divisi' : next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login gagal.');
       setIsLoading(false);

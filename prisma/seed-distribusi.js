@@ -51,7 +51,7 @@ const PRODUCTS = [
   ['tehkotak', 'Teh Kotak Sari Wangi', 'satpam', 'kotak', 1],
   ['sususachet', 'Susu Sachet Bendera', 'satpam', 'pack', 5],
   ['gula', 'Gula Putih', 'satpam', 'kg', 2],
-  ['kopi', 'Kopi Jempol 0,5 Ons', 'satpam', 'pack', 1],
+  ['kopi', 'Kopi Mayora 120 gr', 'satpam', 'pack', 1],
   ['carbol', 'Pengharum Kamar Mandi SOS Carbol 800gr', 'bersih', 'dus', 1],
   ['sabunpiring', 'Sabun Cuci Piring HGNS Lime', 'bersih', 'drigen', 1],
   ['sabuntangan', 'Sabun Cuci Tangan HGNS Strawberry', 'bersih', 'drigen', 1],

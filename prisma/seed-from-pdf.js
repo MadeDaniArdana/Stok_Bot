@@ -123,7 +123,7 @@ const LOGISTIK_ITEMS = [
   ['cat-satpam', 'Teh Kotak Sari Wangi', 'kotak', null, null, 0, 6, 2, 'Puti Minang Grosir', 6000, 'Sari Wangi', 'Logistik Satpam'],
   ['cat-satpam', 'Susu Sachet Bendera', 'pack', null, null, 0, 35, 5, 'Puti Minang Grosir', 8000, 'Bendera', 'Logistik Satpam'],
   ['cat-satpam', 'Gula Putih', 'gram', 'kg', 1000, 1, 10, 2000, 'Puti Minang Grosir', 18500, '-', 'Logistik Satpam'],
-  ['cat-satpam', 'Kopi Jempol 0,5 Ons', 'pack', null, null, 2, 6, 2, 'Puti Minang Grosir', 67500, 'Jempol 0,5 Ons', 'Logistik Satpam'],
+  ['cat-satpam', 'Kopi Mayora 120 gr', 'pack', null, null, 2, 6, 2, 'Puti Minang Grosir', 67500, 'Mayora 120 gr', 'Logistik Satpam'],
 
   // cat-clean (18 items)
   ['cat-clean', 'Pengharum Kamar Mandi SOS Carbol 800gr', 'dus', null, null, 0, 3, 1, 'Alfamart', 142800, 'SOS Carbol 800gr', 'Perlengkapan Petugas Kebersihan'],

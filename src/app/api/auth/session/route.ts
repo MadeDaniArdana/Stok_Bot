@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth-server';
+import { getSessionUser } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getSessionUser();
     if (!currentUser) return NextResponse.json({ error: 'Belum login.' }, { status: 401 });
     return NextResponse.json({ currentUser });
   } catch (error) {

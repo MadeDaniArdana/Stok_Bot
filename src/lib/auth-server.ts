@@ -14,8 +14,8 @@ export const SAFE_USER_SELECT = {
   updatedAt: true,
 } as const;
 
-/** Pengguna yang sedang login (dari cookie sesi), atau null. */
-export async function getCurrentUser() {
+/** Pengguna aktif ber-sesi dengan peran ADMIN atau DIVISI, atau null. */
+export async function getSessionUser() {
   const session = await verifySessionToken(cookies().get(SESSION_COOKIE)?.value);
   if (!session) return null;
 
@@ -26,9 +26,15 @@ export async function getCurrentUser() {
       telegram: true,
     },
   });
-  if (!user || !user.isActive || user.role !== 'ADMIN') return null;
+  if (!user || !user.isActive || (user.role !== 'ADMIN' && user.role !== 'DIVISI')) return null;
 
   return user;
+}
+
+/** Hanya ADMIN: dipakai semua API admin lewat requireAdmin, jadi akun DIVISI tidak pernah lolos. */
+export async function getCurrentUser() {
+  const user = await getSessionUser();
+  return user?.role === 'ADMIN' ? user : null;
 }
 
 export type CurrentAdmin = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
@@ -47,6 +53,18 @@ export async function requireAdmin(): Promise<
       user: null,
       error: NextResponse.json({ error: 'Silakan login terlebih dahulu.' }, { status: 401 }),
     };
+  }
+  return { user, error: null };
+}
+
+/** Untuk API akun divisi (pengajuan barang). */
+export async function requireDivisi(): Promise<
+  | { user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>; error: null }
+  | { user: null; error: NextResponse }
+> {
+  const user = await getSessionUser();
+  if (!user || user.role !== 'DIVISI') {
+    return { user: null, error: NextResponse.json({ error: 'Silakan login terlebih dahulu.' }, { status: 401 }) };
   }
   return { user, error: null };
 }

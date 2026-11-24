@@ -23,6 +23,14 @@ export async function middleware(request: NextRequest) {
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
   if (session?.role === 'ADMIN') return NextResponse.next();
 
+  // Akun divisi hanya boleh membuka halaman & API pengajuan miliknya (dan logout/sesi).
+  if (session?.role === 'DIVISI') {
+    const allowed = ['/divisi', '/api/divisi', '/api/auth'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    if (allowed) return NextResponse.next();
+    if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Akses ditolak.' }, { status: 403 });
+    return NextResponse.redirect(new URL('/divisi', request.url));
+  }
+
   if (pathname.startsWith('/api/')) {
     return NextResponse.json({ error: 'Silakan login terlebih dahulu.' }, { status: 401 });
   }

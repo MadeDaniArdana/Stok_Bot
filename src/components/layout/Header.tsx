@@ -40,14 +40,16 @@ function HeaderClock() {
 }
 
 interface HeaderProps {
+  variant?: 'admin' | 'divisi';
   onToggleMobile: () => void;
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
 }
 
-export function Header({ onToggleMobile, sidebarCollapsed, onToggleSidebar }: HeaderProps) {
+export function Header({ variant = 'admin', onToggleMobile, sidebarCollapsed, onToggleSidebar }: HeaderProps) {
   const { currentUser, logout } = useAuth();
   const { showToast } = useToast();
+  const isDivisi = variant === 'divisi';
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -96,6 +98,8 @@ export function Header({ onToggleMobile, sidebarCollapsed, onToggleSidebar }: He
   }, []);
 
   useEffect(() => {
+    // Akun divisi tidak punya notifikasi stok (API-nya khusus admin).
+    if (isDivisi) return;
     loadUnreadCount(true);
     // Cek jumlah notifikasi tiap 30 detik saat tab aktif; cek saat tab kembali dilihat (jeda minimal 15 detik).
     const interval = setInterval(() => {
@@ -113,7 +117,7 @@ export function Header({ onToggleMobile, sidebarCollapsed, onToggleSidebar }: He
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [loadUnreadCount, loadFullNotifications]);
+  }, [isDivisi, loadUnreadCount, loadFullNotifications]);
 
   const toggleNotifications = () => {
     const next = !showNotifications;
@@ -164,12 +168,14 @@ export function Header({ onToggleMobile, sidebarCollapsed, onToggleSidebar }: He
           <Clock className="w-3.5 h-3.5 text-maroon-700" />
           <HeaderClock />
           <span className="text-slate-300">|</span>
-          <span className="text-slate-600 font-medium">Gudang Utama (StockFlow)</span>
+          <span className="text-slate-600 font-medium">{isDivisi ? 'Pengajuan Barang (StockFlow)' : 'Gudang Utama (StockFlow)'}</span>
         </div>
       </div>
 
       {/* Right Controls */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {!isDivisi && (
+          <>
         {/* Telegram Quick Launch Button */}
         {/* Asisten AI dipindah dari sidebar ke sini agar menu tetap ringkas. */}
         <Link
@@ -281,6 +287,9 @@ export function Header({ onToggleMobile, sidebarCollapsed, onToggleSidebar }: He
           )}
         </div>
 
+          </>
+        )}
+
         {/* User Switcher Dropdown */}
         <div className="relative">
           <button
@@ -295,7 +304,7 @@ export function Header({ onToggleMobile, sidebarCollapsed, onToggleSidebar }: He
                 {currentUser?.name ? currentUser.name.split(' ')[0] : 'Akun'}
               </p>
               <p className="text-[10px] text-maroon-800 font-medium">
-                Administrator
+                {isDivisi ? 'Divisi' : 'Administrator'}
               </p>
             </div>
           </button>

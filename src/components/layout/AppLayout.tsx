@@ -7,10 +7,11 @@ import { Header } from "./Header";
 import { AuthProvider } from "./AuthContext";
 import { ToastProvider } from "../ui/Toast";
 import { BrowserErrorReporter } from "../BrowserErrorReporter";
+import { RequestAlert } from "../requests/RequestAlert";
 
 const SIDEBAR_KEY = "stockflow:sidebar-collapsed";
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({ children, variant = 'admin' }: { children: React.ReactNode; variant?: 'admin' | 'divisi' }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isAssistant = usePathname() === "/assistant";
   const closeMobile = useCallback(() => setMobileOpen(false), []);
@@ -47,6 +48,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         >
           {/* Sidebar */}
           <Sidebar
+            variant={variant}
             mobileOpen={mobileOpen}
             onCloseMobile={closeMobile}
             collapsed={collapsed}
@@ -58,7 +60,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div
             className="flex-1 flex flex-col min-w-0 transition-[padding] duration-300 lg:pl-64 lg:mini:pl-[4.5rem]"
           >
-            <Header onToggleMobile={toggleMobile} sidebarCollapsed={collapsed} onToggleSidebar={toggleCollapsed} />
+            <Header variant={variant} onToggleMobile={toggleMobile} sidebarCollapsed={collapsed} onToggleSidebar={toggleCollapsed} />
             <main
               className={
                 isAssistant
@@ -70,6 +72,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </main>
           </div>
         </div>
+        {variant === 'admin' && <RequestAlert />}
         <BrowserErrorReporter />
       </ToastProvider>
     </AuthProvider>
