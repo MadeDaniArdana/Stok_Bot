@@ -155,28 +155,36 @@ export default function StockHistoryPage() {
       'Catatan',
     ];
 
+    // Escape tanda kutip & cegah formula injection di Excel (= + - @ di awal sel), sama seperti export CSV server.
+    const cell = (value: unknown) => {
+      const text = value === null || value === undefined ? '' : String(value);
+      const safe = /^[=+@\t\r]/.test(text) || /^-(?!\d)/.test(text) ? `'${text}` : text;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     const rows = movements.map((m) => [
-      `"${new Date(m.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}"`,
-      `"${m.product?.sku || ''}"`,
-      `"${m.product?.name || ''}"`,
-      `"${m.type}"`,
+      new Date(m.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+      m.product?.sku || '',
+      m.product?.name || '',
+      m.type,
       m.quantity,
-      `"${m.product?.unit || ''}"`,
+      m.product?.unit || '',
       m.stockBefore,
       m.stockAfter,
-      `"${m.source === 'TELEGRAM' && m.actor?.telegram?.username ? '@' + m.actor.telegram.username : personName(m.actor?.name, m.actorName, 'Sistem')}"`,
-      `"${m.source}"`,
-      `"${(m.notes || '').replace(/"/g, '""')}"`,
-    ]);
+      m.source === 'TELEGRAM' && m.actor?.telegram?.username ? '@' + m.actor.telegram.username : personName(m.actor?.name, m.actorName, 'Sistem'),
+      m.source,
+      m.notes || '',
+    ].map(cell));
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    // Blob (bukan data: URI) agar karakter seperti # tidak memotong isi file; BOM agar Excel membaca UTF-8.
+    const csv = '﻿' + [headers.map(cell).join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `StockFlow-Mutasi-${new Date().toISOString().split('T')[0]}.csv`);
+    link.href = url;
+    link.download = `StockFlow-Mutasi-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('Ekspor Berhasil', 'File CSV riwayat pergerakan stok telah diunduh.');
   };
 

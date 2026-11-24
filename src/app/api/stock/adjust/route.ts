@@ -10,11 +10,18 @@ export async function POST(req: NextRequest) {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
 
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    // Ketat: Number('') / Number(null) = 0 akan mengosongkan stok tanpa sengaja.
+    if (!body || typeof body.productId !== 'string' || typeof body.actualStock !== 'number' || typeof body.reason !== 'string') {
+      return NextResponse.json({ error: 'Data penyesuaian tidak lengkap.' }, { status: 400 });
+    }
+    if (body.reason.trim().length > 200) {
+      return NextResponse.json({ error: 'Alasan maksimal 200 karakter.' }, { status: 400 });
+    }
     const result = await InventoryService.recordAdjustment({
       productId: body.productId,
-      actualStock: Number(body.actualStock),
-      reason: String(body.reason ?? ''),
+      actualStock: body.actualStock,
+      reason: body.reason,
       actorUserId: auth.user.id,
     });
 
