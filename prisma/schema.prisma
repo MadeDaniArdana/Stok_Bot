@@ -304,8 +304,13 @@ model ItemRequest {
   requesterId        String?
   requester          User?             @relation(fields: [requesterId], references: [id], onDelete: SetNull)
   requesterName      String // disalin agar tetap ada bila akun dihapus
-  divisionName       String
+  divisionName       String // "Kepada" (unit tujuan) yang diisi pengaju
+  receiverName       String? // nama penerima yang diketik pengaju (penanda tangan)
   notes              String?
+  requesterSignature String? // tanda tangan digital pengaju (PNG data URL)
+  adminSignature     String? // tanda tangan digital admin saat review (opsional)
+  approvedDate       DateTime? // tanggal ACC yang ditentukan admin
+  storageLocation    String? // tempat penyimpanan di formulir
   status             String            @default("PENDING") // PENDING, PROCESSING, APPROVED, REJECTED
   rejectReason       String?
   decidedAt          DateTime?
@@ -323,9 +328,14 @@ model ItemRequestItem {
   id        String      @id @default(uuid())
   requestId String
   request   ItemRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantity  Int
+  // Barang master (kosong bila pengaju mengetik barang di luar daftar; admin memetakan saat review).
+  productId        String?
+  product          Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  customName       String? // nama barang yang diketik pengaju
+  customUnit       String?
+  quantity         Int // jumlah pengajuan
+  approvedQuantity Int? // jumlah ACC dari admin
+  noStock          Boolean  @default(false) // ACC tapi tidak mengurangi stok
 
   @@index([requestId])
 }

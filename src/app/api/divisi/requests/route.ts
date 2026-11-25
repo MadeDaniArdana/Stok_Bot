@@ -22,7 +22,14 @@ export async function POST(req: NextRequest) {
     if (auth.error) return auth.error;
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: 'Data form tidak valid.' }, { status: 400 });
-    const request = await RequestService.create(auth.user, { stockGroup: body.stockGroup, notes: body.notes, items: body.items });
+    const request = await RequestService.create(auth.user, {
+      stockGroup: body.stockGroup,
+      notes: body.notes,
+      recipientTo: body.recipientTo,
+      receiverName: body.receiverName,
+      signature: body.signature,
+      items: body.items,
+    });
     return NextResponse.json({ success: true, request }, { status: 201 });
   } catch (error) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });

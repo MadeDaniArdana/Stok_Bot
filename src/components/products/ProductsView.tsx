@@ -1,7 +1,6 @@
 'use client';
 
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
-import { StockQty } from '@/components/ui/StockQty';
 import dynamic from 'next/dynamic';
 import { UnitInput } from '@/components/products/UnitInput';
 import { formatStock } from '@/lib/product-units';
@@ -559,14 +558,14 @@ Alasan: ${adjReason.trim()}`)) return;
                 <th className="py-3 px-3">Barang</th>
                 {isAdmin ? (
                   <>
-                    <th className="py-3 px-2 text-center whitespace-nowrap">Sisa</th>
-                    <th className="py-3 px-2 text-center whitespace-nowrap">Baru</th>
-                    <th className="py-3 px-2 text-center whitespace-nowrap">Total</th>
-                    <th className="py-3 px-2 text-center whitespace-nowrap">Keluar</th>
-                    <th className="py-3 px-2 text-center whitespace-nowrap">{isCurrentMonth ? 'Stok Saat Ini' : 'Sisa Akhir'}</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Sisa Stok</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Jumlah Barang Masuk</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Total Jumlah Stok</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Jumlah Barang Keluar</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">{isCurrentMonth ? 'Stok Saat Ini' : 'Sisa Akhir'}</th>
                   </>
                 ) : (
-                  <th className="py-3 px-2.5 text-center whitespace-nowrap">Stok Saat Ini</th>
+                  <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Stok Saat Ini</th>
                 )}
                 <th className="py-3 px-2 text-center">Satuan</th>
                 <th className="py-3 px-2 text-center">Status</th>
@@ -613,7 +612,7 @@ Alasan: ${adjReason.trim()}`)) return;
                         (() => {
                           const pos = positions.get(p.id);
                           const cell = (value: number | undefined, prefix = '') =>
-                            value === undefined ? <span className="text-slate-300">-</span> : <StockQty product={p} quantity={value} prefix={prefix} />;
+                            value === undefined ? <span className="text-slate-300">-</span> : <span className="whitespace-nowrap">{prefix}{value}</span>;
                           const closing = isCurrentMonth ? p.currentStock : pos?.closingStock;
                           return (
                             <>
@@ -634,7 +633,7 @@ Alasan: ${adjReason.trim()}`)) return;
                                 </span>
                                 {pos?.adjustment ? (
                                   <span className="mt-0.5 block text-[11px] font-medium text-sky-700 whitespace-nowrap">
-                                    ±{pos.adjustment > 0 ? '+' : '-'}{formatStock(p, Math.abs(pos.adjustment))}
+                                    ±{pos.adjustment > 0 ? '+' : '-'}{Math.abs(pos.adjustment)}
                                   </span>
                                 ) : null}
                               </td>
@@ -644,7 +643,7 @@ Alasan: ${adjReason.trim()}`)) return;
                       ) : (
                         <td className="py-2.5 px-2.5 text-center">
                           <div className={cn('font-bold', isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900')}>
-                            <StockQty product={p} quantity={p.currentStock} />
+                            <span className="whitespace-nowrap">{p.currentStock}</span>
                           </div>
                           <span className="mt-0.5 block whitespace-nowrap text-xs text-slate-400">
                             Min: {p.minimumStock}

@@ -6,11 +6,18 @@ import { RequestService } from '@/services/request.service';
 
 export const runtime = 'nodejs';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
-    const request = await RequestService.approve(params.id, auth.user);
+    const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const request = await RequestService.approve(id, auth.user, {
+      items: body?.items,
+      date: body?.date,
+      storageLocation: body?.storageLocation,
+      adminSignature: body?.adminSignature,
+    });
     return NextResponse.json({ success: true, request });
   } catch (error) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });

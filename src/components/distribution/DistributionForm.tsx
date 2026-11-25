@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { CheckCircle2, ClipboardList, LoaderCircle, PackageOpen, Plus, Printer, Save, Send, Trash2, X } from 'lucide-react';
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
 import { ProductPicker } from '@/components/products/ProductPicker';
+import { SearchCombobox, type ComboOption } from '@/components/ui/SearchCombobox';
 import { ProofLinkBox } from './ProofLinkBox';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
@@ -247,6 +248,19 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const defaultHandover =
     group.handoverDefault === 'last' ? handoverNames[0] || currentUser?.name || '' : currentUser?.name || '';
   const receiverSuggestions = Array.from(new Set([...(group.receiverOptions ?? []), ...receiverNames]));
+  // "Kepada": nama tujuan sesuai paket distribusi (hint = nama paket) + tujuan yang pernah dipakai.
+  const recipientOptions = useMemo<ComboOption[]>(
+    () => [
+      ...templates.map((template) => ({ value: template.recipientUnit, hint: template.name !== template.recipientUnit ? `Paket: ${template.name}` : undefined })),
+      ...recipients.map((value) => ({ value })),
+    ],
+    [templates, recipients]
+  );
+  // Penerima: penerima bawaan paket + daftar tetap + nama yang pernah diketik.
+  const receiverOptions = useMemo(
+    () => Array.from(new Set([...templates.flatMap((template) => (template.receiverName ? [template.receiverName] : [])), ...receiverSuggestions])),
+    [templates, receiverSuggestions]
+  );
   useEffect(() => {
     if (!isListrik && defaultHandover && !handoverTouched.current) setHandoverName(defaultHandover);
   }, [defaultHandover, isListrik]);
@@ -693,21 +707,14 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             <label htmlFor="dist-recipient" className="mb-1 block text-xs font-semibold text-slate-700">
               {group.recipientLabel} <span className="text-rose-500">*</span>
             </label>
-            <input
+            <SearchCombobox
               id="dist-recipient"
               required
-              list="dist-recipient-options"
               value={recipientUnit}
-              onChange={(e) => setRecipientUnit(e.target.value)}
+              onChange={setRecipientUnit}
+              options={recipientOptions}
               placeholder={group.recipientPlaceholder}
-              maxLength={150}
-              className={inputClass}
             />
-            <datalist id="dist-recipient-options">
-              {recipients.map((recipient) => (
-                <option key={recipient} value={recipient} />
-              ))}
-            </datalist>
           </div>
 
           {isListrik && (
@@ -814,12 +821,13 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             <label htmlFor="dist-receiver" className="mb-1 block text-xs font-semibold text-slate-700">
               Penerima <span className="font-normal text-slate-400">(opsional)</span>
             </label>
-            <input id="dist-receiver" list={isListrik ? undefined : 'dist-receiver-options'} value={receiverName} onChange={(e) => setReceiverName(e.target.value)} placeholder={isListrik ? 'Boleh dikosongkan' : group.receiverOptions ? 'Pilih dari daftar atau ketik nama lain' : 'Nama penerima (boleh diisi saat tanda tangan)'} maxLength={150} className={inputClass} />
-            {!isListrik && (
-              <datalist id="dist-receiver-options">
-                {receiverSuggestions.map((name) => <option key={name} value={name} />)}
-              </datalist>
-            )}
+            <SearchCombobox
+              id="dist-receiver"
+              value={receiverName}
+              onChange={setReceiverName}
+              options={isListrik ? [] : receiverOptions}
+              placeholder={isListrik ? 'Boleh dikosongkan' : 'Cari, pilih, atau ketik nama baru'}
+            />
           </div>
 
           <div className={isListrik ? 'sm:col-span-2' : 'sm:col-span-2 lg:col-span-1'}>
