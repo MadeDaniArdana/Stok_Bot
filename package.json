@@ -18,6 +18,9 @@
     "db:snapshot-reset": "node --env-file=.env prisma/reset-stock-snapshot.js",
     "db:satuan-ukuran": "node --env-file=.env prisma/update-satuan-ukuran.js",
     "db:backup": "node --env-file=.env prisma/backup.js",
+    "db:dump": "node scripts/db-docker.cjs dump",
+    "db:restore": "node scripts/db-docker.cjs restore",
+    "db:verify": "node scripts/db-docker.cjs verify",
     "db:studio": "prisma studio"
   },
   "dependencies": {

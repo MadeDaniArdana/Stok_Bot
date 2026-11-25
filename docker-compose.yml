@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: stockflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stockflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockflow_local_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-stockflow}
+      TZ: Asia/Jakarta
+    ports:
+      # Terikat ke 127.0.0.1 saja agar port database tidak terbuka ke jaringan publik.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 memakai PGDATA=/var/lib/postgresql/18/docker di bawah /var/lib/postgresql.
+      - stockflow_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockflow} -d ${POSTGRES_DB:-stockflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stockflow-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Jakarta
+      # Di dalam jaringan Docker, koneksi DB mengarah ke nama service `db`.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stockflow}:${POSTGRES_PASSWORD:-stockflow_local_dev}@db:5432/${POSTGRES_DB:-stockflow}?schema=public
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  stockflow_pgdata:
