@@ -5,9 +5,11 @@ import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from '@/lib/sessi
 
 export const runtime = 'nodejs';
 
-// Rate limit login berbasis sliding-window per IP dan per email (in-memory per instance).
+// Rate limit login berbasis sliding-window per IP dan per email (in-memory di server).
+// Batas IP diset 30 agar beberapa staf di satu jaringan Wi-Fi kampus (NAT bersama) tidak saling mengunci,
+// sementara batas per-email tetap ketat (5x gagal).
 const WINDOW_MS = 15 * 60 * 1000; // 15 menit
-const MAX_IP_FAILURES = 10;
+const MAX_IP_FAILURES = 30;
 const MAX_EMAIL_FAILURES = 5;
 const MAX_BUCKETS = 2000;
 const DUMMY_PASSWORD_HASH = `scrypt:${'00'.repeat(16)}:${'00'.repeat(64)}`;
@@ -17,7 +19,6 @@ const failureBuckets = new Map<string, RateBucket>();
 
 function getClientIp(req: NextRequest): string {
   return (
-    req.ip ||
     req.headers.get('x-real-ip')?.trim() ||
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
     'unknown'

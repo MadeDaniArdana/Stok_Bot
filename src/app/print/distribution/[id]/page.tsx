@@ -21,10 +21,11 @@ function buildDocumentTitle(distribution: { stockGroup: string; recipientUnit: s
   return `Form Distribusi ${group.shortLabel} - ${target} (${distribution.number})${cancelledSuffix}`;
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const user = await getAuthUser();
   if (!user) return { title: 'Login - StockFlow' };
-  const distribution = await getDistribution(params.id);
+  const { id } = await params;
+  const distribution = await getDistribution(id);
   if (!distribution) return { title: 'Dokumen Tidak Ditemukan - StockFlow' };
   return { title: buildDocumentTitle(distribution) };
 }
@@ -36,10 +37,11 @@ const shortDate = (date: Date) =>
 const monthYear = (date: Date) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', month: 'short', year: 'numeric' }).format(date);
 
-export default async function PrintDistributionPage({ params }: { params: { id: string } }) {
+export default async function PrintDistributionPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getAuthUser();
   if (!user) redirect('/login');
-  const distribution = await getDistribution(params.id);
+  const { id } = await params;
+  const distribution = await getDistribution(id);
   if (!distribution) notFound();
   const group = getStockGroup(distribution.stockGroup);
   const cancelled = distribution.status === 'CANCELLED';

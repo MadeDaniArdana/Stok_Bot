@@ -5,17 +5,18 @@ import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { isStockGroup } from '@/lib/stock-groups';
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
     const { name, description, stockGroup } = await req.json();
     if (stockGroup !== undefined && !isStockGroup(stockGroup)) {
       return NextResponse.json({ error: 'Jenis stok tidak valid.' }, { status: 400 });
     }
     const updated = await prisma.category.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: name ? name.trim() : undefined,
         description: description !== undefined ? description?.trim() || null : undefined,
@@ -29,13 +30,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
     const productCount = await prisma.product.count({
-      where: { categoryId: params.id },
+      where: { categoryId: id },
     });
 
     if (productCount > 0) {
@@ -46,7 +48,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
 
     await prisma.category.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ success: true });

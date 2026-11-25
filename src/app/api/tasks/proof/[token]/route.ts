@@ -7,10 +7,11 @@ export const runtime = 'nodejs';
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const task = await InstallationTaskService.getByToken(params.token);
+    const { token } = await params;
+    const task = await InstallationTaskService.getByToken(token);
     if (!task) return NextResponse.json({ error: 'Tugas tidak ditemukan.' }, { status: 404 });
 
     return NextResponse.json({
@@ -23,7 +24,7 @@ export async function GET(
       notes: task.notes,
       status: task.status,
       completedAt: task.completedAt,
-      photoUrl: task.proofFileName ? `/api/tasks/proof/${params.token}/photo` : null,
+      photoUrl: task.proofFileName ? `/api/tasks/proof/${token}/photo` : null,
     });
   } catch (error) {
     await logError({ source: 'UPLOAD', error, location: 'Buka link bukti (GET /api/tasks/proof)' });
@@ -33,11 +34,12 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   let logContext: Record<string, unknown> = {};
   try {
-    const task = await InstallationTaskService.getByToken(params.token);
+    const { token } = await params;
+    const task = await InstallationTaskService.getByToken(token);
     if (task) {
       logContext = {
         tugasId: task.id,
@@ -59,7 +61,7 @@ export async function POST(
     }
 
     logContext = { ...logContext, foto: { jenis: photo.type, ukuranKB: Math.round(photo.size / 1024) } };
-    const completedTask = await InstallationTaskService.completeWithProof(params.token, photo);
+    const completedTask = await InstallationTaskService.completeWithProof(token, photo);
     return NextResponse.json({
       success: true,
       status: completedTask.status,

@@ -16,7 +16,7 @@ function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(path));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (isPublic(pathname)) return NextResponse.next();
 
@@ -25,7 +25,7 @@ export async function middleware(request: NextRequest) {
 
   // Akun divisi hanya boleh membuka halaman & API pengajuan miliknya (dan logout/sesi).
   if (session?.role === 'DIVISI') {
-    const allowed = ['/divisi', '/api/divisi', '/api/auth'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    const allowed = ['/divisi', '/api/divisi', '/api/auth', '/print/request'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
     if (allowed) return NextResponse.next();
     if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Akses ditolak.' }, { status: 403 });
     return NextResponse.redirect(new URL('/divisi', request.url));

@@ -86,8 +86,8 @@ export async function saveTaskProof(file: File) {
   }
 
   const directory = getLocalProofDirectory();
-  await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, fileName), contents, { flag: 'wx' });
+  await mkdir(/*turbopackIgnore: true*/ directory, { recursive: true });
+  await writeFile(/*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ directory, fileName), contents, { flag: 'wx' });
   return fileName;
 }
 
@@ -97,7 +97,7 @@ export async function deleteTaskProof(reference: string) {
     return;
   }
   if (!LOCAL_FILE_PATTERN.test(reference)) return;
-  await unlink(path.join(getLocalProofDirectory(), reference)).catch((error: NodeJS.ErrnoException) => {
+  await unlink(/*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ getLocalProofDirectory(), reference)).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== 'ENOENT') throw error;
   });
 }
@@ -109,7 +109,7 @@ export async function readTaskProof(reference: string): Promise<Buffer | null> {
     return Buffer.from(await response.arrayBuffer());
   }
   if (!LOCAL_FILE_PATTERN.test(reference)) return null;
-  return readFile(path.join(getLocalProofDirectory(), reference)).catch((error: NodeJS.ErrnoException) => {
+  return readFile(/*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ getLocalProofDirectory(), reference)).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return null;
     throw error;
   });

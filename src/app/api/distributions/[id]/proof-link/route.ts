@@ -7,12 +7,13 @@ import { DistributionService } from '@/services/distribution.service';
 export const runtime = 'nodejs';
 
 /** Buat ulang link foto bukti (link lama otomatis tidak berlaku). */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
-    const token = await DistributionService.regenerateProofLink(params.id);
+    const token = await DistributionService.regenerateProofLink(id);
     return NextResponse.json({ success: true, token });
   } catch (error) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });

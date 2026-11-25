@@ -21,17 +21,17 @@ function resolveParams(searchParams: Search) {
   return { stockGroup, period, groupLabel, documentTitle };
 }
 
-export async function generateMetadata({ searchParams }: { searchParams: Search }): Promise<Metadata> {
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Search> }): Promise<Metadata> {
   const user = await getCurrentUser();
   if (!user) return { title: 'Login - StockFlow' };
-  return { title: resolveParams(searchParams).documentTitle };
+  return { title: resolveParams(await searchParams).documentTitle };
 }
 
-export default async function PrintStockPositionPage({ searchParams }: { searchParams: Search }) {
+export default async function PrintStockPositionPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const { stockGroup, period, groupLabel, documentTitle } = resolveParams(searchParams);
+  const { stockGroup, period, groupLabel, documentTitle } = resolveParams(await searchParams);
   const report = await ReportService.getStockPositionReport(period, stockGroup);
   const today = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',

@@ -57,15 +57,15 @@ Catatan: tinjauan statis; pengujian dinamis (mis. coba header bypass terhadap in
 
 ---
 
-## 8. Status Remediasi (2026-11-20)
+## 8. Status Remediasi (Diperbarui 2026-11-25)
 
 | Temuan | Status | Perbaikan yang Diterapkan |
 | --- | --- | --- |
-| **F1 CRITICAL** — CVE-2025-29927 & tanpa defense-in-depth | **Diperbaiki** | Upgrade `next` dari `14.2.15` → `14.2.35`; tambahkan `requireAdmin()` (`src/lib/auth-server.ts`) pada seluruh **27 route API admin** serta cek `getCurrentUser()` pada 2 halaman SSR cetak (`/print/*`). |
+| **F1 CRITICAL** — CVE-2025-29927 & tanpa defense-in-depth | **Diperbaiki** | Upgrade ke `next@16.4.6` + `react@19.3.1`; tambahkan `requireAdmin()` / `requireDivisi()` (`src/lib/auth-server.ts`) pada seluruh route API terproteksi serta cek `getCurrentUser()` pada seluruh halaman SSR cetak (`/print/*`). |
 | **F2 HIGH** — Kebocoran `passwordHash` di `/api/users` | **Diperbaiki** | Terapkan `SAFE_USER_SELECT` pada `GET/POST /api/users` dan `PATCH /api/users/[id]`; tambah validasi enum `role`, cegah self-demotion/self-deactivation. |
-| **F3 HIGH** — Dependensi rentan (`npm audit`) | **Sebagian besar diperbaiki** | Hapus `zod` (tidak terpakai), pin `@vercel/blob@2.4.0` (menutup kerentanan `undici`, `@fastify/busboy`, dan `zod`), upgrade `next@14.2.35`, dan matikan `/_next/image` (`images: { unoptimized: true }`). Sisa 2 alert pada `npm audit` hanya berasal dari `next` 14.x + `postcss` bawaannya (memerlukan migrasi major ke Next 16 + React 19 jika ingin 0 alert). |
+| **F3 HIGH** — Dependensi rentan (`npm audit`) | **Diperbaiki (0 vulnerabilities)** | Hapus `zod` (tidak terpakai), pin `@vercel/blob@2.4.0`, matikan `/_next/image` (`images: { unoptimized: true }`), dan migrasi ke `next@16.4.6` + `react@19.3.1` sehingga `npm audit` menghasilkan **0 vulnerabilities** (menutup celah RSC DoS & RCE pada deployment self-hosted server kampus). |
 | **F4 MEDIUM** — Webhook Telegram fail-open | **Diperbaiki** | Fail-closed (500 bila `TELEGRAM_WEBHOOK_SECRET` kosong), verifikasi token constant-time (`SHA-256 + timingSafeEqual`) sebelum parse JSON, hapus kebocoran `result` dan `error.message`. |
-| **F5 MEDIUM** — Brute-force login | **Diperbaiki** | Sliding-window rate limit per IP (10 gagal / 15 menit) & per email (5 gagal / 15 menit) dengan header `Retry-After` (429), serta eksekusi `scrypt` dummy untuk mencegah enumerasi akun lewat timing. |
-| **F6 LOW** — Rate limit `/api/logs/client` bisa di-reset | **Diperbaiki** | Prioritaskan `req.ip` / `x-real-ip` dan hapus hanya entri kedaluwarsa (bukan `hits.clear()`). |
+| **F5 MEDIUM** — Brute-force login | **Diperbaiki** | Sliding-window rate limit per IP (30 gagal / 15 menit untuk akomodasi NAT Wi-Fi kampus) & per email (5 gagal / 15 menit) dengan header `Retry-After` (429), serta eksekusi `scrypt` dummy untuk mencegah enumerasi akun lewat timing. |
+| **F6 LOW** — Rate limit `/api/logs/client` bisa di-reset | **Diperbaiki** | Prioritaskan `x-real-ip` / `x-forwarded-for` dan hapus hanya entri kedaluwarsa (bukan `hits.clear()`). |
 | **F8 LOW** — Sesi stateless & status aktif user | **Diperbaiki** | `requireAdmin()` selalu memverifikasi `isActive === true` & `role === 'ADMIN'` langsung ke DB pada setiap permintaan API admin; cookie logout disamakan atributnya (`secure`, `sameSite: 'lax'`). |
 | **Tambahan** — `actorUserId` spoofable, batas query, header HTTP, error leak | **Diperbaiki** | `POST /api/stock/in`, `POST /api/stock/movements`, `POST /api/products` kini selalu memakai `auth.user.id` dari sesi; batas `limit`/`pageSize`/`days` dikunci; `apiError()` dan catch handler tidak membocorkan pesan Prisma mentah; header keamanan global ditambahkan di `next.config.mjs` (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy: camera=(self), microphone=(), geolocation=()`, `HSTS`). |

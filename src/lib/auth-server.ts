@@ -15,15 +15,16 @@ export const SAFE_USER_SELECT = {
 } as const;
 
 /** Pengguna aktif ber-sesi dengan peran ADMIN atau DIVISI, atau null. */
-export async function getSessionUser() {
-  const session = await verifySessionToken(cookies().get(SESSION_COOKIE)?.value);
+export async function getSessionUser(includeTelegram = true) {
+  const cookieStore = await cookies();
+  const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
   if (!session) return null;
 
   const user = await prisma.user.findUnique({
     where: { id: session.uid },
     select: {
       ...SAFE_USER_SELECT,
-      telegram: true,
+      ...(includeTelegram ? { telegram: true } : {}),
     },
   });
   if (!user || !user.isActive || (user.role !== 'ADMIN' && user.role !== 'DIVISI')) return null;
@@ -31,9 +32,9 @@ export async function getSessionUser() {
   return user;
 }
 
-/** Hanya ADMIN: dipakai semua API admin lewat requireAdmin, jadi akun DIVISI tidak pernah lolos. */
-export async function getCurrentUser() {
-  const user = await getSessionUser();
+/** Hanya ADMIN: dipakai halaman SSR & API admin, jadi akun DIVISI tidak pernah lolos. */
+export async function getCurrentUser(includeTelegram = false) {
+  const user = await getSessionUser(includeTelegram);
   return user?.role === 'ADMIN' ? user : null;
 }
 
@@ -47,7 +48,7 @@ export async function requireAdmin(): Promise<
   | { user: CurrentAdmin; error: null }
   | { user: null; error: NextResponse }
 > {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser(false);
   if (!user) {
     return {
       user: null,
@@ -62,7 +63,7 @@ export async function requireDivisi(): Promise<
   | { user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>; error: null }
   | { user: null; error: NextResponse }
 > {
-  const user = await getSessionUser();
+  const user = await getSessionUser(false);
   if (!user || user.role !== 'DIVISI') {
     return { user: null, error: NextResponse.json({ error: 'Silakan login terlebih dahulu.' }, { status: 401 }) };
   }

@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 
 // Konstanta di luar komponen agar referensinya stabil antar-render.
 const REMARK_PLUGINS = [remarkGfm];
-function isProofPhoto(src: unknown) {
+function isProofPhoto(src: unknown): src is string {
   if (typeof src !== "string") return false;
   try {
     const url = new URL(src, window.location.origin);

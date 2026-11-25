@@ -4,12 +4,13 @@ import { isUserFacingError } from '@/lib/api-errors';
 import { requireAdmin } from '@/lib/auth-server';
 import { ProductService } from '@/services/product.service';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
-    const product = await ProductService.getProductById(params.id);
+    const product = await ProductService.getProductById(id);
     if (!product) {
       return NextResponse.json({ error: 'Barang tidak ditemukan' }, { status: 404 });
     }
@@ -19,13 +20,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
     const body = await req.json();
-    const updated = await ProductService.updateProduct(params.id, body);
+    const updated = await ProductService.updateProduct(id, body);
     return NextResponse.json({ success: true, product: updated });
   } catch (error: any) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -33,17 +35,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
     // ?permanent=1 menghapus barang permanen; tanpa itu hanya aktif/nonaktif (soft delete).
     if (new URL(req.url).searchParams.get('permanent') === '1') {
-      const deleted = await ProductService.deleteProduct(params.id);
+      const deleted = await ProductService.deleteProduct(id);
       return NextResponse.json({ success: true, deleted: true, product: deleted });
     }
-    const updated = await ProductService.toggleStatus(params.id);
+    const updated = await ProductService.toggleStatus(id);
     return NextResponse.json({ success: true, product: updated });
   } catch (error: any) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });

@@ -7,13 +7,14 @@ import { logError } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
 
     const task = await prisma.installationTask.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { proofFileName: true, proofMimeType: true },
     });
     if (!task?.proofFileName || !task.proofMimeType) {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     return proofResponse(request, photo, task.proofMimeType, 'private, max-age=86400');
   } catch (error) {
-    await logError({ source: 'UPLOAD', error, location: 'GET /api/tasks/[id]/photo', context: { tugasId: params.id } });
+    await logError({ source: 'UPLOAD', error, location: 'GET /api/tasks/[id]/photo', context: { tugasId: id } });
     return NextResponse.json({ error: 'Foto bukti tidak dapat dimuat.' }, { status: 500 });
   }
 }

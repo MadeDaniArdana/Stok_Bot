@@ -29,15 +29,25 @@ function resolveReportParams(searchParams: { jenis?: string; month?: string }) {
   return { group, month, range, periodLabel, documentTitle };
 }
 
-export function generateMetadata({ searchParams }: { searchParams: { jenis?: string; month?: string } }): Metadata {
-  return { title: resolveReportParams(searchParams).documentTitle };
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ jenis?: string; month?: string }>;
+}): Promise<Metadata> {
+  const user = await getCurrentUser();
+  if (!user) return { title: 'Login - StockFlow' };
+  return { title: resolveReportParams(await searchParams).documentTitle };
 }
 
-export default async function PrintDistributionReportPage({ searchParams }: { searchParams: { jenis?: string; month?: string } }) {
+export default async function PrintDistributionReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ jenis?: string; month?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const { group, month, range, periodLabel, documentTitle } = resolveReportParams(searchParams);
+  const { group, month, range, periodLabel, documentTitle } = resolveReportParams(await searchParams);
   const isListrik = group.id === 'LISTRIK';
 
   const distributions = await prisma.distribution.findMany({

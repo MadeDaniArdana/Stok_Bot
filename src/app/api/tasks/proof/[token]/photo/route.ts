@@ -7,10 +7,11 @@ export const runtime = 'nodejs';
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const task = await InstallationTaskService.getByToken(params.token);
+    const { token } = await params;
+    const task = await InstallationTaskService.getByToken(token);
     if (!task?.proofFileName || !task.proofMimeType) {
       return NextResponse.json({ error: 'Foto bukti tidak ditemukan.' }, { status: 404 });
     }

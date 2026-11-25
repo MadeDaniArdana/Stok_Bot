@@ -1,5 +1,6 @@
 import { TaskProofPage } from '@/components/tasks/TaskProofPage';
 
-export default function ProofPage({ params }: { params: { token: string } }) {
-  return <TaskProofPage token={params.token} />;
+export default async function ProofPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  return <TaskProofPage token={token} />;
 }

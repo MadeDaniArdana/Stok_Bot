@@ -5,13 +5,14 @@ import { requireAdmin } from '@/lib/auth-server';
 import { DistributionTemplateService } from '@/services/distribution-template.service';
 
 /** Perbarui isi paket (barang & jumlah) dengan tabel terbaru dari form. */
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
     const body = await req.json();
-    const template = await DistributionTemplateService.update(params.id, body);
+    const template = await DistributionTemplateService.update(id, body);
     return NextResponse.json({ success: true, template });
   } catch (error) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -19,12 +20,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
-    await DistributionTemplateService.remove(params.id);
+    await DistributionTemplateService.remove(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });

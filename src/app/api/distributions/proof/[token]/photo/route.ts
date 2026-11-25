@@ -7,9 +7,10 @@ import { DistributionService } from '@/services/distribution.service';
 export const runtime = 'nodejs';
 
 /** Foto bukti untuk pemegang link (petugas melihat foto yang sudah dikirim). */
-export async function GET(request: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const distribution = await DistributionService.getByProofToken(params.token);
+    const { token } = await params;
+    const distribution = await DistributionService.getByProofToken(token);
     if (!distribution || distribution.status === 'CANCELLED') {
       return NextResponse.json({ error: 'Foto bukti tidak ditemukan.' }, { status: 404 });
     }

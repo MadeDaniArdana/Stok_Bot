@@ -14,7 +14,6 @@ const hits = new Map<string, { count: number; start: number }>();
 
 function getClientIp(req: NextRequest) {
   return (
-    req.ip ||
     req.headers.get('x-real-ip')?.trim() ||
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
     'unknown'

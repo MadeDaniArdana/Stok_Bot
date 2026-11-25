@@ -8,13 +8,14 @@ import { proofResponse } from '@/lib/proof-response';
 export const runtime = 'nodejs';
 
 /** Foto bukti distribusi untuk admin (butuh login). */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
 
     const distribution = await prisma.distribution.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { proofFileName: true, proofMimeType: true, proofs: { select: { location: true, fileName: true, mimeType: true } } },
     });
     const proof = distribution?.proofs.find((p) => p.location === request.nextUrl.searchParams.get('location'));
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (!photo) return NextResponse.json({ error: 'File foto tidak ditemukan.' }, { status: 404 });
     return proofResponse(request, photo, mimeType, 'private, max-age=86400');
   } catch (error) {
-    await logError({ source: 'UPLOAD', error, location: 'GET /api/distributions/[id]/photo', context: { distribusiId: params.id } });
+    await logError({ source: 'UPLOAD', error, location: 'GET /api/distributions/[id]/photo', context: { distribusiId: id } });
     return NextResponse.json({ error: 'Foto bukti tidak dapat dimuat.' }, { status: 500 });
   }
 }

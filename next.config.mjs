@@ -8,10 +8,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // sharp adalah modul native; jangan di-bundle webpack.
+  // sharp adalah modul native; jangan di-bundle bundler server.
   // optimizePackageImports memperkecil bundle ikon & chart via tree-shaking barrel exports.
+  serverExternalPackages: ['sharp'],
   experimental: {
-    serverComponentsExternalPackages: ['sharp'],
     optimizePackageImports: ['lucide-react', 'recharts'],
   },
   async headers() {

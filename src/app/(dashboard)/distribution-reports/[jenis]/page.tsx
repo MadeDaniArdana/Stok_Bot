@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, Suspense, useEffect, useRef, useState } from 'react';
+import { Fragment, Suspense, use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { notFound, useSearchParams } from 'next/navigation';
 import {
@@ -565,8 +565,9 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
 }
 
 /** Laporan Distribusi ATK / Peralatan Listrik / Logistik. */
-export default function DistributionReportsPage({ params }: { params: { jenis: string } }) {
-  const stockGroup = parseStockGroup(params.jenis);
+export default function DistributionReportsPage({ params }: { params: Promise<{ jenis: string }> }) {
+  const { jenis } = use(params);
+  const stockGroup = parseStockGroup(jenis);
   if (!stockGroup) notFound();
   return (
     <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Memuat laporan distribusi...</div>}>

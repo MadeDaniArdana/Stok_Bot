@@ -6,13 +6,14 @@ import { DistributionService } from '@/services/distribution.service';
 
 export const runtime = 'nodejs';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
+    const { id } = await params;
 
     const { reason } = await req.json().catch(() => ({ reason: '' }));
-    await DistributionService.cancel(params.id, String(reason || ''), auth.user.id);
+    await DistributionService.cancel(id, String(reason || ''), auth.user.id);
     return NextResponse.json({ success: true, message: 'Distribusi dibatalkan dan stok telah dikembalikan.' });
   } catch (error: any) {
     if (isUserFacingError(error)) {

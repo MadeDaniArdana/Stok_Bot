@@ -6,11 +6,12 @@ import { hashPassword } from '@/lib/password';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
     const currentUser = auth.user;
+    const { id } = await params;
 
     const { name, role, password, isActive, telegramUserId, telegramUsername, unlinkTelegram } = await req.json();
 
@@ -20,7 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (role !== undefined && role !== 'ADMIN' && role !== 'USER' && role !== 'DIVISI') {
       return NextResponse.json({ error: 'Peran pengguna tidak valid.' }, { status: 400 });
     }
-    if (currentUser.id === params.id) {
+    if (currentUser.id === id) {
       if (isActive === false) {
         return NextResponse.json({ error: 'Anda tidak dapat menonaktifkan akun yang sedang dipakai login.' }, { status: 400 });
       }
@@ -31,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // ID admin Telegram otomatis tertaut ulang oleh bot, jadi hak admin-nya harus dicabut agar putusnya permanen.
     if (unlinkTelegram) {
-      const link = await prisma.telegramUser.findUnique({ where: { userId: params.id } });
+      const link = await prisma.telegramUser.findUnique({ where: { userId: id } });
       if (link) {
         if (getEnvAdminIds().includes(link.telegramUserId)) {
           return NextResponse.json(
@@ -45,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: typeof name === 'string' && name.trim() ? name.trim() : undefined,
         role: role ?? undefined,
@@ -57,11 +58,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     if (unlinkTelegram) {
       await prisma.telegramUser.deleteMany({
-        where: { userId: params.id },
+        where: { userId: id },
       });
     } else if (telegramUserId) {
       await prisma.telegramUser.upsert({
-        where: { userId: params.id },
+        where: { userId: id },
         update: {
           telegramUserId: String(telegramUserId).trim(),
           telegramChatId: String(telegramUserId).trim(),
@@ -69,7 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           isActive: true,
         },
         create: {
-          userId: params.id,
+          userId: id,
           telegramUserId: String(telegramUserId).trim(),
           telegramChatId: String(telegramUserId).trim(),
           username: telegramUsername ? telegramUsername.trim() : null,
@@ -79,7 +80,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const finalUser = await prisma.user.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         ...SAFE_USER_SELECT,
         telegram: true,
@@ -99,16 +100,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
  * tetap tersimpan, dan nama akun disalin ke catatan tersebut (tampil "Nama (akun dihapus)").
  * Ikut dihapus: tautan Telegram, status admin bot, percakapan bot, dan notifikasi milik akun ini.
  */
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const auth = await requireAdmin();
     if (auth.error) return auth.error;
     const currentUser = auth.user;
-    if (currentUser.id === params.id) {
+    const { id } = await params;
+    if (currentUser.id === id) {
       return NextResponse.json({ error: 'Anda tidak dapat menghapus akun yang sedang dipakai login.' }, { status: 400 });
     }
 
-    const target = await prisma.user.findUnique({ where: { id: params.id }, include: { telegram: true } });
+    const target = await prisma.user.findUnique({ where: { id }, include: { telegram: true } });
     if (!target) return NextResponse.json({ error: 'Akun tidak ditemukan atau sudah dihapus.' }, { status: 404 });
 
     const telegramId = target.telegram?.telegramUserId;

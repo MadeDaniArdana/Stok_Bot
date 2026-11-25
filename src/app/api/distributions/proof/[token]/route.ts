@@ -11,15 +11,16 @@ export const runtime = 'nodejs';
  * Akses dibatasi oleh token acak 64 karakter di URL. Respons mengikuti format link tugas
  * pemasangan agar halaman /proof yang sama bisa dipakai.
  */
-export async function GET(_request: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const distribution = await DistributionService.getByProofToken(params.token);
+    const { token } = await params;
+    const distribution = await DistributionService.getByProofToken(token);
     if (!distribution || distribution.status === 'CANCELLED') {
       return NextResponse.json({ error: 'Link foto tidak valid, sudah diganti, atau distribusinya dibatalkan.' }, { status: 404 });
     }
     const first = distribution.items[0];
     // Daftar lokasi pemasangan; tiap lokasi punya foto sendiri. Dokumen lama (foto di level dokumen) dianggap satu lokasi.
-    const base = `/api/distributions/proof/${params.token}/photo`;
+    const base = `/api/distributions/proof/${token}/photo`;
     const locations = DistributionService.locationsOf(distribution).map((location) => {
       const proof = distribution.proofs.find((p) => p.location === location);
       const legacy = Boolean(distribution.proofFileName) && distribution.proofs.length === 0;
@@ -53,9 +54,10 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: { token: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   let context: Record<string, unknown> = {};
   try {
+    const { token } = await params;
     const formData = await request.formData();
     const photo = formData.get('photo');
     if (!(photo instanceof File)) return NextResponse.json({ error: 'Foto bukti wajib dipilih.' }, { status: 400 });
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
 
     const location = formData.get('location');
     const { uploadedAt, completed, location: savedLocation } = await DistributionService.attachProof(
-      params.token,
+      token,
       photo,
       typeof location === 'string' ? location : null
     );

@@ -8,8 +8,9 @@ export function generateStaticParams() {
 export const dynamicParams = false;
 
 /** Master Barang ATK / Peralatan Listrik / Logistik. */
-export default function ProductsByGroupPage({ params }: { params: { jenis: string } }) {
-  const stockGroup = parseStockGroup(params.jenis);
+export default async function ProductsByGroupPage({ params }: { params: Promise<{ jenis: string }> }) {
+  const { jenis } = await params;
+  const stockGroup = parseStockGroup(jenis);
   if (!stockGroup) notFound();
   return <ProductsView stockGroup={stockGroup} />;
 }

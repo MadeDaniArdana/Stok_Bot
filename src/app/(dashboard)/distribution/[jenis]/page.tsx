@@ -10,8 +10,9 @@ export function generateStaticParams() {
 export const dynamicParams = false;
 
 /** Form Distribusi ATK / Peralatan Listrik / Logistik. */
-export default function DistributionPage({ params }: { params: { jenis: string } }) {
-  const stockGroup = parseStockGroup(params.jenis);
+export default async function DistributionPage({ params }: { params: Promise<{ jenis: string }> }) {
+  const { jenis } = await params;
+  const stockGroup = parseStockGroup(jenis);
   if (!stockGroup) notFound();
   const group = getStockGroup(stockGroup);
 
