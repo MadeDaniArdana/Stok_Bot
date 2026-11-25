@@ -5,13 +5,13 @@ import { apiError } from '@/lib/error-log';
 
 export const dynamic = 'force-dynamic';
 
-/** Pilihan "Kepada" untuk form pengajuan: nama tujuan dari paket distribusi ATK/Logistik. */
+/** Pilihan "Kepada" untuk form pengajuan: nama tujuan dari paket distribusi ATK. */
 export async function GET() {
   try {
     const auth = await requireDivisi();
     if (auth.error) return auth.error;
     const templates = await prisma.distributionTemplate.findMany({
-      where: { stockGroup: { in: ['ATK', 'LOGISTIK'] } },
+      where: { stockGroup: 'ATK' },
       orderBy: { name: 'asc' },
       select: { stockGroup: true, name: true, recipientUnit: true },
     });

@@ -121,8 +121,8 @@ function ReviewPanel({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor={`date-${request.id}`} className="mb-1 block text-xs font-semibold text-slate-700">Tanggal ACC</label>
-          <input id={`date-${request.id}`} type="date" required max={todayInJakarta()} value={date} onChange={(e) => setDate(e.target.value)} className={`${fieldClass} w-full`} />
-          <p className="mt-0.5 text-[11px] text-slate-500">Menjadi tanggal distribusi &amp; tanggal di formulir.</p>
+          <input id={`date-${request.id}`} type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${fieldClass} w-full`} />
+          <p className="mt-0.5 text-[11px] text-slate-500">Bisa pilih tanggal hari ini, maju (jadwal ACC), atau mundur. Tercetak di formulir &amp; distribusi.</p>
         </div>
         <div>
           <label htmlFor={`storage-${request.id}`} className="mb-1 block text-xs font-semibold text-slate-700">

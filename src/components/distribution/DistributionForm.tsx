@@ -244,6 +244,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   // Selama belum diubah manual di form ini, kolom selalu mengikuti nama admin terbaru
   // (mis. setelah nama diganti di Pengaturan).
   const handoverTouched = useRef(false);
+  // Penerima otomatis sama dengan Kepada sampai diubah/dikosongkan manual.
+  const receiverTouched = useRef(false);
   // ATK: nama admin yang login. Logistik: nama terakhir yang dipakai (penanda tangannya bisa orang lain).
   const defaultHandover =
     group.handoverDefault === 'last' ? handoverNames[0] || currentUser?.name || '' : currentUser?.name || '';
@@ -264,6 +266,13 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   useEffect(() => {
     if (!isListrik && defaultHandover && !handoverTouched.current) setHandoverName(defaultHandover);
   }, [defaultHandover, isListrik]);
+
+  // Kepada & Penerima memakai pilihan yang sama.
+  const sharedOptions = useMemo<ComboOption[]>(() => [...recipientOptions, ...receiverOptions.map((value) => ({ value }))], [recipientOptions, receiverOptions]);
+  const changeRecipient = (value: string) => {
+    setRecipientUnit(value);
+    if (!isListrik && !receiverTouched.current) setReceiverName(value);
+  };
 
   const applyBootstrap = useCallback((data: DistributionBootstrapData) => {
     setProducts(data.products);
@@ -406,7 +415,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
       (tableSignature(currentItems) !== tableSignature(activeTemplate.items) ||
         recipientUnit.trim() !== activeTemplate.recipientUnit ||
         (storageLocation.trim() || null) !== activeTemplate.storageLocation ||
-        (receiverName.trim() || null) !== activeTemplate.receiverName)
+        (receiverName.trim() || null) !== (activeTemplate.receiverName ?? (isListrik ? null : activeTemplate.recipientUnit)))
   );
   const tableValidForTemplate =
     recipientUnit.trim() !== '' && filledRows.every((state) => !state.invalidQuantity);
@@ -420,7 +429,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     setNewTemplateName(null);
     setRecipientUnit(template.recipientUnit);
     setStorageLocation(template.storageLocation || '');
-    setReceiverName(template.receiverName || '');
+    receiverTouched.current = false;
+    setReceiverName(template.receiverName || (isListrik ? '' : template.recipientUnit));
     setRows(
       usable.length
         ? usable.map((item) => ({ key: nextKey.current++, productId: item.productId, quantity: item.quantity > 0 ? String(item.quantity) : '' }))
@@ -434,6 +444,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     setNewTemplateName(null);
     setRecipientUnit('');
     setStorageLocation('');
+    receiverTouched.current = false;
     setReceiverName('');
     setRows([{ key: nextKey.current++, productId: '', quantity: '' }]);
   };
@@ -503,6 +514,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     setRecipientUnit('');
     setOrderNumber('');
     setStorageLocation('');
+    receiverTouched.current = false;
     setReceiverName('');
     setOfficerPhone('');
     setNotes('');
@@ -711,8 +723,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
               id="dist-recipient"
               required
               value={recipientUnit}
-              onChange={setRecipientUnit}
-              options={recipientOptions}
+              onChange={changeRecipient}
+              options={sharedOptions}
               placeholder={group.recipientPlaceholder}
             />
           </div>
@@ -824,10 +836,14 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             <SearchCombobox
               id="dist-receiver"
               value={receiverName}
-              onChange={setReceiverName}
-              options={isListrik ? [] : receiverOptions}
+              onChange={(value) => {
+                receiverTouched.current = true;
+                setReceiverName(value);
+              }}
+              options={isListrik ? [] : sharedOptions}
               placeholder={isListrik ? 'Boleh dikosongkan' : 'Cari, pilih, atau ketik nama baru'}
             />
+            {!isListrik && <p className="mt-1 text-[11px] text-slate-500">Otomatis sama dengan Kepada. Ubah, ketik nama lain, atau kosongkan bila perlu.</p>}
           </div>
 
           <div className={isListrik ? 'sm:col-span-2' : 'sm:col-span-2 lg:col-span-1'}>

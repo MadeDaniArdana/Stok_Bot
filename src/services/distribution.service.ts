@@ -31,6 +31,8 @@ export interface CreateDistributionInput {
   orderNumber?: string | null;
   /** Tanggal pesanan/distribusi, format YYYY-MM-DD (WIB) */
   date?: string | null;
+  /** Izinkan tanggal ke depan (mis. tanggal ACC pengajuan yang dijadwalkan admin). */
+  allowFutureDate?: boolean;
   storageLocation?: string | null;
   receiverName?: string | null;
   /** No. WhatsApp petugas (opsional, khusus Peralatan Listrik) */
@@ -72,12 +74,12 @@ function cleanText(value: unknown, label: string, required = false): string | nu
 }
 
 /** "2026-11-17" ditafsirkan sebagai tengah hari WIB agar tidak bergeser tanggal di zona waktu lain. */
-function parseDistributionDate(value: string | null | undefined): Date {
+function parseDistributionDate(value: string | null | undefined, allowFuture = false): Date {
   if (!value) return new Date();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Tanggal distribusi tidak valid.');
   const date = new Date(`${value}T12:00:00+07:00`);
   if (Number.isNaN(date.getTime())) throw new Error('Tanggal distribusi tidak valid.');
-  if (date.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error('Tanggal distribusi tidak boleh di masa depan.');
+  if (!allowFuture && date.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error('Tanggal distribusi tidak boleh di masa depan.');
   return date;
 }
 
@@ -102,7 +104,7 @@ export class DistributionService {
     const receiverName = cleanText(input.receiverName, 'Nama penerima');
     const officerPhone = usesProofLink(group.id) ? normalizeWhatsAppNumber(input.officerPhone) : null;
     const notes = typeof input.notes === 'string' && input.notes.trim() ? input.notes.trim().slice(0, 500) : null;
-    const distributedAt = parseDistributionDate(input.date);
+    const distributedAt = parseDistributionDate(input.date, input.allowFutureDate);
 
     const rawItems = Array.isArray(input.items) ? input.items : [];
     if (rawItems.length === 0) throw new Error('Tambahkan minimal satu barang.');

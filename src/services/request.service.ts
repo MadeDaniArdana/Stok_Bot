@@ -2,8 +2,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { DistributionService } from './distribution.service';
 
-/** Divisi hanya mengajukan barang habis pakai; Peralatan Listrik punya alur pemasangan sendiri. */
-export const REQUEST_GROUPS = ['ATK', 'LOGISTIK'] as const;
+/** Untuk saat ini pengajuan divisi hanya untuk ATK (formulir F-RUT-0204); Logistik & Peralatan Listrik punya alur sendiri. */
+export const REQUEST_GROUPS = ['ATK'] as const;
 const MAX_ITEMS = 50;
 const TEXT_LIMIT = 150;
 const SIGNATURE_PATTERN = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
@@ -92,14 +92,15 @@ function parseApprovalDate(value: string | null | undefined): Date {
   if (!value) return new Date();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Tanggal ACC tidak valid.');
   const date = new Date(`${value}T12:00:00+07:00`);
-  if (Number.isNaN(date.getTime())) throw new Error('Tanggal ACC tidak valid.');
-  if (date.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error('Tanggal ACC tidak boleh di masa depan.');
+  const year = Number(value.slice(0, 4));
+  if (Number.isNaN(date.getTime()) || year < 2020 || year > 2100) throw new Error('Tanggal ACC tidak valid.');
   return date;
 }
 
 export class RequestService {
   static async create(user: Actor, input: CreateRequestInput) {
-    if (!(REQUEST_GROUPS as readonly string[]).includes(input.stockGroup)) throw new Error('Jenis barang tidak valid.');
+    const stockGroup = input.stockGroup || 'ATK';
+    if (!(REQUEST_GROUPS as readonly string[]).includes(stockGroup)) throw new Error('Pengajuan barang saat ini hanya tersedia untuk ATK.');
     const recipientTo = text(input.recipientTo, 'Kolom "Kepada"', true)!;
     const receiverName = text(input.receiverName, 'Nama', true, 100)!;
     const requesterSignature = signature(input.signature, true);
@@ -130,7 +131,7 @@ export class RequestService {
       });
       if (products.length !== productIds.length) throw new Error('Salah satu barang tidak ditemukan.');
       for (const p of products) {
-        if (!p.isActive || (p.category?.stockGroup ?? 'ATK') !== input.stockGroup) {
+        if (!p.isActive || (p.category?.stockGroup ?? 'ATK') !== stockGroup) {
           throw new Error(`Barang "${p.name}" tidak tersedia untuk diajukan.`);
         }
       }
@@ -147,7 +148,7 @@ export class RequestService {
         return await prisma.itemRequest.create({
           data: {
             number: `${prefix}${String(next).padStart(3, '0')}`,
-            stockGroup: input.stockGroup,
+            stockGroup,
             requesterId: user.id,
             requesterName: user.name,
             divisionName: recipientTo,
@@ -240,6 +241,7 @@ export class RequestService {
           recipientUnit: request.divisionName,
           orderNumber: request.number,
           date: dateText,
+          allowFutureDate: true,
           storageLocation,
           receiverName: request.receiverName ?? request.requesterName,
           handoverName: admin.name,
