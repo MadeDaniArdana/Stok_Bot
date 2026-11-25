@@ -24,7 +24,7 @@ const StockChart = dynamic(
   { ssr: false, loading: () => <div className="h-72 w-full animate-pulse rounded-lg bg-slate-100" /> }
 );
 
-const DASHBOARD_URL = '/api/reports/summary?days=7';
+const DASHBOARD_URL = '/api/reports/summary?days=7&view=dashboard';
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();

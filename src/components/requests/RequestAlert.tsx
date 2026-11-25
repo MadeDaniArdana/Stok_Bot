@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ClipboardList, X } from 'lucide-react';
+import { subscribeAdminPulse } from '@/lib/admin-pulse';
 
-const POLL_MS = 20_000;
 const SEEN_KEY = 'stockflow:requests-seen';
 
 interface Pending {
@@ -22,19 +22,16 @@ function readSeen(): Set<string> {
 
 /**
  * Pop-up dari sisi kanan yang mengingatkan admin bila ada pengajuan barang menunggu.
- * Muncul lagi hanya untuk pengajuan yang belum pernah ditutup/dilihat (disimpan per tab).
+ * Berbagi 1 polling background (/api/admin/pulse) dengan Header agar hemat request.
  */
 export function RequestAlert() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [visible, setVisible] = useState(false);
   const knownIds = useRef<string>('');
 
-  const check = useCallback(async () => {
-    if (document.hidden) return;
-    try {
-      const res = await fetch('/api/requests/pending', { cache: 'no-store' });
-      if (!res.ok) return;
-      const data: Pending = await res.json();
+  useEffect(() => {
+    return subscribeAdminPulse((pulse) => {
+      const data = pulse.pendingRequests;
       const ids = data.latest.map((r) => r.id).join(',');
       // Daftar berubah: beri tahu halaman Pengajuan Masuk agar memuat ulang daftarnya.
       if (knownIds.current && ids !== knownIds.current) window.dispatchEvent(new Event('requests-changed'));
@@ -42,20 +39,8 @@ export function RequestAlert() {
       setPending(data);
       const seen = readSeen();
       setVisible(data.latest.some((r) => !seen.has(r.id)));
-    } catch {
-      // Jaringan putus sesaat: coba lagi pada polling berikutnya.
-    }
+    });
   }, []);
-
-  useEffect(() => {
-    check();
-    const timer = setInterval(check, POLL_MS);
-    document.addEventListener('visibilitychange', check);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', check);
-    };
-  }, [check]);
 
   const dismiss = () => {
     try {

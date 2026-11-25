@@ -6,6 +6,116 @@ import { StockSnapshotService } from './stock-snapshot.service';
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+interface DailyTrendRow {
+  day: string;
+  type: string;
+  qty: number;
+}
+
+/** Agregasi mutasi IN/OUT per tanggal WIB langsung di PostgreSQL (menghindari penarikan ribuan baris ke JS). */
+function queryDailyTrendRows(start: Date, end: Date, stockGroup?: StockGroup): Promise<DailyTrendRow[]> {
+  if (stockGroup) {
+    return prisma.$queryRaw<DailyTrendRow[]>`
+      SELECT
+        to_char(m."createdAt" + interval '7 hours', 'YYYY-MM-DD') AS day,
+        m.type,
+        COALESCE(SUM(m.quantity), 0)::int AS qty
+      FROM "StockMovement" m
+      INNER JOIN "Product" p ON p.id = m."productId"
+      INNER JOIN "Category" c ON c.id = p."categoryId"
+      WHERE m."createdAt" >= ${start}
+        AND m."createdAt" < ${end}
+        AND m.type IN ('IN', 'OUT')
+        AND c."stockGroup" = ${stockGroup}
+      GROUP BY 1, 2
+    `;
+  }
+  return prisma.$queryRaw<DailyTrendRow[]>`
+    SELECT
+      to_char(m."createdAt" + interval '7 hours', 'YYYY-MM-DD') AS day,
+      m.type,
+      COALESCE(SUM(m.quantity), 0)::int AS qty
+    FROM "StockMovement" m
+    WHERE m."createdAt" >= ${start}
+      AND m."createdAt" < ${end}
+      AND m.type IN ('IN', 'OUT')
+    GROUP BY 1, 2
+  `;
+}
+
+function buildTrendSeries(
+  rows: DailyTrendRow[],
+  start: Date,
+  end: Date,
+  days: number,
+  periodKind: 'days' | 'month' | 'year'
+) {
+  const trendGranularity: 'daily' | 'weekly' | 'monthly' =
+    periodKind === 'year' ? 'monthly' : days > 31 ? 'weekly' : 'daily';
+
+  let totalInQuantity = 0;
+  let totalOutQuantity = 0;
+  for (const r of rows) {
+    const qty = Number(r.qty) || 0;
+    if (r.type === 'IN') totalInQuantity += qty;
+    else if (r.type === 'OUT') totalOutQuantity += qty;
+  }
+
+  let dailyTrends: Array<{ date: string; inQty: number; outQty: number }> = [];
+  if (trendGranularity === 'monthly') {
+    const year = Number(toWibDateKey(start).slice(0, 4));
+    const buckets = Array.from({ length: 12 }, (_, i) => ({
+      date: new Intl.DateTimeFormat('id-ID', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(year, i, 15))),
+      inQty: 0,
+      outQty: 0,
+    }));
+    for (const r of rows) {
+      const bucket = buckets[Number(r.day.slice(5, 7)) - 1];
+      if (!bucket) continue;
+      const qty = Number(r.qty) || 0;
+      if (r.type === 'IN') bucket.inQty += qty;
+      else if (r.type === 'OUT') bucket.outQty += qty;
+    }
+    dailyTrends = buckets;
+  } else if (trendGranularity === 'daily') {
+    const buckets: Record<string, { date: string; inQty: number; outQty: number }> = {};
+    const includeWeekday = days <= 7;
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start.getTime() + i * DAY_MS);
+      buckets[toWibDateKey(d)] = { date: formatWibDayLabel(d, includeWeekday), inQty: 0, outQty: 0 };
+    }
+    for (const r of rows) {
+      const bucket = buckets[r.day];
+      if (!bucket) continue;
+      const qty = Number(r.qty) || 0;
+      if (r.type === 'IN') bucket.inQty += qty;
+      else if (r.type === 'OUT') bucket.outQty += qty;
+    }
+    dailyTrends = Object.values(buckets);
+  } else {
+    const weekMs = 7 * DAY_MS;
+    const weeklyBuckets: Array<{ date: string; inQty: number; outQty: number }> = [];
+    for (let w = 0; w < Math.ceil(days / 7); w++) {
+      const startMs = start.getTime() + w * weekMs;
+      const endMs = Math.min(startMs + weekMs, end.getTime());
+      const labelStart = formatWibDayLabel(new Date(startMs), false);
+      const labelEnd = formatWibDayLabel(new Date(endMs - 1), false);
+      weeklyBuckets.push({ date: labelStart === labelEnd ? labelStart : `${labelStart}–${labelEnd}`, inQty: 0, outQty: 0 });
+    }
+    for (const r of rows) {
+      const dayStartMs = Date.parse(`${r.day}T00:00:00+07:00`);
+      const bucket = weeklyBuckets[Math.floor((dayStartMs - start.getTime()) / weekMs)];
+      if (!bucket) continue;
+      const qty = Number(r.qty) || 0;
+      if (r.type === 'IN') bucket.inQty += qty;
+      else if (r.type === 'OUT') bucket.outQty += qty;
+    }
+    dailyTrends = weeklyBuckets;
+  }
+
+  return { trendGranularity, dailyTrends, totalInQuantity, totalOutQuantity };
+}
+
 /** Tanggal kalender WIB (YYYY-MM-DD) untuk sebuah Date UTC. */
 function toWibDateKey(date: Date): string {
   const shifted = new Date(date.getTime() + WIB_OFFSET_MS);
@@ -47,6 +157,125 @@ export class ReportService {
   }
 
   /**
+   * Mode ringan khusus halaman /dashboard (hanya 3 query paralel):
+   * KPI stok saat ini, grafik tren N hari (SQL GROUP BY), 5 stok kritis teratas, & 5 aktivitas terakhir.
+   * Tidak menjalankan getStockPositionReport / distribusi / topConsumed yang hanya dipakai halaman /reports.
+   */
+  static async getDashboardLite(daysInput = 7) {
+    const range = this.daysRange(daysInput);
+    const start = range.gte;
+    const end = range.lt;
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS));
+
+    const [activeProducts, trendRows, recentActivities] = await Promise.all([
+      prisma.product.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          unit: true,
+          packUnit: true,
+          packSize: true,
+          currentStock: true,
+          minimumStock: true,
+          category: { select: { name: true, stockGroup: true } },
+        },
+      }),
+      queryDailyTrendRows(start, end),
+      prisma.stockMovement.findMany({
+        where: { createdAt: { gte: start, lt: end } },
+        include: {
+          product: { select: { name: true, sku: true, unit: true, packUnit: true, packSize: true } },
+          actor: { select: { name: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ]);
+
+    let totalAggregateStock = 0;
+    let outOfStockCount = 0;
+    let lowStockCount = 0;
+    const criticalAll: Array<{
+      id: string;
+      sku: string;
+      name: string;
+      category: string;
+      currentStock: number;
+      minimumStock: number;
+      unit: string;
+      packUnit: string | null;
+      packSize: number | null;
+      isZero: boolean;
+    }> = [];
+
+    for (const p of activeProducts) {
+      totalAggregateStock += p.currentStock;
+      if (p.currentStock <= 0) {
+        outOfStockCount += 1;
+        criticalAll.push({
+          id: p.id,
+          sku: p.sku,
+          name: p.name,
+          category: p.category?.name || 'Tanpa Kategori',
+          currentStock: p.currentStock,
+          minimumStock: p.minimumStock,
+          unit: p.unit,
+          packUnit: p.packUnit,
+          packSize: p.packSize,
+          isZero: true,
+        });
+      } else if (p.currentStock <= p.minimumStock) {
+        lowStockCount += 1;
+        criticalAll.push({
+          id: p.id,
+          sku: p.sku,
+          name: p.name,
+          category: p.category?.name || 'Tanpa Kategori',
+          currentStock: p.currentStock,
+          minimumStock: p.minimumStock,
+          unit: p.unit,
+          packUnit: p.packUnit,
+          packSize: p.packSize,
+          isZero: false,
+        });
+      }
+    }
+
+    const criticalItems = criticalAll
+      .sort((a, b) => (a.isZero !== b.isZero ? (a.isZero ? -1 : 1) : a.currentStock - b.currentStock || a.name.localeCompare(b.name, 'id')))
+      .slice(0, 5);
+
+    const { trendGranularity, dailyTrends, totalInQuantity, totalOutQuantity } = buildTrendSeries(
+      trendRows,
+      start,
+      end,
+      days,
+      'days'
+    );
+
+    return {
+      days,
+      period: { kind: 'days' as const, value: range.value, label: range.label, openingLabel: range.openingLabel },
+      stockGroup: null,
+      trendGranularity,
+      kpi: {
+        totalActiveSku: activeProducts.length,
+        totalAggregateStock,
+        lowStockCount,
+        outOfStockCount,
+        totalInQuantity,
+        totalOutQuantity,
+        netMovement: totalInQuantity - totalOutQuantity,
+      },
+      criticalItems,
+      recentActivities,
+      dailyTrends,
+    };
+  }
+
+  /**
    * Ringkasan persediaan untuk satu periode: angka (hari terakhir, bulan, atau tahun), tren, Top barang,
    * unit penerima, sebaran kategori, dan Daftar Usulan Pengadaan (Stok Sisa awal periode + Stok Masuk = Jumlah Stok).
    * `period` boleh berupa jumlah hari (Dashboard) atau periode bulan/tahun dari parseStockReportPeriod.
@@ -66,9 +295,8 @@ export class ReportService {
 
     const [
       allActiveProducts,
-      totalsByType,
       outByProduct,
-      trendMovements,
+      trendRows,
       recentActivities,
       periodDistributions,
       position,
@@ -88,21 +316,13 @@ export class ReportService {
         },
       }),
       prisma.stockMovement.groupBy({
-        by: ['type'],
-        where: { ...movementPeriodWhere, type: { in: ['IN', 'OUT'] } },
-        _sum: { quantity: true },
-      }),
-      prisma.stockMovement.groupBy({
         by: ['productId'],
         where: { ...movementPeriodWhere, type: 'OUT' },
         _sum: { quantity: true },
         _count: { _all: true },
         orderBy: { _sum: { quantity: 'desc' } },
       }),
-      prisma.stockMovement.findMany({
-        where: { ...movementPeriodWhere, type: { in: ['IN', 'OUT'] } },
-        select: { type: true, quantity: true, createdAt: true },
-      }),
+      queryDailyTrendRows(start, end, stockGroup),
       prisma.stockMovement.findMany({
         where: movementPeriodWhere,
         include: {
@@ -143,8 +363,13 @@ export class ReportService {
       ? allActiveProducts.filter((p) => getStockGroup(p.category?.stockGroup).id === stockGroup)
       : allActiveProducts;
 
-    const totalInQuantity = totalsByType.find((t) => t.type === 'IN')?._sum.quantity ?? 0;
-    const totalOutQuantity = totalsByType.find((t) => t.type === 'OUT')?._sum.quantity ?? 0;
+    const { trendGranularity, dailyTrends, totalInQuantity, totalOutQuantity } = buildTrendSeries(
+      trendRows,
+      start,
+      end,
+      days,
+      periodKind
+    );
     const outStatsByProduct = new Map(
       outByProduct.map((row) => [row.productId, { totalOut: row._sum.quantity ?? 0, txCount: row._count._all }])
     );
@@ -181,57 +406,6 @@ export class ReportService {
       totalOut: g._sum.quantity ?? 0,
       txCount: g._count._all,
     }));
-
-    // Tren: per bulan untuk laporan tahunan, per hari untuk <= 31 hari, per minggu untuk rentang hari yang panjang.
-    const trendGranularity: 'daily' | 'weekly' | 'monthly' =
-      periodKind === 'year' ? 'monthly' : days > 31 ? 'weekly' : 'daily';
-    let dailyTrends: Array<{ date: string; inQty: number; outQty: number }> = [];
-    if (trendGranularity === 'monthly') {
-      const year = Number(toWibDateKey(start).slice(0, 4));
-      const buckets = Array.from({ length: 12 }, (_, i) => ({
-        date: new Intl.DateTimeFormat('id-ID', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(year, i, 15))),
-        inQty: 0,
-        outQty: 0,
-      }));
-      for (const m of trendMovements) {
-        const bucket = buckets[Number(toWibDateKey(m.createdAt).slice(5, 7)) - 1];
-        if (!bucket) continue;
-        if (m.type === 'IN') bucket.inQty += m.quantity;
-        if (m.type === 'OUT') bucket.outQty += m.quantity;
-      }
-      dailyTrends = buckets;
-    } else if (trendGranularity === 'daily') {
-      const buckets: Record<string, { date: string; inQty: number; outQty: number }> = {};
-      const includeWeekday = days <= 7;
-      for (let i = 0; i < days; i++) {
-        const d = new Date(start.getTime() + i * DAY_MS);
-        buckets[toWibDateKey(d)] = { date: formatWibDayLabel(d, includeWeekday), inQty: 0, outQty: 0 };
-      }
-      for (const m of trendMovements) {
-        const bucket = buckets[toWibDateKey(m.createdAt)];
-        if (!bucket) continue;
-        if (m.type === 'IN') bucket.inQty += m.quantity;
-        if (m.type === 'OUT') bucket.outQty += m.quantity;
-      }
-      dailyTrends = Object.values(buckets);
-    } else {
-      const weekMs = 7 * DAY_MS;
-      const weeklyBuckets: Array<{ date: string; inQty: number; outQty: number }> = [];
-      for (let w = 0; w < Math.ceil(days / 7); w++) {
-        const startMs = start.getTime() + w * weekMs;
-        const endMs = Math.min(startMs + weekMs, end.getTime());
-        const labelStart = formatWibDayLabel(new Date(startMs), false);
-        const labelEnd = formatWibDayLabel(new Date(endMs - 1), false);
-        weeklyBuckets.push({ date: labelStart === labelEnd ? labelStart : `${labelStart}–${labelEnd}`, inQty: 0, outQty: 0 });
-      }
-      for (const m of trendMovements) {
-        const bucket = weeklyBuckets[Math.floor((m.createdAt.getTime() - start.getTime()) / weekMs)];
-        if (!bucket) continue;
-        if (m.type === 'IN') bucket.inQty += m.quantity;
-        if (m.type === 'OUT') bucket.outQty += m.quantity;
-      }
-      dailyTrends = weeklyBuckets;
-    }
 
     // Unit / Gedung paling aktif menerima distribusi
     const unitMap = new Map<string, { unit: string; distributions: number; itemLines: number }>();

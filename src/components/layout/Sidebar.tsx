@@ -180,7 +180,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'admin', mobileOpen, on
 
   const warmHref = (href: string) => {
     if (href === '/dashboard') {
-      prefetchSwrJson('/api/reports/summary?days=7');
+      prefetchSwrJson('/api/reports/summary?days=7&view=dashboard');
       return;
     }
     if (href === '/reports') {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEnvAdminIds } from '@/lib/telegram-admins';
-import { requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
+import { invalidateUserSessionCache, requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
 import { hashPassword } from '@/lib/password';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
@@ -55,6 +55,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
       select: { id: true },
     });
+    // Hapus cache sesi langsung agar perubahan role/penonaktifan akun segera berlaku.
+    invalidateUserSessionCache(id);
 
     if (unlinkTelegram) {
       await prisma.telegramUser.deleteMany({
@@ -135,6 +137,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       // Notifikasi ikut terhapus (cascade); tautan akun pada catatan di atas menjadi kosong, namanya tetap tersimpan.
       await tx.user.delete({ where: { id: target.id } });
     });
+    invalidateUserSessionCache(target.id);
 
     return NextResponse.json({ success: true, message: `Akun ${target.name} telah dihapus.` });
   } catch (error) {

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useToast } from '../ui/Toast';
+import { patchAdminPulseUnread, subscribeAdminPulse } from '@/lib/admin-pulse';
 
 /** Jam WIB; dipisah agar detak tiap detik tidak menggambar ulang seluruh header. */
 function HeaderClock() {
@@ -58,25 +59,8 @@ export function Header({ variant = 'admin', onToggleMobile, sidebarCollapsed, on
   const [notificationsLoaded, setNotificationsLoaded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const lastCountFetchedRef = useRef(0);
   const showNotificationsRef = useRef(false);
   showNotificationsRef.current = showNotifications;
-
-  // Polling ringan: hanya ambil unreadCount (1 query COUNT) selama dropdown ditutup.
-  const loadUnreadCount = useCallback(async (force = false) => {
-    const now = Date.now();
-    if (!force && now - lastCountFetchedRef.current < 15000) return;
-    lastCountFetchedRef.current = now;
-    try {
-      const res = await fetch('/api/notifications?countOnly=1');
-      if (res.ok) {
-        const data = await res.json();
-        setUnreadCount(data.unreadCount || 0);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
 
   // Daftar lengkap 25 notifikasi hanya diambil saat panel notifikasi dibuka.
   const loadFullNotifications = useCallback(async () => {
@@ -86,9 +70,10 @@ export function Header({ variant = 'admin', onToggleMobile, sidebarCollapsed, on
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
+        const count = data.unreadCount || 0;
+        setUnreadCount(count);
+        patchAdminPulseUnread(count);
         setNotificationsLoaded(true);
-        lastCountFetchedRef.current = Date.now();
       }
     } catch (e) {
       console.error(e);
@@ -100,24 +85,12 @@ export function Header({ variant = 'admin', onToggleMobile, sidebarCollapsed, on
   useEffect(() => {
     // Akun divisi tidak punya notifikasi stok (API-nya khusus admin).
     if (isDivisi) return;
-    loadUnreadCount(true);
-    // Cek jumlah notifikasi tiap 30 detik saat tab aktif; cek saat tab kembali dilihat (jeda minimal 15 detik).
-    const interval = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
+    // Berbagi 1 polling background (/api/admin/pulse) dengan RequestAlert (tiap 30 detik).
+    return subscribeAdminPulse((pulse) => {
+      setUnreadCount(pulse.unreadCount || 0);
       if (showNotificationsRef.current) loadFullNotifications();
-      else loadUnreadCount(true);
-    }, 30000);
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (showNotificationsRef.current) loadFullNotifications();
-      else loadUnreadCount(false);
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [isDivisi, loadUnreadCount, loadFullNotifications]);
+    });
+  }, [isDivisi, loadFullNotifications]);
 
   const toggleNotifications = () => {
     const next = !showNotifications;
@@ -133,6 +106,7 @@ export function Header({ variant = 'admin', onToggleMobile, sidebarCollapsed, on
         body: JSON.stringify({ all: true }),
       });
       setUnreadCount(0);
+      patchAdminPulseUnread(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       showToast('Semua notifikasi ditandai telah dibaca');
     } catch (e) {

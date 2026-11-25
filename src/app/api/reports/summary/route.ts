@@ -13,6 +13,11 @@ export async function GET(req: NextRequest) {
     if (auth.error) return auth.error;
 
     const { searchParams } = new URL(req.url);
+    if (searchParams.get('view') === 'dashboard') {
+      const rawDays = parseInt(searchParams.get('days') || '7', 10);
+      const summary = await ReportService.getDashboardLite(Number.isFinite(rawDays) ? rawDays : 7);
+      return NextResponse.json(summary);
+    }
     const period = resolveSummaryPeriod(searchParams.get('periode'), searchParams.get('days'));
     const stockGroup = parseStockGroup(searchParams.get('jenis')) ?? undefined;
     const summary = await ReportService.getDashboardSummary(period, stockGroup);

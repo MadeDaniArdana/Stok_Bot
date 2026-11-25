@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, X, LoaderCircle, Printer, PenLine } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
+import { refreshAdminPulse } from '@/lib/admin-pulse';
 import { SearchCombobox, type ComboOption } from '@/components/ui/SearchCombobox';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import {
@@ -231,6 +232,7 @@ export function RequestAdminList({ view }: { view: 'incoming' | 'history' }) {
       setRejectingId(null);
       setReason('');
       await load();
+      refreshAdminPulse(true);
     } catch (err: any) {
       showToast('Gagal', err.message, 'error');
       await load();
