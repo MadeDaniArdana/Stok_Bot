@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { StockPositionSection } from '@/components/dashboard/StockPositionSection';
+import { StockQty } from '@/components/ui/StockQty';
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 import { getCurrentReportMonth } from '@/lib/report-period';
@@ -342,19 +343,19 @@ export default function ReportsPage() {
                           {item.sku} · {item.stockGroupLabel} · {item.category}
                         </p>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right text-slate-700">
-                        {formatStock(item, item.remainingStock)}
+                      <td className="px-3 py-3 text-right text-slate-700">
+                        <StockQty product={item} quantity={item.remainingStock} align="end" />
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right font-semibold text-emerald-700">
-                        {item.incomingStock ? `+${formatStock(item, item.incomingStock)}` : '-'}
+                      <td className="px-3 py-3 text-right font-semibold text-emerald-700">
+                        {item.incomingStock ? <StockQty product={item} quantity={item.incomingStock} prefix="+" align="end" /> : '-'}
                       </td>
                       <td
-                        className={`whitespace-nowrap px-4 py-3 text-right font-bold ${
+                        className={`px-4 py-3 text-right font-bold ${
                           item.isZero ? 'text-rose-600' : 'text-slate-900'
                         }`}
                         title={`Sisa akhir periode ${formatStock(item, item.closingStock)} · batas minimum ${formatStock(item, item.minimumStock)}`}
                       >
-                        {formatStock(item, item.totalStock)}
+                        <StockQty product={item} quantity={item.totalStock} align="end" />
                       </td>
                     </tr>
                   ))}

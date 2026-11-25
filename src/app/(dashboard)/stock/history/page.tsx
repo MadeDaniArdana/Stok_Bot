@@ -1,6 +1,7 @@
 'use client';
 
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
+import { StockQty } from '@/components/ui/StockQty';
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -326,30 +327,30 @@ export default function StockHistoryPage() {
       {/* Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+          <table className="w-full text-left text-xs tabular-nums">
+            <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
               <tr>
-                <th className="py-3.5 px-4">Waktu (WIB)</th>
-                <th className="py-3.5 px-4">Barang & SKU</th>
-                <th className="py-3.5 px-4 text-center">Tipe</th>
-                <th className="py-3.5 px-4 text-right">Perubahan</th>
-                <th className="py-3.5 px-4 text-center">Stok Sebelum &rarr; Sesudah</th>
-                <th className="py-3.5 px-4">Aktor / Pemakai</th>
-                <th className="py-3.5 px-4 text-center">Sumber</th>
-                <th className="py-3.5 px-4">Catatan / Dokumen</th>
-                {isAdmin && <th className="py-3.5 px-4 text-right">Aksi</th>}
+                <th className="py-3 px-3 whitespace-nowrap">Waktu (WIB)</th>
+                <th className="py-3 px-3">Barang & SKU</th>
+                <th className="py-3 px-2.5 text-center">Tipe</th>
+                <th className="py-3 px-2.5 text-right">Perubahan</th>
+                <th className="py-3 px-2.5 text-center whitespace-nowrap">Sebelum &rarr; Sesudah</th>
+                <th className="py-3 px-3">Aktor / Pemakai</th>
+                <th className="py-3 px-2.5 text-center">Sumber</th>
+                <th className="py-3 px-3">Catatan / Dokumen</th>
+                {isAdmin && <th className="py-3 px-3 text-right">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 9 : 8} className="py-12 text-center text-slate-400">
                     Memuat riwayat stok...
                   </td>
                 </tr>
               ) : movements.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 9 : 8} className="py-12 text-center text-slate-400">
                     Belum ada transaksi pada kriteria filter ini.
                   </td>
                 </tr>
@@ -361,7 +362,7 @@ export default function StockHistoryPage() {
 
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 font-mono">
+                      <td className="py-3 px-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
                         {new Date(m.createdAt).toLocaleString('id-ID', {
                           timeZone: 'Asia/Jakarta',
                           dateStyle: 'short',
@@ -369,14 +370,14 @@ export default function StockHistoryPage() {
                         })}
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <p className="font-semibold text-slate-900">{m.product?.name || '-'}</p>
-                        <span className="font-mono text-[11px] text-slate-400">
+                      <td className="py-3 px-3 min-w-[10rem] max-w-[14rem]">
+                        <p className="font-semibold text-slate-900 leading-snug">{m.product?.name || '-'}</p>
+                        <span className="font-mono text-[10px] text-slate-400 break-all">
                           {m.product?.sku || '-'}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-2.5 text-center whitespace-nowrap">
                         <span
                           className={`font-mono font-bold text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                             isReversal
@@ -397,7 +398,7 @@ export default function StockHistoryPage() {
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right font-mono font-extrabold text-sm whitespace-nowrap">
+                      <td className="py-3 px-2.5 text-right font-mono font-bold">
                         <span
                           className={
                             isIncoming
@@ -407,24 +408,34 @@ export default function StockHistoryPage() {
                               : 'text-maroon-800'
                           }
                         >
-                          {isIncoming ? '+' : isReversal ? '↺ ' : '-'}
-                          {m.product ? formatStock(m.product, m.quantity) : m.quantity}
+                          {m.product ? (
+                            <StockQty
+                              product={m.product}
+                              quantity={m.quantity}
+                              prefix={isIncoming ? '+' : isReversal ? '↺ ' : '-'}
+                              align="end"
+                            />
+                          ) : (
+                            `${isIncoming ? '+' : isReversal ? '↺ ' : '-'}${m.quantity}`
+                          )}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap font-mono text-[11px] text-slate-500">
+                      <td className="py-3 px-2.5 text-center whitespace-nowrap font-mono text-[11px] text-slate-500">
                         {m.stockBefore} &rarr;{' '}
                         <strong className="text-slate-900 font-bold">{m.stockAfter}</strong>
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <p className="font-medium text-slate-800">{isTelegram && m.actor?.telegram?.username ? `@${m.actor.telegram.username}` : personName(m.actor?.name, m.actorName, 'Sistem')}</p>
+                      <td className="py-3 px-3 max-w-[10rem]">
+                        <p className="font-medium text-slate-800 truncate" title={personName(m.actor?.name, m.actorName, 'Sistem')}>
+                          {isTelegram && m.actor?.telegram?.username ? `@${m.actor.telegram.username}` : personName(m.actor?.name, m.actorName, 'Sistem')}
+                        </p>
                         {!isTelegram && m.actor?.email && (
-                          <span className="text-[10px] text-slate-400">{m.actor.email}</span>
+                          <span className="block text-[10px] text-slate-400 truncate" title={m.actor.email}>{m.actor.email}</span>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-2.5 text-center whitespace-nowrap">
                         {isTelegram ? (
                           <span className="inline-flex items-center gap-1 text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200 font-semibold">
                             <Send className="w-2.5 h-2.5" /> Telegram
@@ -436,26 +447,26 @@ export default function StockHistoryPage() {
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 max-w-xs">
-                        <p className="text-slate-600 line-clamp-2 text-[11px] leading-relaxed">
+                      <td className="py-3 px-3 max-w-[13rem]">
+                        <p className="text-slate-600 line-clamp-2 text-[11px] leading-snug" title={m.notes || undefined}>
                           {m.notes || '-'}
                         </p>
                         {m.referenceId && (
-                          <span className="text-[10px] font-mono text-slate-400 mt-0.5 block">
-                            Ref: {m.referenceId}
+                          <span className="text-[10px] font-mono text-slate-400 mt-0.5 block truncate" title={m.referenceId}>
+                            Ref: {m.referenceId.length > 18 ? `${m.referenceId.slice(0, 8)}…` : m.referenceId}
                           </span>
                         )}
                       </td>
 
                       {isAdmin && (
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
                           {m.type !== 'REVERSAL' && (
                             <button
                               onClick={() => {
                                 setReversalTarget(m);
                                 setReversalReason('');
                               }}
-                              className="action-button action-reversal"
+                              className="action-button action-reversal px-2.5 py-1.5 min-h-8 text-[11px]"
                               title="Buat Koreksi Pembalik Transaksi"
                             >
                               <RotateCcw className="w-3 h-3" />

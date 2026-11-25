@@ -290,3 +290,14 @@ test('shiftMonth melintasi pergantian tahun (dipakai cache sisa akhir bulanan)',
   assert.equal(shiftMonth('2027-01', -1), '2026-12');
   assert.equal(shiftMonth('2026-03', -15), '2024-12');
 });
+
+test('getStockParts memecah kemasan dan sisa eceran untuk tampilan tabel ringkas', () => {
+  const { getStockParts } = loadTypeScript('src/lib/product-units.ts');
+  assert.deepEqual(getStockParts({ unit: 'pcs' }, 12), { main: '12 pcs' });
+  assert.deepEqual(getStockParts({ unit: 'pcs', packUnit: 'lusin', packSize: 12 }, 36), { main: '3 lusin' });
+  assert.deepEqual(getStockParts({ unit: 'ml', packUnit: 'botol 330ml', packSize: 330 }, 150), { main: '150 ml' });
+  assert.deepEqual(getStockParts({ unit: 'ml', packUnit: 'botol 330ml', packSize: 330 }, 2670), {
+    main: '8 botol 330ml',
+    rest: '30 ml',
+  });
+});

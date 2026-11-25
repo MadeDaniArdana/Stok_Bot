@@ -1,6 +1,7 @@
 'use client';
 
 import { ModalOverlay } from '@/components/ui/ModalOverlay';
+import { StockQty } from '@/components/ui/StockQty';
 import dynamic from 'next/dynamic';
 import { UnitInput } from '@/components/products/UnitInput';
 import { formatStock } from '@/lib/product-units';
@@ -552,40 +553,39 @@ Alasan: ${adjReason.trim()}`)) return;
       {/* Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+          <table className="w-full text-left text-xs tabular-nums">
+            <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
               <tr>
-                <th className="py-3.5 px-4">Kode SKU</th>
-                <th className="py-3.5 px-4">Nama Barang</th>
-                <th className="py-3.5 px-4">Kategori</th>
+                <th className="py-3 px-3.5">Barang</th>
+                <th className="py-3 px-2.5">Kategori</th>
                 {isAdmin ? (
                   <>
-                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Stok Sisa</th>
-                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Stok Baru</th>
-                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Total Stok</th>
-                    <th className="py-3.5 px-3 text-center whitespace-nowrap">Barang Keluar</th>
-                    <th className="py-3.5 px-3 text-center whitespace-nowrap">{isCurrentMonth ? 'Stok Saat Ini' : 'Sisa Akhir'}</th>
+                    <th className="py-3 px-2 text-center whitespace-nowrap">Stok Sisa</th>
+                    <th className="py-3 px-2 text-center whitespace-nowrap">Stok Baru</th>
+                    <th className="py-3 px-2 text-center whitespace-nowrap">Total</th>
+                    <th className="py-3 px-2 text-center whitespace-nowrap">Keluar</th>
+                    <th className="py-3 px-2 text-center whitespace-nowrap">{isCurrentMonth ? 'Stok Saat Ini' : 'Sisa Akhir'}</th>
                   </>
                 ) : (
-                  <th className="py-3.5 px-4 text-center">Stok Saat Ini</th>
+                  <th className="py-3 px-3 text-center whitespace-nowrap">Stok Saat Ini</th>
                 )}
-                <th className="py-3.5 px-4 text-center">Batas Min</th>
-                <th className="py-3.5 px-4 text-center">Satuan</th>
-                <th className="py-3.5 px-4 text-center">Kondisi</th>
-                <th className="py-3.5 px-4 text-center">Status</th>
-                <th className="py-3.5 px-4 text-right">Aksi</th>
+                <th className="py-3 px-2 text-center whitespace-nowrap" title="Batas Minimum">Min</th>
+                <th className="py-3 px-2.5 text-center">Satuan</th>
+                <th className="py-3 px-2 text-center">Kondisi</th>
+                <th className="py-3 px-2 text-center">Status</th>
+                <th className="py-3 px-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 13 : 9} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 12 : 8} className="py-12 text-center text-slate-400">
                     Memuat data barang...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 13 : 9} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 12 : 8} className="py-12 text-center text-slate-400">
                     Belum ada data barang yang cocok dengan kriteria pencarian.
                   </td>
                 </tr>
@@ -596,46 +596,44 @@ Alasan: ${adjReason.trim()}`)) return;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
-                        {p.sku}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-900">{p.name}</div>
+                      <td className="py-3 px-3.5 min-w-[10.5rem] max-w-[15rem]">
+                        <div className="font-semibold text-slate-900 leading-snug">{p.name}</div>
+                        <div className="mt-0.5 font-mono text-[10px] text-slate-400 break-all">{p.sku}</div>
                         {p.description && (
-                          <p className="text-[11px] text-slate-400 line-clamp-1">{p.description}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-400 line-clamp-1">{p.description}</p>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600">
+                      <td className="py-3 px-2.5 text-slate-600 max-w-[8.5rem] leading-snug">
                         {p.category?.name || '-'}
                         {!stockGroup && p.category && (
                           <span className={cn('mt-1 block w-fit rounded border px-1.5 py-0.5 text-[10px] font-semibold', getStockGroup(p.category.stockGroup).badgeClass)}>
-                            {getStockGroup(p.category.stockGroup).label}
+                            {getStockGroup(p.category.stockGroup).shortLabel}
                           </span>
                         )}
                       </td>
                       {isAdmin ? (
                         (() => {
                           const pos = positions.get(p.id);
-                          const cell = (value: number | undefined) =>
-                            value === undefined ? <span className="text-slate-300">-</span> : formatStock(p, value);
+                          const cell = (value: number | undefined, prefix = '') =>
+                            value === undefined ? <span className="text-slate-300">-</span> : <StockQty product={p} quantity={value} prefix={prefix} />;
                           const closing = isCurrentMonth ? p.currentStock : pos?.closingStock;
                           return (
                             <>
-                              <td className="py-3.5 px-3 text-center text-slate-600 whitespace-nowrap">{cell(pos?.openingStock)}</td>
-                              <td className="py-3.5 px-3 text-center whitespace-nowrap text-emerald-700">
-                                {pos?.inQty ? `+${formatStock(p, pos.inQty)}` : cell(pos ? 0 : undefined)}
+                              <td className="py-3 px-2 text-center text-slate-600">{cell(pos?.openingStock)}</td>
+                              <td className="py-3 px-2 text-center text-emerald-700 font-medium">
+                                {pos?.inQty ? cell(pos.inQty, '+') : cell(pos ? 0 : undefined)}
                               </td>
-                              <td className="py-3.5 px-3 text-center font-semibold text-slate-800 whitespace-nowrap">{cell(pos?.totalAvailable)}</td>
-                              <td className="py-3.5 px-3 text-center whitespace-nowrap text-rose-700">
-                                {pos?.outQty ? `-${formatStock(p, pos.outQty)}` : cell(pos ? 0 : undefined)}
+                              <td className="py-3 px-2 text-center font-semibold text-slate-800">{cell(pos?.totalAvailable)}</td>
+                              <td className="py-3 px-2 text-center text-rose-700 font-medium">
+                                {pos?.outQty ? cell(pos.outQty, '-') : cell(pos ? 0 : undefined)}
                               </td>
-                              <td className="py-3.5 px-3 text-center font-bold text-sm whitespace-nowrap">
+                              <td className="py-3 px-2 text-center font-bold">
                                 <span className={isCurrentMonth ? (isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900') : 'text-slate-900'}>
                                   {cell(closing)}
                                 </span>
                                 {pos?.adjustment ? (
-                                  <span className="mt-0.5 block text-[10px] font-medium text-sky-700">
-                                    penyesuaian {pos.adjustment > 0 ? '+' : '-'}{formatStock(p, Math.abs(pos.adjustment))}
+                                  <span className="mt-0.5 block text-[10px] font-medium text-sky-700 whitespace-nowrap">
+                                    ±{pos.adjustment > 0 ? '+' : '-'}{formatStock(p, Math.abs(pos.adjustment))}
                                   </span>
                                 ) : null}
                               </td>
@@ -643,26 +641,26 @@ Alasan: ${adjReason.trim()}`)) return;
                           );
                         })()
                       ) : (
-                        <td className="py-3.5 px-4 text-center font-bold text-sm">
+                        <td className="py-3 px-3 text-center font-bold">
                           <span className={isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'}>
-                            {formatStock(p, p.currentStock)}
+                            <StockQty product={p} quantity={p.currentStock} />
                           </span>
                         </td>
                       )}
-                      <td className="py-3.5 px-4 text-center text-slate-500">
+                      <td className="py-3 px-2 text-center text-slate-500 whitespace-nowrap">
                         {p.minimumStock}
                       </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="font-medium bg-slate-100 px-2 py-0.5 rounded text-[11px] text-slate-700">
+                      <td className="py-3 px-2.5 text-center max-w-[6.5rem]">
+                        <span className="inline-block font-medium bg-slate-100 px-1.5 py-0.5 rounded text-[11px] text-slate-700 whitespace-nowrap">
                           {p.unit}
                         </span>
                         {p.packUnit && p.packSize ? (
-                          <span className="mt-1 block whitespace-nowrap text-[10px] text-slate-500">
+                          <span className="mt-0.5 block text-[10px] leading-tight text-slate-500">
                             1 {p.packUnit} = {p.packSize} {p.unit}
                           </span>
                         ) : null}
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-2 text-center whitespace-nowrap">
                         {isZero ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                             <AlertCircle className="w-3 h-3" />
@@ -680,7 +678,7 @@ Alasan: ${adjReason.trim()}`)) return;
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-2 text-center whitespace-nowrap">
                         {p.isActive ? (
                           <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                             Aktif
@@ -691,8 +689,8 @@ Alasan: ${adjReason.trim()}`)) return;
                           </span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
                           {isAdmin && (
                             <>
                               {/* Edit Master */}
@@ -702,7 +700,7 @@ Alasan: ${adjReason.trim()}`)) return;
                                 aria-label={`Edit ${p.name}`}
                                 title="Edit Master Barang"
                               >
-                                <Edit2 className="w-4 h-4" />
+                                <Edit2 className="w-3.5 h-3.5" />
                               </button>
 
                               {/* Toggle Active */}
@@ -712,7 +710,7 @@ Alasan: ${adjReason.trim()}`)) return;
                                 aria-label={`${p.isActive ? 'Nonaktifkan' : 'Aktifkan'} ${p.name}`}
                                 title={p.isActive ? 'Nonaktifkan Barang' : 'Aktifkan Kembali'}
                               >
-                                <Power className="w-4 h-4" />
+                                <Power className="w-3.5 h-3.5" />
                               </button>
 
                               {/* Hapus permanen */}
@@ -722,7 +720,7 @@ Alasan: ${adjReason.trim()}`)) return;
                                 aria-label={`Hapus ${p.name}`}
                                 title="Hapus Barang Permanen"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </>
                           )}

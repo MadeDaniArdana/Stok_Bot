@@ -182,7 +182,7 @@ export default function CategoriesPage() {
       </div>
 
       {/* Filter jenis stok */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-soft">
+      <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-soft">
         {[{ id: null as string | null, label: 'Semua Jenis' }, ...STOCK_GROUPS.map((g) => ({ id: g.id as string | null, label: g.label }))].map((tab) => (
           <button
             key={tab.label}

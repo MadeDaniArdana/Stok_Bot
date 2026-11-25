@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, FileText, History, Loader2, Printer, Search } from 'lucide-react';
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
-import { formatStock } from '@/lib/product-units';
+import { StockQty } from '@/components/ui/StockQty';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
 
 type Mode = 'month' | 'year';
@@ -42,8 +42,9 @@ interface StockPositionReport {
   rows: StockPositionRow[];
 }
 
-function qty(row: StockPositionRow, value: number) {
-  return value < 0 ? `-${formatStock(row, -value)}` : formatStock(row, value);
+function qty(row: StockPositionRow, value: number, prefix = '') {
+  const sign = value < 0 ? '-' : prefix;
+  return <StockQty product={row} quantity={Math.abs(value)} prefix={sign} align="end" />;
 }
 
 /**
@@ -115,6 +116,8 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
   }, [data, search, onlyMoved]);
 
   const showAdj = Boolean(data?.hasAdjustment);
+  const showGroupCol = !jenis;
+  const colCount = 6 + (showGroupCol ? 1 : 0) + (showAdj ? 1 : 0);
   const t = data?.totals;
 
   return (
@@ -211,57 +214,57 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
       ) : (
         <div className="max-h-[560px] overflow-auto border-t border-slate-100">
           <table className="w-full text-left text-xs tabular-nums">
-            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50 text-slate-500">
+            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-semibold">Barang</th>
-                <th className="px-3 py-3 font-semibold">Jenis</th>
-                <th className="px-3 py-3 text-right font-semibold">Stok Lama</th>
-                <th className="px-3 py-3 text-right font-semibold text-emerald-700">Stok Baru</th>
-                <th className="px-3 py-3 text-right font-semibold">Total</th>
-                <th className="px-3 py-3 text-right font-semibold text-maroon-800">Keluar</th>
-                {showAdj && <th className="px-3 py-3 text-right font-semibold">Penyesuaian</th>}
-                <th className="px-4 py-3 text-right font-semibold">Sisa Akhir</th>
+                {showGroupCol && <th className="px-2.5 py-3 font-semibold whitespace-nowrap">Jenis</th>}
+                <th className="px-2.5 py-3 text-right font-semibold whitespace-nowrap">Stok Lama</th>
+                <th className="px-2.5 py-3 text-right font-semibold text-emerald-700 whitespace-nowrap">Stok Baru</th>
+                <th className="px-2.5 py-3 text-right font-semibold whitespace-nowrap">Total</th>
+                <th className="px-2.5 py-3 text-right font-semibold text-maroon-800 whitespace-nowrap">Keluar</th>
+                {showAdj && <th className="px-2.5 py-3 text-right font-semibold whitespace-nowrap">Penyesuaian</th>}
+                <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">Sisa Akhir</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {!data && loading ? (
                 <tr>
-                  <td colSpan={showAdj ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={colCount} className="px-4 py-8 text-center text-slate-400">
                     Memuat riwayat stok...
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={showAdj ? 8 : 7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={colCount} className="px-4 py-8 text-center text-slate-400">
                     Tidak ada barang yang cocok pada periode ini.
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-2.5">
-                      <p className="font-semibold text-slate-900">{row.name}</p>
-                      <p className="font-mono text-[11px] text-slate-400">
+                    <td className="px-4 py-2.5 min-w-[11rem] max-w-[16rem]">
+                      <p className="font-semibold text-slate-900 leading-snug">{row.name}</p>
+                      <p className="font-mono text-[10px] text-slate-400">
                         {row.sku} · {row.category}
                       </p>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">{row.stockGroupLabel}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-700">{qty(row, row.openingStock)}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-emerald-700">
-                      {row.inQty ? `+${qty(row, row.inQty)}` : '-'}
+                    {showGroupCol && <td className="whitespace-nowrap px-2.5 py-2.5 text-slate-600">{row.stockGroupLabel}</td>}
+                    <td className="px-2.5 py-2.5 text-right text-slate-700">{qty(row, row.openingStock)}</td>
+                    <td className="px-2.5 py-2.5 text-right font-semibold text-emerald-700">
+                      {row.inQty ? qty(row, row.inQty, '+') : '-'}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-slate-900">
+                    <td className="px-2.5 py-2.5 text-right font-semibold text-slate-900">
                       {qty(row, row.totalAvailable)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-maroon-800">
-                      {row.outQty ? `-${qty(row, row.outQty)}` : '-'}
+                    <td className="px-2.5 py-2.5 text-right font-semibold text-maroon-800">
+                      {row.outQty ? qty(row, row.outQty, '-') : '-'}
                     </td>
                     {showAdj && (
-                      <td className="whitespace-nowrap px-3 py-2.5 text-right text-slate-600">
-                        {row.adjustment ? `${row.adjustment > 0 ? '+' : ''}${qty(row, row.adjustment)}` : '-'}
+                      <td className="px-2.5 py-2.5 text-right text-slate-600">
+                        {row.adjustment ? qty(row, row.adjustment, row.adjustment > 0 ? '+' : '') : '-'}
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold text-slate-900">
+                    <td className="px-4 py-2.5 text-right font-bold text-slate-900">
                       {qty(row, row.closingStock)}
                     </td>
                   </tr>

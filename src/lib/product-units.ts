@@ -48,6 +48,26 @@ export function formatStock(product: PackInfo, quantity: number): string {
 }
 
 /**
+ * Pecah stok berkemasan menjadi baris utama (kemasan) & baris sisa (satuan dasar)
+ * agar kolom tabel Logistik tidak melebar ke samping saat ada sisa eceran (mis. "8 botol 330ml" + "30 ml").
+ */
+export function getStockParts(product: PackInfo, quantity: number): { main: string; rest?: string } {
+  const abs = Math.abs(quantity);
+  if (!product.packUnit || !product.packSize) {
+    return { main: `${abs} ${product.unit}` };
+  }
+  const packs = Math.floor(abs / product.packSize);
+  const rem = abs % product.packSize;
+  if (packs > 0 && rem > 0) {
+    return { main: `${packs} ${product.packUnit}`, rest: `${rem} ${product.unit}` };
+  }
+  if (packs > 0) {
+    return { main: `${packs} ${product.packUnit}` };
+  }
+  return { main: `${rem} ${product.unit}` };
+}
+
+/**
  * Jumlah pada baris dokumen (distribusi/tugas) yang menyimpan satuan saat dibuat.
  * Jika satuannya masih satuan dasar barang, tampil gabungan kemasan + satuan dasar (mis. "1 liter 500 ml").
  */

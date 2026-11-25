@@ -327,16 +327,16 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
           <p className="text-xs text-slate-500">{data?.total ?? 0} dokumen pada {formatMonth(month)}</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs tabular-nums">
             <thead className="border-b border-slate-100 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
               <tr>
-                <th className="px-4 py-3">Tanggal</th>
-                <th className="px-4 py-3">No. Dokumen</th>
-                <th className="px-4 py-3">{group.recipientLabel}</th>
-                <th className="px-4 py-3">Barang</th>
-                <th className="px-4 py-3">{group.id === 'LISTRIK' ? 'Petugas' : 'Penerima'}</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-right">Aksi</th>
+                <th className="px-3 py-3 whitespace-nowrap">Tanggal</th>
+                <th className="px-3 py-3 whitespace-nowrap">No. Dokumen</th>
+                <th className="px-3 py-3">{group.recipientLabel}</th>
+                <th className="px-3 py-3">Barang</th>
+                <th className="px-3 py-3">{group.id === 'LISTRIK' ? 'Petugas' : 'Penerima'}</th>
+                <th className="px-3 py-3 text-center">Status</th>
+                <th className="px-3 py-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -352,15 +352,15 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                   return (
                     <Fragment key={row.id}>
                       <tr className={cn('hover:bg-slate-50/70', cancelled && 'text-slate-400')}>
-                        <td className="whitespace-nowrap px-4 py-3">{formatDate(row.distributedAt)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 font-mono font-semibold text-slate-900">{row.number}</td>
-                        <td className="px-4 py-3 font-semibold">{row.recipientUnit}</td>
-                        <td className="px-4 py-3">
+                        <td className="whitespace-nowrap px-3 py-3">{formatDate(row.distributedAt)}</td>
+                        <td className="whitespace-nowrap px-3 py-3 font-mono font-semibold text-slate-900">{row.number}</td>
+                        <td className="px-3 py-3 font-semibold max-w-[11rem] leading-snug">{row.recipientUnit}</td>
+                        <td className="px-3 py-3 max-w-[16rem]">
                           <button
                             type="button"
                             onClick={() => setExpanded(isOpen ? null : row.id)}
                             aria-expanded={isOpen}
-                            className="inline-flex items-center gap-1 text-left hover:text-maroon-800"
+                            className="inline-flex items-center gap-1 text-left leading-snug hover:text-maroon-800"
                           >
                             <span>
                               {first ? `${first.product.name} (${formatItemQuantity(first.quantity, first.unit, first.product)})` : '-'}
@@ -369,8 +369,8 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', isOpen && 'rotate-180')} />
                           </button>
                         </td>
-                        <td className="px-4 py-3">{group.id === 'LISTRIK' ? row.handoverName : row.receiverName || '-'}</td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-3 py-3 max-w-[9rem] leading-snug">{group.id === 'LISTRIK' ? row.handoverName : row.receiverName || '-'}</td>
+                        <td className="px-3 py-3 text-center whitespace-nowrap">
                           {cancelled ? (
                             <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Dibatalkan</span>
                           ) : (
@@ -407,7 +407,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                             );
                           })()}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                        <td className="whitespace-nowrap px-3 py-3 text-right">
                           <div className="flex justify-end gap-1">
                             <a
                               href={`/print/distribution/${row.id}`}
@@ -417,7 +417,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                               aria-label={`Cetak ${row.number}`}
                               title="Cetak form"
                             >
-                              <Printer className="h-4 w-4" />
+                              <Printer className="h-3.5 w-3.5" />
                             </a>
                             {group.id === 'LISTRIK' && !cancelled && !row.proofFileName && (
                               <button
@@ -428,7 +428,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                                 aria-label={`Link foto bukti ${row.number}`}
                                 title="Buat & kirim link foto bukti"
                               >
-                                <Link2 className="h-4 w-4" />
+                                <Link2 className="h-3.5 w-3.5" />
                               </button>
                             )}
                             {!cancelled && (
@@ -442,7 +442,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                                 aria-label={`Batalkan ${row.number}`}
                                 title="Batalkan & kembalikan stok"
                               >
-                                <Undo2 className="h-4 w-4" />
+                                <Undo2 className="h-3.5 w-3.5" />
                               </button>
                             )}
                           </div>

@@ -179,14 +179,14 @@ export default function TelegramPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+          <table className="w-full text-left text-xs tabular-nums">
+            <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
               <tr>
-                <th className="py-3 px-4">Update ID</th>
-                <th className="py-3 px-4">Waktu Diterima</th>
-                <th className="py-3 px-4">Telegram User</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4">Ringkasan Payload</th>
+                <th className="py-3 px-3 whitespace-nowrap">Update ID</th>
+                <th className="py-3 px-3 whitespace-nowrap">Waktu Diterima</th>
+                <th className="py-3 px-3 whitespace-nowrap">Telegram User</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-3">Ringkasan Payload</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -205,20 +205,20 @@ export default function TelegramPage() {
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
                         {u.telegramUpdateId}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-500">
+                      <td className="py-3 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                         {new Date(u.receivedAt).toLocaleString('id-ID', {
                           timeZone: 'Asia/Jakarta',
                           dateStyle: 'short',
                           timeStyle: 'short',
                         })}
                       </td>
-                      <td className="py-3 px-4 text-slate-800">
+                      <td className="py-3 px-3 text-slate-800 whitespace-nowrap">
                         ID: {u.telegramUserId || '-'}
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             u.status === 'PROCESSED'
@@ -231,7 +231,7 @@ export default function TelegramPage() {
                           {u.status}
                         </span>
                       </td>
-                      <td className="py-3 px-4 max-w-md font-mono text-[11px] text-slate-500 truncate">
+                      <td className="py-3 px-3 max-w-xs font-mono text-[11px] text-slate-500 truncate">
                         {payloadParsed?.message?.text || u.payload || '-'}
                       </td>
                     </tr>

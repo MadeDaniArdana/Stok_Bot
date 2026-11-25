@@ -220,17 +220,17 @@ export default function UsersPage() {
       {/* Users Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+          <table className="w-full text-left text-xs tabular-nums">
+            <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
               <tr>
-                <th scope="col" className="w-16 py-3.5 px-4 text-center">No</th>
-                <th className="py-3.5 px-4">Nama Pengguna</th>
-                <th className="py-3.5 px-4">Email Login</th>
-                <th className="py-3.5 px-4 text-center">Peran (Role)</th>
-                <th className="py-3.5 px-4">Tautan Akun Telegram</th>
-                <th className="py-3.5 px-4 text-center">Status</th>
-                <th className="py-3.5 px-4 text-center">Total Transaksi</th>
-                <th className="py-3.5 px-4 text-right">Aksi</th>
+                <th scope="col" className="w-10 py-3 px-2.5 text-center">No</th>
+                <th className="py-3 px-3">Nama Pengguna</th>
+                <th className="py-3 px-3">Email Login</th>
+                <th className="py-3 px-2.5 text-center">Peran</th>
+                <th className="py-3 px-3">Telegram</th>
+                <th className="py-3 px-2.5 text-center">Status</th>
+                <th className="py-3 px-2.5 text-center whitespace-nowrap">Transaksi</th>
+                <th className="py-3 px-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -246,11 +246,11 @@ export default function UsersPage() {
 
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4 text-center font-medium text-slate-600 tabular-nums">
+                      <td className="py-3 px-2.5 text-center font-medium text-slate-600 tabular-nums">
                         {index + 1}
                       </td>
-                      <td className="py-3.5 px-4 font-semibold text-slate-900">
-                        <div className="flex items-center gap-2">
+                      <td className="py-3 px-3 font-semibold text-slate-900">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span>{u.name}</span>
                           {isCur && (
                             <span className="text-[10px] text-maroon-800 bg-maroon-50 px-1.5 py-0.2 rounded font-bold">
@@ -260,9 +260,9 @@ export default function UsersPage() {
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-600">{u.email}</td>
+                      <td className="py-3 px-3 text-slate-600 max-w-[14rem] truncate" title={u.email}>{u.email}</td>
 
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-2.5 text-center whitespace-nowrap">
                         {u.role === 'ADMIN' ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded-full border border-maroon-200">
                             <ShieldCheck className="w-3 h-3" /> Admin
@@ -278,9 +278,9 @@ export default function UsersPage() {
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-3 px-3 whitespace-nowrap">
                         {u.telegram ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
                               <Send className="w-2.5 h-2.5" />
                               @{u.telegram.username || u.telegram.telegramUserId}
@@ -303,7 +303,7 @@ export default function UsersPage() {
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-2.5 text-center whitespace-nowrap">
                         {u.isActive ? (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                             Aktif
@@ -315,11 +315,11 @@ export default function UsersPage() {
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-center font-mono font-medium">
+                      <td className="py-3 px-2.5 text-center font-mono font-medium">
                         {u._count?.movements || 0}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
                         {isAdmin && (
                           <div className="flex items-center justify-end gap-1">
                             <button
@@ -335,7 +335,7 @@ export default function UsersPage() {
                               aria-label={`Edit pengguna ${u.name}`}
                               title="Edit Pengguna"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              <Edit2 className="w-3.5 h-3.5" />
                             </button>
 
                             {!isCur && (
@@ -345,7 +345,7 @@ export default function UsersPage() {
                                 aria-label={`${u.isActive ? 'Nonaktifkan' : 'Aktifkan'} akun ${u.name}`}
                                 title={u.isActive ? 'Nonaktifkan Akun' : 'Aktifkan Akun'}
                               >
-                                <Power className="w-4 h-4" />
+                                <Power className="w-3.5 h-3.5" />
                               </button>
                             )}
 
@@ -356,7 +356,7 @@ export default function UsersPage() {
                                 aria-label={`Hapus akun ${u.name}`}
                                 title="Hapus Akun Permanen"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
