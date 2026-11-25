@@ -3,8 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, X, LoaderCircle, Printer, PenLine } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
+import { SearchCombobox, type ComboOption } from '@/components/ui/SearchCombobox';
 import { SignaturePad } from '@/components/ui/SignaturePad';
-import { fetchDistributionBootstrap, getCachedDistributionBootstrap, type DistributionProductOption } from '@/lib/distribution-bootstrap';
+import {
+  fetchDistributionBootstrap,
+  getCachedDistributionBootstrap,
+  type DistributionBootstrapData,
+} from '@/lib/distribution-bootstrap';
 import { formatDateTime, itemName, itemQty, ItemsList, StatusBadge, type RequestRow } from './shared';
 import type { StockGroup } from '@/lib/stock-groups';
 
@@ -31,23 +36,35 @@ function ReviewPanel({
   const [mapTo, setMapTo] = useState<Record<string, string>>({});
   const [noStock, setNoStock] = useState<Record<string, boolean>>({});
   const [date, setDate] = useState(todayInJakarta);
-  const [storage, setStorage] = useState('');
+  const [recipientUnit, setRecipientUnit] = useState(request.divisionName);
   const [signature, setSignature] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
-  const [products, setProducts] = useState<DistributionProductOption[]>(() => getCachedDistributionBootstrap(request.stockGroup as StockGroup)?.products ?? []);
+  const [bootstrap, setBootstrap] = useState<DistributionBootstrapData | undefined>(() =>
+    getCachedDistributionBootstrap(request.stockGroup as StockGroup)
+  );
 
-  const hasCustom = request.items.some((i) => !i.product);
   useEffect(() => {
-    if (!hasCustom) return;
     fetchDistributionBootstrap(request.stockGroup as StockGroup)
-      .then((data) => setProducts(data.products))
+      .then(setBootstrap)
       .catch(() => undefined);
-  }, [hasCustom, request.stockGroup]);
+  }, [request.stockGroup]);
+
+  const products = bootstrap?.products ?? [];
+  const recipientOptions = useMemo<ComboOption[]>(
+    () => [
+      ...(bootstrap?.templates ?? []).map((t) => ({
+        value: t.recipientUnit,
+        hint: t.name !== t.recipientUnit ? `Paket: ${t.name}` : undefined,
+      })),
+      ...(bootstrap?.recipients ?? []).map((value) => ({ value })),
+    ],
+    [bootstrap]
+  );
 
   const submit = () => {
     onApprove({
       date,
-      storageLocation: storage,
+      recipientUnit,
       adminSignature: signature,
       items: request.items.map((item) => ({
         id: item.id,
@@ -125,10 +142,19 @@ function ReviewPanel({
           <p className="mt-0.5 text-[11px] text-slate-500">Bisa pilih tanggal hari ini, maju (jadwal ACC), atau mundur. Tercetak di formulir &amp; distribusi.</p>
         </div>
         <div>
-          <label htmlFor={`storage-${request.id}`} className="mb-1 block text-xs font-semibold text-slate-700">
-            Tempat Penyimpanan <span className="font-normal text-slate-400">(opsional)</span>
+          <label htmlFor={`recipient-${request.id}`} className="mb-1 block text-xs font-semibold text-slate-700">
+            Kepada &amp; Tempat Penyimpanan <span className="text-rose-500">*</span>
           </label>
-          <input id={`storage-${request.id}`} value={storage} onChange={(e) => setStorage(e.target.value)} maxLength={150} placeholder={`Default: ${request.divisionName}`} className={`${fieldClass} w-full`} />
+          <SearchCombobox
+            id={`recipient-${request.id}`}
+            required
+            value={recipientUnit}
+            onChange={setRecipientUnit}
+            options={recipientOptions}
+            placeholder="Pilih paket distribusi atau ketik nama unit"
+            className="!py-2 !text-sm"
+          />
+          <p className="mt-0.5 text-[11px] text-slate-500">Tercetak sama pada baris Kepada &amp; kolom Tempat Penyimpanan di PDF.</p>
         </div>
       </div>
 
@@ -146,7 +172,7 @@ function ReviewPanel({
         <button
           type="button"
           onClick={submit}
-          disabled={busy || request.status === 'PROCESSING' || allZero}
+          disabled={busy || request.status === 'PROCESSING' || allZero || !recipientUnit.trim()}
           className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Setujui (ACC)
@@ -238,7 +264,9 @@ export function RequestAdminList({ view }: { view: 'incoming' | 'history' }) {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-mono text-xs font-bold text-maroon-800">{r.number}</p>
-                <p className="text-sm font-semibold text-slate-900">Kepada: {r.divisionName}</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {view === 'incoming' ? `Dari: ${r.divisionName}` : `Kepada: ${r.divisionName}`}
+                </p>
                 <p className="text-[11px] text-slate-500">
                   {r.stockGroup === 'ATK' ? 'ATK' : 'Logistik'} • oleh {r.receiverName || r.requesterName} • diajukan {formatDateTime(r.createdAt)}
                 </p>

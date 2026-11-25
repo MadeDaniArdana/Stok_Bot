@@ -15,6 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const request = await RequestService.approve(id, auth.user, {
       items: body?.items,
       date: body?.date,
+      recipientUnit: body?.recipientUnit,
       storageLocation: body?.storageLocation,
       adminSignature: body?.adminSignature,
     });

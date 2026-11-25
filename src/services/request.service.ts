@@ -51,8 +51,8 @@ interface Actor {
 export interface CreateRequestInput {
   stockGroup: string;
   notes?: string | null;
-  /** "Kepada": unit tujuan, dipilih dari paket distribusi atau ketik nama baru. */
-  recipientTo: string;
+  /** Opsional: bila tidak diisi, memakai nama akun divisi (admin menetapkan Kepada & Tempat Penyimpanan saat ACC). */
+  recipientTo?: string | null;
   /** Nama penerima/pengaju yang menandatangani. */
   receiverName: string;
   /** Tanda tangan digital (PNG data URL). */
@@ -65,6 +65,8 @@ export interface ApproveRequestInput {
   items?: { id: string; approvedQuantity?: number; productId?: string | null; noStock?: boolean }[];
   /** Tanggal ACC (YYYY-MM-DD, WIB); kosong = hari ini. */
   date?: string | null;
+  /** Kepada & Tempat Penyimpanan (diisi admin saat review; selalu sama di PDF & Distribusi). */
+  recipientUnit?: string | null;
   storageLocation?: string | null;
   adminSignature?: string | null;
 }
@@ -101,7 +103,7 @@ export class RequestService {
   static async create(user: Actor, input: CreateRequestInput) {
     const stockGroup = input.stockGroup || 'ATK';
     if (!(REQUEST_GROUPS as readonly string[]).includes(stockGroup)) throw new Error('Pengajuan barang saat ini hanya tersedia untuk ATK.');
-    const recipientTo = text(input.recipientTo, 'Kolom "Kepada"', true)!;
+    const recipientTo = text(input.recipientTo, 'Unit pengaju') ?? user.name;
     const receiverName = text(input.receiverName, 'Nama', true, 100)!;
     const requesterSignature = signature(input.signature, true);
 
@@ -213,7 +215,8 @@ export class RequestService {
       const request = await prisma.itemRequest.findUniqueOrThrow({ where: { id }, include: { items: { orderBy: { id: 'asc' } } } });
       const approvedAt = parseApprovalDate(input.date);
       const dateText = input.date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
-      const storageLocation = text(input.storageLocation, 'Tempat penyimpanan');
+      // Kepada dan Tempat Penyimpanan selalu disamakan sesuai isian admin saat ACC.
+      const recipientUnit = text(input.recipientUnit ?? input.storageLocation ?? request.divisionName, 'Kepada & Tempat Penyimpanan', true)!;
       const adminSignature = signature(input.adminSignature, false);
       const overrides = new Map((Array.isArray(input.items) ? input.items : []).map((item) => [item.id, item]));
 
@@ -238,11 +241,11 @@ export class RequestService {
       if (totals.size > 0) {
         ({ distribution } = await DistributionService.create({
           stockGroup: request.stockGroup,
-          recipientUnit: request.divisionName,
+          recipientUnit,
           orderNumber: request.number,
           date: dateText,
           allowFutureDate: true,
-          storageLocation,
+          storageLocation: recipientUnit,
           receiverName: request.receiverName ?? request.requesterName,
           handoverName: admin.name,
           notes: `Pengajuan ${request.number}${request.notes ? `: ${request.notes}` : ''}`,
@@ -262,10 +265,11 @@ export class RequestService {
           where: { id },
           data: {
             status: 'APPROVED',
+            divisionName: recipientUnit,
             decidedAt: new Date(),
             decidedByName: admin.name,
             approvedDate: approvedAt,
-            storageLocation,
+            storageLocation: recipientUnit,
             adminSignature,
             distributionId: distribution?.id ?? null,
             distributionNumber: distribution?.number ?? null,

@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle, Plus, Search, Send, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
-import { SearchCombobox } from '@/components/ui/SearchCombobox';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { formatStock } from '@/lib/product-units';
 
@@ -17,12 +16,6 @@ interface Product {
   currentStock: number;
   categoryName: string;
   stockGroup: 'ATK' | 'LOGISTIK';
-}
-
-interface RecipientTemplate {
-  stockGroup: string;
-  name: string;
-  recipientUnit: string;
 }
 
 interface CustomRow {
@@ -38,13 +31,11 @@ export function DivisiRequestForm() {
   const router = useRouter();
   const { showToast } = useToast();
   const [products, setProducts] = useState<Product[] | null>(null);
-  const [templates, setTemplates] = useState<RecipientTemplate[]>([]);
   const [search, setSearch] = useState('');
   // Jumlah diminta per barang (kosong/0 = tidak diminta), satuan dasar barang.
   const [qty, setQty] = useState<Record<string, string>>({});
   const [custom, setCustom] = useState<CustomRow[]>([]);
   const [receiverName, setReceiverName] = useState('');
-  const [recipientTo, setRecipientTo] = useState('');
   const [signature, setSignature] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -53,23 +44,12 @@ export function DivisiRequestForm() {
     fetch('/api/divisi/products', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : []))
       .then(setProducts);
-    fetch('/api/divisi/recipients', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setTemplates);
   }, []);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (products ?? []).filter((p) => p.stockGroup === 'ATK' && (!q || p.name.toLowerCase().includes(q) || p.categoryName.toLowerCase().includes(q)));
   }, [products, search]);
-
-  const recipientOptions = useMemo(
-    () =>
-      templates
-        .filter((t) => t.stockGroup === 'ATK')
-        .map((t) => ({ value: t.recipientUnit, hint: t.name !== t.recipientUnit ? `Paket: ${t.name}` : undefined })),
-    [templates]
-  );
 
   const chosen = (products ?? []).filter((p) => p.stockGroup === 'ATK' && Number(qty[p.id]) > 0);
   const customFilled = custom.filter((row) => row.name.trim() && Number(row.quantity) > 0);
@@ -100,7 +80,6 @@ export function DivisiRequestForm() {
         body: JSON.stringify({
           stockGroup: 'ATK',
           notes,
-          recipientTo,
           receiverName,
           signature,
           items: [
@@ -121,41 +100,22 @@ export function DivisiRequestForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-soft sm:p-5">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="req-to" className="mb-1 block text-xs font-semibold text-slate-700">
-            Unit / Bagian Pengaju (Kepada di PDF) <span className="text-rose-500">*</span>
-          </label>
-          <SearchCombobox
-            id="req-to"
-            required
-            value={recipientTo}
-            onChange={setRecipientTo}
-            options={recipientOptions}
-            placeholder="Contoh: ADMINISTRASI KELULUSAN DAN MAHASISWA FEB"
-            className="!py-2 !text-sm"
-          />
-          <p className="mt-1 text-[11px] text-slate-500">
-            Tercetak pada baris <strong>Kepada</strong> &amp; kolom <strong>Tempat Penyimpanan</strong> di PDF. Pilih dari paket atau ketik nama baru.
-          </p>
-        </div>
-        <div>
-          <label htmlFor="req-name" className="mb-1 block text-xs font-semibold text-slate-700">
-            Nama Pengaju / Penerima <span className="text-rose-500">*</span>
-          </label>
-          <input
-            id="req-name"
-            required
-            value={receiverName}
-            onChange={(e) => setReceiverName(e.target.value)}
-            maxLength={100}
-            placeholder="Contoh: Ageng Nugrahani, S.Kom."
-            className={inputClass}
-          />
-          <p className="mt-1 text-[11px] text-slate-500">
-            Nama orang yang mengajukan/menerima barang; tercetak di bawah tanda tangan <strong>Penerima</strong> di PDF.
-          </p>
-        </div>
+      <div className="sm:max-w-md">
+        <label htmlFor="req-name" className="mb-1 block text-xs font-semibold text-slate-700">
+          Nama Pengaju / Penerima <span className="text-rose-500">*</span>
+        </label>
+        <input
+          id="req-name"
+          required
+          value={receiverName}
+          onChange={(e) => setReceiverName(e.target.value)}
+          maxLength={100}
+          placeholder="Contoh: Ageng Nugrahani, S.Kom."
+          className={inputClass}
+        />
+        <p className="mt-1 text-[11px] text-slate-500">
+          Tercetak di bawah tanda tangan <strong>Penerima</strong> di PDF. Kolom Kepada &amp; Tempat Penyimpanan diisi oleh admin saat review.
+        </p>
       </div>
 
       <div>
