@@ -553,25 +553,22 @@ Alasan: ${adjReason.trim()}`)) return;
       {/* Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs tabular-nums">
-            <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+          <table className="w-full text-left text-sm tabular-nums">
+            <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold border-b border-slate-100">
               <tr>
-                <th className="py-3 px-3.5">Barang</th>
-                <th className="py-3 px-2.5">Kategori</th>
+                <th className="py-3 px-3">Barang</th>
                 {isAdmin ? (
                   <>
-                    <th className="py-3 px-2 text-center whitespace-nowrap">Stok Sisa</th>
-                    <th className="py-3 px-2 text-center whitespace-nowrap">Stok Baru</th>
+                    <th className="py-3 px-2 text-center whitespace-nowrap">Sisa</th>
+                    <th className="py-3 px-2 text-center whitespace-nowrap">Baru</th>
                     <th className="py-3 px-2 text-center whitespace-nowrap">Total</th>
                     <th className="py-3 px-2 text-center whitespace-nowrap">Keluar</th>
                     <th className="py-3 px-2 text-center whitespace-nowrap">{isCurrentMonth ? 'Stok Saat Ini' : 'Sisa Akhir'}</th>
                   </>
                 ) : (
-                  <th className="py-3 px-3 text-center whitespace-nowrap">Stok Saat Ini</th>
+                  <th className="py-3 px-2.5 text-center whitespace-nowrap">Stok Saat Ini</th>
                 )}
-                <th className="py-3 px-2 text-center whitespace-nowrap" title="Batas Minimum">Min</th>
-                <th className="py-3 px-2.5 text-center">Satuan</th>
-                <th className="py-3 px-2 text-center">Kondisi</th>
+                <th className="py-3 px-2 text-center">Satuan</th>
                 <th className="py-3 px-2 text-center">Status</th>
                 <th className="py-3 px-3 text-right">Aksi</th>
               </tr>
@@ -579,13 +576,13 @@ Alasan: ${adjReason.trim()}`)) return;
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 12 : 8} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 9 : 5} className="py-12 text-center text-slate-400">
                     Memuat data barang...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 12 : 8} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 9 : 5} className="py-12 text-center text-slate-400">
                     Belum ada data barang yang cocok dengan kriteria pencarian.
                   </td>
                 </tr>
@@ -596,19 +593,20 @@ Alasan: ${adjReason.trim()}`)) return;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-3.5 min-w-[10.5rem] max-w-[15rem]">
+                      <td className="py-2.5 px-3 min-w-[12rem]">
                         <div className="font-semibold text-slate-900 leading-snug">{p.name}</div>
-                        <div className="mt-0.5 font-mono text-[10px] text-slate-400 break-all">{p.sku}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-500">
+                          <span className="font-mono text-[11px] text-slate-400">{p.sku}</span>
+                          <span className="text-slate-300">·</span>
+                          <span>{p.category?.name || 'Tanpa Kategori'}</span>
+                          {!stockGroup && p.category && (
+                            <span className={cn('rounded border px-1.5 py-0 text-[10px] font-semibold', getStockGroup(p.category.stockGroup).badgeClass)}>
+                              {getStockGroup(p.category.stockGroup).shortLabel}
+                            </span>
+                          )}
+                        </div>
                         {p.description && (
-                          <p className="mt-0.5 text-[11px] text-slate-400 line-clamp-1">{p.description}</p>
-                        )}
-                      </td>
-                      <td className="py-3 px-2.5 text-slate-600 max-w-[8.5rem] leading-snug">
-                        {p.category?.name || '-'}
-                        {!stockGroup && p.category && (
-                          <span className={cn('mt-1 block w-fit rounded border px-1.5 py-0.5 text-[10px] font-semibold', getStockGroup(p.category.stockGroup).badgeClass)}>
-                            {getStockGroup(p.category.stockGroup).shortLabel}
-                          </span>
+                          <p className="mt-0.5 text-xs text-slate-400 line-clamp-1">{p.description}</p>
                         )}
                       </td>
                       {isAdmin ? (
@@ -619,20 +617,23 @@ Alasan: ${adjReason.trim()}`)) return;
                           const closing = isCurrentMonth ? p.currentStock : pos?.closingStock;
                           return (
                             <>
-                              <td className="py-3 px-2 text-center text-slate-600">{cell(pos?.openingStock)}</td>
-                              <td className="py-3 px-2 text-center text-emerald-700 font-medium">
+                              <td className="py-2.5 px-2 text-center text-slate-600">{cell(pos?.openingStock)}</td>
+                              <td className="py-2.5 px-2 text-center text-emerald-700 font-medium">
                                 {pos?.inQty ? cell(pos.inQty, '+') : cell(pos ? 0 : undefined)}
                               </td>
-                              <td className="py-3 px-2 text-center font-semibold text-slate-800">{cell(pos?.totalAvailable)}</td>
-                              <td className="py-3 px-2 text-center text-rose-700 font-medium">
+                              <td className="py-2.5 px-2 text-center font-semibold text-slate-800">{cell(pos?.totalAvailable)}</td>
+                              <td className="py-2.5 px-2 text-center text-rose-700 font-medium">
                                 {pos?.outQty ? cell(pos.outQty, '-') : cell(pos ? 0 : undefined)}
                               </td>
-                              <td className="py-3 px-2 text-center font-bold">
-                                <span className={isCurrentMonth ? (isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900') : 'text-slate-900'}>
+                              <td className="py-2.5 px-2 text-center">
+                                <div className={cn('font-bold', isCurrentMonth ? (isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900') : 'text-slate-900')}>
                                   {cell(closing)}
+                                </div>
+                                <span className="mt-0.5 block whitespace-nowrap text-xs text-slate-400">
+                                  Min: {p.minimumStock}
                                 </span>
                                 {pos?.adjustment ? (
-                                  <span className="mt-0.5 block text-[10px] font-medium text-sky-700 whitespace-nowrap">
+                                  <span className="mt-0.5 block text-[11px] font-medium text-sky-700 whitespace-nowrap">
                                     ±{pos.adjustment > 0 ? '+' : '-'}{formatStock(p, Math.abs(pos.adjustment))}
                                   </span>
                                 ) : null}
@@ -641,55 +642,56 @@ Alasan: ${adjReason.trim()}`)) return;
                           );
                         })()
                       ) : (
-                        <td className="py-3 px-3 text-center font-bold">
-                          <span className={isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'}>
+                        <td className="py-2.5 px-2.5 text-center">
+                          <div className={cn('font-bold', isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900')}>
                             <StockQty product={p} quantity={p.currentStock} />
+                          </div>
+                          <span className="mt-0.5 block whitespace-nowrap text-xs text-slate-400">
+                            Min: {p.minimumStock}
                           </span>
                         </td>
                       )}
-                      <td className="py-3 px-2 text-center text-slate-500 whitespace-nowrap">
-                        {p.minimumStock}
-                      </td>
-                      <td className="py-3 px-2.5 text-center max-w-[6.5rem]">
-                        <span className="inline-block font-medium bg-slate-100 px-1.5 py-0.5 rounded text-[11px] text-slate-700 whitespace-nowrap">
+                      <td className="py-2.5 px-2 text-center">
+                        <span className="inline-block font-medium bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-700 whitespace-nowrap">
                           {p.unit}
                         </span>
                         {p.packUnit && p.packSize ? (
-                          <span className="mt-0.5 block text-[10px] leading-tight text-slate-500">
-                            1 {p.packUnit} = {p.packSize} {p.unit}
+                          <span className="mt-0.5 flex flex-col items-center text-[11px] leading-tight text-slate-500">
+                            <span className="whitespace-nowrap">1 {p.packUnit}</span>
+                            <span className="whitespace-nowrap">= {p.packSize} {p.unit}</span>
                           </span>
                         ) : null}
                       </td>
-                      <td className="py-3 px-2 text-center whitespace-nowrap">
-                        {isZero ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            <AlertCircle className="w-3 h-3" />
-                            Habis
-                          </span>
-                        ) : isLow ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            <AlertTriangle className="w-3 h-3" />
-                            Rendah
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Aman
-                          </span>
-                        )}
+                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                        <div className="inline-flex flex-col items-center gap-1">
+                          {isZero ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <AlertCircle className="w-3 h-3" />
+                              Habis
+                            </span>
+                          ) : isLow ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <AlertTriangle className="w-3 h-3" />
+                              Rendah
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Aman
+                            </span>
+                          )}
+                          {p.isActive ? (
+                            <span className="text-[11px] font-medium text-emerald-700">
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              Nonaktif
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="py-3 px-2 text-center whitespace-nowrap">
-                        {p.isActive ? (
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            Nonaktif
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           {isAdmin && (
                             <>

@@ -327,23 +327,22 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
           <p className="text-xs text-slate-500">{data?.total ?? 0} dokumen pada {formatMonth(month)}</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs tabular-nums">
-            <thead className="border-b border-slate-100 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+          <table className="w-full text-left text-sm tabular-nums">
+            <thead className="border-b border-slate-100 bg-slate-50 text-xs uppercase font-semibold text-slate-500">
               <tr>
-                <th className="px-3 py-3 whitespace-nowrap">Tanggal</th>
-                <th className="px-3 py-3 whitespace-nowrap">No. Dokumen</th>
-                <th className="px-3 py-3">{group.recipientLabel}</th>
-                <th className="px-3 py-3">Barang</th>
-                <th className="px-3 py-3">{group.id === 'LISTRIK' ? 'Petugas' : 'Penerima'}</th>
-                <th className="px-3 py-3 text-center">Status</th>
+                <th className="px-3 py-3 whitespace-nowrap">Dokumen</th>
+                <th className="px-2.5 py-3">{group.recipientLabel}</th>
+                <th className="px-2.5 py-3">Barang</th>
+                <th className="px-2.5 py-3">{group.id === 'LISTRIK' ? 'Petugas' : 'Penerima'}</th>
+                <th className="px-2.5 py-3 text-center">Status</th>
                 <th className="px-3 py-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading && !data ? (
-                <tr><td colSpan={7} className="py-12 text-center text-slate-400">Memuat riwayat...</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-slate-400">Memuat riwayat...</td></tr>
               ) : !data?.items?.length ? (
-                <tr><td colSpan={7} className="py-12 text-center text-slate-400">Belum ada dokumen distribusi yang cocok.</td></tr>
+                <tr><td colSpan={6} className="py-12 text-center text-slate-400">Belum ada dokumen distribusi yang cocok.</td></tr>
               ) : (
                 data.items.map((row: any) => {
                   const isOpen = expanded === row.id;
@@ -352,10 +351,12 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                   return (
                     <Fragment key={row.id}>
                       <tr className={cn('hover:bg-slate-50/70', cancelled && 'text-slate-400')}>
-                        <td className="whitespace-nowrap px-3 py-3">{formatDate(row.distributedAt)}</td>
-                        <td className="whitespace-nowrap px-3 py-3 font-mono font-semibold text-slate-900">{row.number}</td>
-                        <td className="px-3 py-3 font-semibold max-w-[11rem] leading-snug">{row.recipientUnit}</td>
-                        <td className="px-3 py-3 max-w-[16rem]">
+                        <td className="whitespace-nowrap px-3 py-2.5">
+                          <div className="font-mono font-semibold text-slate-900">{row.number}</div>
+                          <div className="text-xs text-slate-400">{formatDate(row.distributedAt)}</div>
+                        </td>
+                        <td className="px-2.5 py-2.5 font-semibold max-w-[12rem] leading-snug">{row.recipientUnit}</td>
+                        <td className="px-2.5 py-2.5 max-w-[18rem]">
                           <button
                             type="button"
                             onClick={() => setExpanded(isOpen ? null : row.id)}
@@ -369,8 +370,8 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                             <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', isOpen && 'rotate-180')} />
                           </button>
                         </td>
-                        <td className="px-3 py-3 max-w-[9rem] leading-snug">{group.id === 'LISTRIK' ? row.handoverName : row.receiverName || '-'}</td>
-                        <td className="px-3 py-3 text-center whitespace-nowrap">
+                        <td className="px-2.5 py-2.5 max-w-[10rem] leading-snug">{group.id === 'LISTRIK' ? row.handoverName : row.receiverName || '-'}</td>
+                        <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
                           {cancelled ? (
                             <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Dibatalkan</span>
                           ) : (
@@ -450,7 +451,7 @@ function ReportsContent({ stockGroup }: { stockGroup: StockGroup }) {
                       </tr>
                       {isOpen && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={7} className="px-4 pb-4 pt-1">
+                          <td colSpan={6} className="px-4 pb-4 pt-1">
                             <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-[1fr_16rem]">
                               <table className="w-full text-xs">
                                 <thead className="text-[11px] text-slate-400">

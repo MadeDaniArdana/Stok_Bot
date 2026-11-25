@@ -116,8 +116,7 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
   }, [data, search, onlyMoved]);
 
   const showAdj = Boolean(data?.hasAdjustment);
-  const showGroupCol = !jenis;
-  const colCount = 6 + (showGroupCol ? 1 : 0) + (showAdj ? 1 : 0);
+  const colCount = 6 + (showAdj ? 1 : 0);
   const t = data?.totals;
 
   return (
@@ -213,17 +212,16 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
         <p className="p-6 text-center text-sm text-rose-600">{error}</p>
       ) : (
         <div className="max-h-[560px] overflow-auto border-t border-slate-100">
-          <table className="w-full text-left text-xs tabular-nums">
-            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+          <table className="w-full text-left text-sm tabular-nums">
+            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50 text-xs uppercase font-semibold text-slate-500">
               <tr>
-                <th className="px-4 py-3 font-semibold">Barang</th>
-                {showGroupCol && <th className="px-2.5 py-3 font-semibold whitespace-nowrap">Jenis</th>}
-                <th className="px-2.5 py-3 text-right font-semibold whitespace-nowrap">Stok Lama</th>
-                <th className="px-2.5 py-3 text-right font-semibold text-emerald-700 whitespace-nowrap">Stok Baru</th>
-                <th className="px-2.5 py-3 text-right font-semibold whitespace-nowrap">Total</th>
-                <th className="px-2.5 py-3 text-right font-semibold text-maroon-800 whitespace-nowrap">Keluar</th>
-                {showAdj && <th className="px-2.5 py-3 text-right font-semibold whitespace-nowrap">Penyesuaian</th>}
-                <th className="px-4 py-3 text-right font-semibold whitespace-nowrap">Sisa Akhir</th>
+                <th className="px-3.5 py-3">Barang</th>
+                <th className="px-2.5 py-3 text-right whitespace-nowrap">Stok Lama</th>
+                <th className="px-2.5 py-3 text-right text-emerald-700 whitespace-nowrap">Stok Baru</th>
+                <th className="px-2.5 py-3 text-right whitespace-nowrap">Total</th>
+                <th className="px-2.5 py-3 text-right text-maroon-800 whitespace-nowrap">Keluar</th>
+                {showAdj && <th className="px-2.5 py-3 text-right whitespace-nowrap">Penyesuaian</th>}
+                <th className="px-3.5 py-3 text-right whitespace-nowrap">Sisa Akhir</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -242,13 +240,13 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
               ) : (
                 rows.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-2.5 min-w-[11rem] max-w-[16rem]">
+                    <td className="px-3.5 py-2.5 min-w-[12rem]">
                       <p className="font-semibold text-slate-900 leading-snug">{row.name}</p>
-                      <p className="font-mono text-[10px] text-slate-400">
-                        {row.sku} · {row.category}
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        <span className="font-mono text-[11px] text-slate-400">{row.sku}</span>
+                        {!jenis ? ` · ${row.stockGroupLabel}` : ''} · {row.category}
                       </p>
                     </td>
-                    {showGroupCol && <td className="whitespace-nowrap px-2.5 py-2.5 text-slate-600">{row.stockGroupLabel}</td>}
                     <td className="px-2.5 py-2.5 text-right text-slate-700">{qty(row, row.openingStock)}</td>
                     <td className="px-2.5 py-2.5 text-right font-semibold text-emerald-700">
                       {row.inQty ? qty(row, row.inQty, '+') : '-'}
@@ -264,7 +262,7 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
                         {row.adjustment ? qty(row, row.adjustment, row.adjustment > 0 ? '+' : '') : '-'}
                       </td>
                     )}
-                    <td className="px-4 py-2.5 text-right font-bold text-slate-900">
+                    <td className="px-3.5 py-2.5 text-right font-bold text-slate-900">
                       {qty(row, row.closingStock)}
                     </td>
                   </tr>

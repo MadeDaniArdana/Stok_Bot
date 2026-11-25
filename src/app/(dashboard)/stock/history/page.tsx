@@ -327,30 +327,28 @@ export default function StockHistoryPage() {
       {/* Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs tabular-nums">
-            <thead className="bg-slate-50 text-[11px] text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+          <table className="w-full text-left text-sm tabular-nums">
+            <thead className="bg-slate-50 text-xs text-slate-500 uppercase font-semibold border-b border-slate-100">
               <tr>
                 <th className="py-3 px-3 whitespace-nowrap">Waktu (WIB)</th>
-                <th className="py-3 px-3">Barang & SKU</th>
-                <th className="py-3 px-2.5 text-center">Tipe</th>
-                <th className="py-3 px-2.5 text-right">Perubahan</th>
-                <th className="py-3 px-2.5 text-center whitespace-nowrap">Sebelum &rarr; Sesudah</th>
-                <th className="py-3 px-3">Aktor / Pemakai</th>
-                <th className="py-3 px-2.5 text-center">Sumber</th>
-                <th className="py-3 px-3">Catatan / Dokumen</th>
+                <th className="py-3 px-2.5">Barang</th>
+                <th className="py-3 px-2 text-center">Tipe</th>
+                <th className="py-3 px-2.5 text-right whitespace-nowrap">Mutasi Stok</th>
+                <th className="py-3 px-2.5">Aktor</th>
+                <th className="py-3 px-2.5">Catatan</th>
                 {isAdmin && <th className="py-3 px-3 text-right">Aksi</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 7 : 6} className="py-12 text-center text-slate-400">
                     Memuat riwayat stok...
                   </td>
                 </tr>
               ) : movements.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 9 : 8} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 7 : 6} className="py-12 text-center text-slate-400">
                     Belum ada transaksi pada kriteria filter ini.
                   </td>
                 </tr>
@@ -359,54 +357,65 @@ export default function StockHistoryPage() {
                   const isIncoming = m.type === 'IN';
                   const isReversal = m.type === 'REVERSAL';
                   const isTelegram = m.source === 'TELEGRAM';
+                  const dt = new Date(m.createdAt);
+                  const datePart = dt.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: '2-digit' });
+                  const timePart = dt.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' });
 
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
-                        {new Date(m.createdAt).toLocaleString('id-ID', {
-                          timeZone: 'Asia/Jakarta',
-                          dateStyle: 'short',
-                          timeStyle: 'short',
-                        })}
+                      <td className="py-2.5 px-3 whitespace-nowrap font-mono">
+                        <div className="text-xs font-semibold text-slate-700">{datePart}</div>
+                        <div className="text-[11px] text-slate-400">{timePart} WIB</div>
                       </td>
 
-                      <td className="py-3 px-3 min-w-[10rem] max-w-[14rem]">
+                      <td className="py-2.5 px-2.5 min-w-[11rem]">
                         <p className="font-semibold text-slate-900 leading-snug">{m.product?.name || '-'}</p>
-                        <span className="font-mono text-[10px] text-slate-400 break-all">
+                        <span className="font-mono text-xs text-slate-400">
                           {m.product?.sku || '-'}
                         </span>
                       </td>
 
-                      <td className="py-3 px-2.5 text-center whitespace-nowrap">
-                        <span
-                          className={`font-mono font-bold text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                            isReversal
-                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                              : isIncoming
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
-                          {isReversal ? (
-                            <RotateCcw className="w-2.5 h-2.5" />
-                          ) : isIncoming ? (
-                            <ArrowDownLeft className="w-2.5 h-2.5" />
+                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                        <div className="inline-flex flex-col items-center gap-1">
+                          <span
+                            className={`font-mono font-bold text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                              isReversal
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : isIncoming
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            {isReversal ? (
+                              <RotateCcw className="w-2.5 h-2.5" />
+                            ) : isIncoming ? (
+                              <ArrowDownLeft className="w-2.5 h-2.5" />
+                            ) : (
+                              <ArrowUpRight className="w-2.5 h-2.5" />
+                            )}
+                            {m.type}
+                          </span>
+                          {isTelegram ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-sky-700 font-semibold">
+                              <Send className="w-2.5 h-2.5" /> Telegram
+                            </span>
                           ) : (
-                            <ArrowUpRight className="w-2.5 h-2.5" />
+                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                              <Globe className="w-2.5 h-2.5" /> Web
+                            </span>
                           )}
-                          {m.type}
-                        </span>
+                        </div>
                       </td>
 
-                      <td className="py-3 px-2.5 text-right font-mono font-bold">
-                        <span
-                          className={
+                      <td className="py-2.5 px-2.5 text-right">
+                        <div
+                          className={`font-mono font-bold ${
                             isIncoming
                               ? 'text-emerald-600'
                               : isReversal
                               ? 'text-purple-600'
                               : 'text-maroon-800'
-                          }
+                          }`}
                         >
                           {m.product ? (
                             <StockQty
@@ -418,55 +427,41 @@ export default function StockHistoryPage() {
                           ) : (
                             `${isIncoming ? '+' : isReversal ? '↺ ' : '-'}${m.quantity}`
                           )}
+                        </div>
+                        <span className="mt-0.5 block whitespace-nowrap font-mono text-xs text-slate-500">
+                          {m.stockBefore} &rarr; <strong className="text-slate-800">{m.stockAfter}</strong>
                         </span>
                       </td>
 
-                      <td className="py-3 px-2.5 text-center whitespace-nowrap font-mono text-[11px] text-slate-500">
-                        {m.stockBefore} &rarr;{' '}
-                        <strong className="text-slate-900 font-bold">{m.stockAfter}</strong>
-                      </td>
-
-                      <td className="py-3 px-3 max-w-[10rem]">
+                      <td className="py-2.5 px-2.5 max-w-[11rem]">
                         <p className="font-medium text-slate-800 truncate" title={personName(m.actor?.name, m.actorName, 'Sistem')}>
                           {isTelegram && m.actor?.telegram?.username ? `@${m.actor.telegram.username}` : personName(m.actor?.name, m.actorName, 'Sistem')}
                         </p>
                         {!isTelegram && m.actor?.email && (
-                          <span className="block text-[10px] text-slate-400 truncate" title={m.actor.email}>{m.actor.email}</span>
+                          <span className="block text-xs text-slate-400 truncate" title={m.actor.email}>{m.actor.email}</span>
                         )}
                       </td>
 
-                      <td className="py-3 px-2.5 text-center whitespace-nowrap">
-                        {isTelegram ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200 font-semibold">
-                            <Send className="w-2.5 h-2.5" /> Telegram
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full font-semibold">
-                            <Globe className="w-2.5 h-2.5" /> Web
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3 max-w-[13rem]">
-                        <p className="text-slate-600 line-clamp-2 text-[11px] leading-snug" title={m.notes || undefined}>
+                      <td className="py-2.5 px-2.5 max-w-[14rem]">
+                        <p className="text-slate-600 line-clamp-2 text-xs leading-snug" title={m.notes || undefined}>
                           {m.notes || '-'}
                         </p>
                         {m.referenceId && (
-                          <span className="text-[10px] font-mono text-slate-400 mt-0.5 block truncate" title={m.referenceId}>
+                          <span className="text-[11px] font-mono text-slate-400 mt-0.5 block truncate" title={m.referenceId}>
                             Ref: {m.referenceId.length > 18 ? `${m.referenceId.slice(0, 8)}…` : m.referenceId}
                           </span>
                         )}
                       </td>
 
                       {isAdmin && (
-                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           {m.type !== 'REVERSAL' && (
                             <button
                               onClick={() => {
                                 setReversalTarget(m);
                                 setReversalReason('');
                               }}
-                              className="action-button action-reversal px-2.5 py-1.5 min-h-8 text-[11px]"
+                              className="action-button action-reversal px-2.5 py-1.5 min-h-8 text-xs"
                               title="Buat Koreksi Pembalik Transaksi"
                             >
                               <RotateCcw className="w-3 h-3" />

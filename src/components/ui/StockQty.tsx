@@ -11,9 +11,9 @@ interface StockQtyProps {
 }
 
 /**
- * Menampilkan jumlah stok secara ringkas di sel tabel:
+ * Menampilkan jumlah stok dengan font tetap jelas (mengikuti ukuran teks tabel, mis. 14px):
  * bila terdiri dari kemasan + sisa satuan dasar (mis. 8 botol 330ml + 30 ml),
- * disusun 2 baris vertikal agar kolom tabel tetap ramping dan tidak memicu scroll samping.
+ * disusun 2 baris vertikal rapat agar kolom tidak melebar ke samping.
  */
 export function StockQty({ product, quantity, prefix = '', align = 'center', className }: StockQtyProps) {
   const sign = quantity < 0 && !prefix ? '-' : prefix;
@@ -31,7 +31,7 @@ export function StockQty({ product, quantity, prefix = '', align = 'center', cla
   return (
     <span
       className={cn(
-        'inline-flex flex-col leading-tight',
+        'inline-flex flex-col leading-snug',
         align === 'end' ? 'items-end' : align === 'start' ? 'items-start' : 'items-center',
         className
       )}
@@ -40,7 +40,7 @@ export function StockQty({ product, quantity, prefix = '', align = 'center', cla
         {sign}
         {main}
       </span>
-      <span className="whitespace-nowrap text-[10px] font-normal opacity-80">
+      <span className="whitespace-nowrap text-xs font-normal opacity-80">
         +{rest}
       </span>
     </span>

@@ -325,32 +325,32 @@ export default function ReportsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs tabular-nums">
-                <thead className="border-b border-slate-100 bg-slate-50 text-slate-500">
+              <table className="w-full text-left text-sm tabular-nums">
+                <thead className="border-b border-slate-100 bg-slate-50 text-xs uppercase font-semibold text-slate-500">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">Nama Barang</th>
-                    <th className="px-3 py-3 text-right font-semibold">Stok Sisa</th>
-                    <th className="px-3 py-3 text-right font-semibold">Stok Masuk</th>
-                    <th className="px-4 py-3 text-right font-semibold">Jumlah Stok</th>
+                    <th className="px-3.5 py-3">Nama Barang</th>
+                    <th className="px-3 py-3 text-right whitespace-nowrap">Stok Sisa</th>
+                    <th className="px-3 py-3 text-right whitespace-nowrap">Stok Masuk</th>
+                    <th className="px-3.5 py-3 text-right whitespace-nowrap">Jumlah Stok</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {criticalItems.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/70">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-900">{item.name}</p>
-                        <p className="font-mono text-[11px] text-slate-400">
-                          {item.sku} · {item.stockGroupLabel} · {item.category}
+                      <td className="px-3.5 py-2.5">
+                        <p className="font-semibold text-slate-900 leading-snug">{item.name}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          <span className="font-mono text-[11px] text-slate-400">{item.sku}</span> · {item.stockGroupLabel} · {item.category}
                         </p>
                       </td>
-                      <td className="px-3 py-3 text-right text-slate-700">
+                      <td className="px-3 py-2.5 text-right text-slate-700">
                         <StockQty product={item} quantity={item.remainingStock} align="end" />
                       </td>
-                      <td className="px-3 py-3 text-right font-semibold text-emerald-700">
+                      <td className="px-3 py-2.5 text-right font-semibold text-emerald-700">
                         {item.incomingStock ? <StockQty product={item} quantity={item.incomingStock} prefix="+" align="end" /> : '-'}
                       </td>
                       <td
-                        className={`px-4 py-3 text-right font-bold ${
+                        className={`px-3.5 py-2.5 text-right font-bold ${
                           item.isZero ? 'text-rose-600' : 'text-slate-900'
                         }`}
                         title={`Sisa akhir periode ${formatStock(item, item.closingStock)} · batas minimum ${formatStock(item, item.minimumStock)}`}
