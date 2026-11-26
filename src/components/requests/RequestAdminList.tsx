@@ -11,7 +11,7 @@ import {
   getCachedDistributionBootstrap,
   type DistributionBootstrapData,
 } from '@/lib/distribution-bootstrap';
-import { formatDateTime, itemName, itemQty, ItemsList, StatusBadge, type RequestRow } from './shared';
+import { formatDateTime, itemName, ItemsList, StatusBadge, type RequestRow } from './shared';
 import type { StockGroup } from '@/lib/stock-groups';
 
 const fieldClass = 'rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-500/20';
@@ -99,12 +99,12 @@ function ReviewPanel({
                     {custom && <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Di luar daftar</span>}
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Kebutuhan: {itemQty(item, item.quantity)}
+                    Kebutuhan: {item.quantity}
                     {item.specification && <> · Spek: {item.specification}</>}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <label htmlFor={`acc-${item.id}`} className="text-[11px] font-semibold text-slate-600">ACC</label>
+                  <label htmlFor={`acc-${item.id}`} className="text-[11px] font-semibold text-slate-600">Pesanan (ACC)</label>
                   <input
                     id={`acc-${item.id}`}
                     type="number"
@@ -114,7 +114,7 @@ function ReviewPanel({
                     onChange={(e) => setAcc((cur) => ({ ...cur, [item.id]: e.target.value }))}
                     className={`${fieldClass} w-20 !py-1.5`}
                   />
-                  <span className="text-xs text-slate-500">{item.product?.unit ?? item.customUnit}</span>
+                  <span className="text-xs text-slate-500">{item.product?.unit ?? products.find((product) => product.id === mapped)?.unit ?? item.customUnit}</span>
                   <input
                     value={notesByItem[item.id] ?? ''}
                     onChange={(e) => setNotesByItem((cur) => ({ ...cur, [item.id]: e.target.value }))}

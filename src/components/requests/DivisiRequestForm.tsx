@@ -33,7 +33,7 @@ const inputClass =
  */
 export function DivisiRequestForm({ divisionName, template }: {
   divisionName: string;
-  template: { name: string; items: { productId: string; quantity: number }[] } | null;
+  template: { name: string; items: { productId: string }[] } | null;
 }) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -67,14 +67,14 @@ export function DivisiRequestForm({ divisionName, template }: {
   }, []);
 
   const templateRows = useMemo(() => new Map(
-    template?.items.map((item, index) => [item.productId, { index, quantity: item.quantity }])
+    template?.items.map((item, index) => [item.productId, index])
   ), [template]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (products ?? []).filter(
       (p) => p.stockGroup === 'ATK' && (!q || p.name.toLowerCase().includes(q) || p.categoryName.toLowerCase().includes(q))
-    ).sort((a, b) => (templateRows.get(a.id)?.index ?? Infinity) - (templateRows.get(b.id)?.index ?? Infinity));
+    ).sort((a, b) => (templateRows.get(a.id) ?? Infinity) - (templateRows.get(b.id) ?? Infinity));
   }, [products, search, templateRows]);
 
   const chosen = (products ?? []).filter((p) => p.stockGroup === 'ATK' && Number(qty[p.id]) > 0);
@@ -215,25 +215,21 @@ export function DivisiRequestForm({ divisionName, template }: {
               ) : (
                 visible.map((p) => {
                   const chosenQty = Number(qty[p.id]) > 0;
-                  const suggestedQuantity = templateRows.get(p.id)?.quantity;
                   return (
                     <tr key={p.id} className={chosenQty ? 'bg-maroon-50/40' : undefined}>
                       <td className="px-3 py-2 align-top">
                         <p className="font-medium text-slate-800">{p.name}</p>
                         <p className="text-[11px] text-slate-500">{p.categoryName}</p>
-                        {suggestedQuantity !== undefined && (
-                          <p className="text-[11px] text-maroon-800">Jumlah di template {suggestedQuantity} {p.unit}</p>
-                        )}
-                        {chosenQty && (
-                          <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row">
-                            <input
-                              value={spec[p.id] ?? ''}
-                              onChange={(e) => setSpec((cur) => ({ ...cur, [p.id]: e.target.value }))}
-                              maxLength={120}
-                              placeholder="Spesifikasi (opsional)"
-                              aria-label={`Spesifikasi ${p.name}`}
-                              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:border-maroon-700 focus:outline-none md:hidden"
-                            />
+                        <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row">
+                          <input
+                            value={spec[p.id] ?? ''}
+                            onChange={(e) => setSpec((cur) => ({ ...cur, [p.id]: e.target.value }))}
+                            maxLength={120}
+                            placeholder="Spesifikasi (opsional)"
+                            aria-label={`Spesifikasi ${p.name}`}
+                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:border-maroon-700 focus:outline-none md:hidden"
+                          />
+                          {chosenQty && (
                             <input
                               value={itemNote[p.id] ?? ''}
                               onChange={(e) => setItemNote((cur) => ({ ...cur, [p.id]: e.target.value }))}
@@ -242,8 +238,8 @@ export function DivisiRequestForm({ divisionName, template }: {
                               aria-label={`Keterangan ${p.name}`}
                               className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:border-maroon-700 focus:outline-none"
                             />
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
                       <td className="hidden px-3 py-2 align-top md:table-cell">
                         <input
@@ -268,7 +264,6 @@ export function DivisiRequestForm({ divisionName, template }: {
                             aria-label={`Kebutuhan ${p.name}`}
                             className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-maroon-500/20"
                           />
-                          <span className="text-xs text-slate-500">{p.unit}</span>
                         </div>
                       </td>
                     </tr>
@@ -279,7 +274,7 @@ export function DivisiRequestForm({ divisionName, template }: {
           </table>
         </div>
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500">
-          Jumlah kebutuhan dimulai dari 0. Barang dengan jumlah 0 atau kosong tidak ikut dikirim. Jumlah yang disetujui (ACC) ditentukan oleh admin.
+          Jumlah kebutuhan dimulai dari 0. Barang dengan jumlah 0 atau kosong tidak ikut dikirim. Admin mengisi Pesanan berdasarkan jumlah yang disetujui dan satuan barang.
         </div>
       </div>
 
@@ -326,7 +321,7 @@ export function DivisiRequestForm({ divisionName, template }: {
                     onChange={(e) => updateCustom(row.key, { unit: e.target.value })}
                     maxLength={30}
                     placeholder="Satuan"
-                    aria-label={`Satuan barang lainnya ${index + 1}`}
+                    aria-label={`Satuan pesanan barang tambahan ${index + 1}`}
                     className={`${inputClass} bg-white`}
                   />
                   <button

@@ -90,7 +90,7 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
                 <td className="border border-black px-1.5 py-1 text-center">{index + 1}</td>
                 <td className={cell}>{itemName(item)}</td>
                 <td className={cell}>{item.specification || ''}</td>
-                <td className={`${cell} text-center`}>{itemQty(item, item.quantity)}</td>
+                <td className={`${cell} text-center`}>{item.quantity}</td>
                 <td className={`${cell} text-center`}>
                   {approved && item.approvedQuantity !== null ? itemQty(item, item.approvedQuantity) : ''}
                 </td>

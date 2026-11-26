@@ -74,9 +74,9 @@ export function ItemsList({ items }: { items: RequestRow['items'] }) {
             )}
           </div>
           <span className="shrink-0 text-right font-semibold text-slate-700">
-            {itemQty(item, item.quantity)}
-            {item.approvedQuantity !== null && item.approvedQuantity !== item.quantity && (
-              <span className="block text-[11px] font-medium text-emerald-700">ACC {itemQty(item, item.approvedQuantity)}</span>
+            Kebutuhan {item.quantity}
+            {item.approvedQuantity !== null && (
+              <span className="block text-[11px] font-medium text-emerald-700">Pesanan {itemQty(item, item.approvedQuantity)}</span>
             )}
           </span>
         </li>

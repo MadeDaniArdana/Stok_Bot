@@ -15,7 +15,7 @@ export default async function DivisiRequestPage() {
         items: {
           where: { product: { isActive: true, category: { stockGroup: 'ATK' } } },
           orderBy: { sortOrder: 'asc' },
-          select: { productId: true, quantity: true },
+          select: { productId: true },
         },
       },
     })
