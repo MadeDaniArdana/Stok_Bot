@@ -48,7 +48,7 @@ export interface ProductFilterOptions {
 }
 
 export class ProductService {
-  static async getProducts(filters: ProductFilterOptions = {}) {
+  static async getProducts(filters: ProductFilterOptions = {}, db: Prisma.TransactionClient = prisma) {
     const { search, categoryId, stockGroup, status = 'all', stockStatus = 'all', page = 1, limit = 50 } = filters;
 
     const where: any = {};
@@ -88,8 +88,8 @@ export class ProductService {
     const safeLimit = Math.min(Math.max(1, limit || 50), 500);
 
     const [total, items] = await Promise.all([
-      prisma.product.count({ where }),
-      prisma.product.findMany({
+      db.product.count({ where }),
+      db.product.findMany({
         where,
         include: { category: true },
         orderBy: { name: 'asc' },

@@ -1,4 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
+﻿const { PrismaClient } = require('@prisma/client');
 const { randomBytes, scryptSync } = require('crypto');
 const prisma = new PrismaClient();
 
@@ -91,15 +91,7 @@ async function main() {
     data: {
       id: 'cat-atk',
       name: 'Alat Tulis Kantor (ATK)',
-      description: 'Pulpen, spidol, gunting, stapler, dan perlengkapan tulis kantor sehari-hari.',
-    },
-  });
-
-  const catPaper = await prisma.category.create({
-    data: {
-      id: 'cat-paper',
-      name: 'Kebutuhan Kertas & Cetak',
-      description: 'Kertas HVS berbagai ukuran, amplop, cover buku, dan kertas cetak foto.',
+      description: 'Pulpen, spidol, gunting, stapler, kertas, dan perlengkapan kantor.',
     },
   });
 
@@ -142,7 +134,7 @@ async function main() {
       sku: 'PAP-A4-01',
       name: 'Kertas HVS A4 80gr PaperOne',
       description: 'Kertas HVS putih ukuran A4 80 GSM isi 500 lembar per rim.',
-      categoryId: catPaper.id,
+      categoryId: catATK.id,
       unit: 'rim',
       currentStock: 65,
       minimumStock: 20,

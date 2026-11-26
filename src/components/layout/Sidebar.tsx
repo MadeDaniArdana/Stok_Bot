@@ -197,7 +197,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'admin', mobileOpen, on
       if (group) {
         prefetchSwrJson('/api/categories', 60_000);
         prefetchSwrJson(
-          `/api/products?${new URLSearchParams({ search: '', categoryId: 'all', stockStatus: 'all', status: 'all', limit: '500', jenis: group })}`
+          `/api/products?${new URLSearchParams({ search: '', categoryId: 'all', stockStatus: 'all', status: 'all', limit: '500', jenis: group, stockMonth: getCurrentReportMonth() })}`
         );
       }
       return;

@@ -35,10 +35,6 @@ const StockEntryForm = dynamic(
 );
 
 /** Baris laporan posisi stok -> Map per id barang. */
-function toPositionMap(report: any): Map<string, any> {
-  return new Map((report?.rows || []).map((row: any) => [row.id, row]));
-}
-
 /** Label bulan "2026-11" -> "November 2026". */
 function monthLabel(value: string) {
   const [y, m] = value.split('-').map(Number);
@@ -62,6 +58,11 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const [stockStatus, setStockStatus] = useState(searchParams.get('stockStatus') || 'all');
   const [status, setStatus] = useState('all');
 
+  const currentMonth = getCurrentReportMonth();
+  const [periodMonth, setPeriodMonth] = useState(currentMonth);
+  const isCurrentMonth = periodMonth === currentMonth;
+  const isOpeningBalanceMonth = periodMonth === OPENING_BALANCE_MONTH;
+
   const buildProductsUrl = (opts?: { s?: string; cat?: string; ss?: string; st?: string }) => {
     const query = new URLSearchParams({
       search: opts?.s ?? debouncedSearch,
@@ -70,6 +71,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
       status: opts?.st ?? status,
       limit: '500',
       ...(stockGroup ? { jenis: stockGroup } : {}),
+      stockMonth: periodMonth,
     }).toString();
     return `/api/products?${query}`;
   };
@@ -130,15 +132,6 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const [adjReason, setAdjReason] = useState('');
   const [adjSubmitting, setAdjSubmitting] = useState(false);
 
-  // Posisi stok per bulan untuk kolom tabel.
-  const currentMonth = getCurrentReportMonth();
-  const [periodMonth, setPeriodMonth] = useState(currentMonth);
-  const positionUrl = `/api/reports/stock-position?periode=${periodMonth}${stockGroup ? `&jenis=${stockGroup}` : ''}`;
-  const [positions, setPositions] = useState<Map<string, any>>(() => toPositionMap(getSwrCache<any>(positionUrl)));
-  const [positionLoading, setPositionLoading] = useState(false);
-  const isCurrentMonth = periodMonth === currentMonth;
-  const isOpeningBalanceMonth = periodMonth === OPENING_BALANCE_MONTH;
-
   // Fetch products
   // Penanda permintaan terbaru + AbortController agar respons lama tidak menimpa hasil filter terbaru.
   const latestRequest = useRef(0);
@@ -155,6 +148,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
       setLoading(false);
     } else {
       setLoading(true);
+      setProducts([]);
     }
     try {
       const data = await fetchSwrJson<any>(url, { force, signal: controller.signal });
@@ -165,27 +159,6 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
       if (requestId === latestRequest.current) setLoading(false);
     }
   };
-
-  const positionRequest = useRef(0);
-  const fetchPositions = async (force = false) => {
-    if (!isAdmin) return;
-    const requestId = ++positionRequest.current;
-    const cached = getSwrCache<any>(positionUrl);
-    if (cached && !force) setPositions(toPositionMap(cached));
-    else setPositionLoading(true);
-    try {
-      const data = await fetchSwrJson<any>(positionUrl, { force });
-      if (requestId === positionRequest.current) setPositions(toPositionMap(data));
-    } catch (e) {
-      console.error(e);
-    } finally {
-      if (requestId === positionRequest.current) setPositionLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPositions();
-  }, [positionUrl, isAdmin]);
 
   // Fetch categories
   const fetchCategories = async () => {
@@ -209,7 +182,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   useEffect(() => {
     fetchProducts();
     return () => fetchAbortRef.current?.abort();
-  }, [debouncedSearch, categoryId, stockStatus, status, stockGroup]);
+  }, [debouncedSearch, categoryId, stockStatus, status, stockGroup, periodMonth]);
 
   // Open Edit Modal
   const openEdit = (p: any) => {
@@ -247,7 +220,6 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
     invalidateSwrPrefix('/api/stock');
     clearDistributionBootstrapCache();
     fetchProducts(true);
-    fetchPositions(true);
   };
 
   const handleAdjust = async () => {
@@ -547,7 +519,7 @@ Alasan: ${adjReason.trim()}`)) return;
             Periode <strong>{monthLabel(periodMonth)}</strong>. {isOpeningBalanceMonth
               ? 'Barang Masuk dan Barang Keluar ditampilkan 0 untuk penetapan saldo awal. Pembaruan/transaksi tetap memperbarui Stok Saat Ini. Kolom Barang Masuk dan Barang Keluar mulai menghitung pada Desember 2026.'
               : 'Barang Masuk dan Barang Keluar dihitung untuk periode yang dipilih.'}
-            {positionLoading && ' Memuat...'}
+            {loading && ' Memuat...'}
           </p>
         )}
       </div>
@@ -611,7 +583,7 @@ Alasan: ${adjReason.trim()}`)) return;
                       </td>
                       {isAdmin ? (
                         (() => {
-                          const pos = positions.get(p.id);
+                          const pos = p.monthPosition;
                           const cell = (value: number | undefined, prefix = '') =>
                             value === undefined ? <span className="text-slate-300">-</span> : <span className="whitespace-nowrap">{prefix}{value}</span>;
                           const closing = isCurrentMonth ? p.currentStock : pos?.closingStock;

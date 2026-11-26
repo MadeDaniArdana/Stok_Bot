@@ -18,16 +18,10 @@ const LOGISTIK_DATE = new Date('2026-10-02T09:00:00+07:00');
 
 const CATEGORIES = [
   {
-    id: 'cat-paper',
-    name: 'Kebutuhan Kertas & Cetak',
-    stockGroup: 'ATK',
-    description: 'Kertas HVS, kertas bergaris, map, odner, business file, dan perlengkapan berkas.',
-  },
-  {
     id: 'cat-atk',
     name: 'Alat Tulis Kantor (ATK)',
     stockGroup: 'ATK',
-    description: 'Pena, pensil, spidol, stapler, klip, lakban, isolasi, gunting, cutter, dan perlengkapan kantor lainnya.',
+    description: 'Pena, pensil, spidol, stapler, klip, lakban, isolasi, gunting, cutter, kertas, dan perlengkapan kantor lainnya.',
   },
   {
     id: 'cat-vitamin',
@@ -57,16 +51,16 @@ const CATEGORIES = [
 
 // [categoryId, name, unit, packUnit, packSize, priorQty, procuredQty, minimumStock, supplier, price, spec, keperluan]
 const ATK_ITEMS = [
-  // cat-paper (9 items)
-  ['cat-paper', 'Kertas HVS A4 Sidu 75 gr', 'rim', null, null, 0, 199, 20, 'Toko Kim-Kim', 44500, 'A4 Sidu 75 gr', 'FTIK (40), FSIP (30), FEB (30), Kemahasiswaan (10), TU Warek (8), LPPM (6), LPBM (15), TU SI (11), TU IF (10), Perpustakaan (3), Informasi (16), Stok (20)'],
-  ['cat-paper', 'Kertas HVS F4 Sidu 75 gr', 'rim', null, null, 0, 74, 10, 'Toko Kim-Kim', 50500, 'F4 Sidu 75 gr', 'FTIK (15), FSIP (15), FEB (15), TU Warek (1), Kemahasiswaan (3), LPBM (10), TU IF (2), Informasi (8), Stok (5)'],
-  ['cat-paper', 'Kertas HVS F4 Sidu 60 gr', 'rim', null, null, 0, 10, 2, 'Toko Kim-Kim', 43500, 'F4 Sidu 60 gr', 'FEB'],
-  ['cat-paper', 'Kertas Bergaris Folio/F4', 'rim', null, null, 0, 2, 1, 'Toko Kim-Kim', 23000, 'Folio/F4', 'FSIP'],
-  ['cat-paper', 'Kertas HVS Warna F4 (Biru & Hijau)', 'rim', null, null, 0, 6, 2, 'Toko Kim-Kim', 54500, 'F4 Warna Biru 5 & Hijau 1', 'LPBM, FSIP'],
-  ['cat-paper', 'Map Kabita (Pink & Biru)', 'pack', null, null, 0, 13, 3, 'Toko Kim-Kim', 30000, 'Kabita Pink, Biru', 'LPPM, Kemahasiswaan, TU Prodi, LPBM'],
-  ['cat-paper', 'Odner Besar Hitam Gobi', 'pcs', null, null, 0, 24, 5, 'Toko Kim-Kim', 19000, 'Hitam Gobi', 'LPBM'],
-  ['cat-paper', 'Business File (Biru, Kuning, Orange)', 'pack', null, null, 0, 25, 5, 'Toko Kim-Kim', 24000, 'Warna Biru, Kuning, Orange', 'FEB, TU Prodi, Informasi, LPBM'],
-  ['cat-paper', 'PP Pocket Benex F4', 'pack', null, null, 0, 15, 3, 'Toko Kim-Kim', 19000, 'F4', 'LPPM, LPBM'],
+  // Kertas dan perlengkapan berkas (9 barang)
+  ['cat-atk', 'Kertas HVS A4 Sidu 75 gr', 'rim', null, null, 0, 199, 20, 'Toko Kim-Kim', 44500, 'A4 Sidu 75 gr', 'FTIK (40), FSIP (30), FEB (30), Kemahasiswaan (10), TU Warek (8), LPPM (6), LPBM (15), TU SI (11), TU IF (10), Perpustakaan (3), Informasi (16), Stok (20)'],
+  ['cat-atk', 'Kertas HVS F4 Sidu 75 gr', 'rim', null, null, 0, 74, 10, 'Toko Kim-Kim', 50500, 'F4 Sidu 75 gr', 'FTIK (15), FSIP (15), FEB (15), TU Warek (1), Kemahasiswaan (3), LPBM (10), TU IF (2), Informasi (8), Stok (5)'],
+  ['cat-atk', 'Kertas HVS F4 Sidu 60 gr', 'rim', null, null, 0, 10, 2, 'Toko Kim-Kim', 43500, 'F4 Sidu 60 gr', 'FEB'],
+  ['cat-atk', 'Kertas Bergaris Folio/F4', 'rim', null, null, 0, 2, 1, 'Toko Kim-Kim', 23000, 'Folio/F4', 'FSIP'],
+  ['cat-atk', 'Kertas HVS Warna F4 (Biru & Hijau)', 'rim', null, null, 0, 6, 2, 'Toko Kim-Kim', 54500, 'F4 Warna Biru 5 & Hijau 1', 'LPBM, FSIP'],
+  ['cat-atk', 'Map Kabita (Pink & Biru)', 'pack', null, null, 0, 13, 3, 'Toko Kim-Kim', 30000, 'Kabita Pink, Biru', 'LPPM, Kemahasiswaan, TU Prodi, LPBM'],
+  ['cat-atk', 'Odner Besar Hitam Gobi', 'pcs', null, null, 0, 24, 5, 'Toko Kim-Kim', 19000, 'Hitam Gobi', 'LPBM'],
+  ['cat-atk', 'Business File (Biru, Kuning, Orange)', 'pack', null, null, 0, 25, 5, 'Toko Kim-Kim', 24000, 'Warna Biru, Kuning, Orange', 'FEB, TU Prodi, Informasi, LPBM'],
+  ['cat-atk', 'PP Pocket Benex F4', 'pack', null, null, 0, 15, 3, 'Toko Kim-Kim', 19000, 'F4', 'LPPM, LPBM'],
 
   // cat-atk (39 items)
   ['cat-atk', 'Pena Tizzo Hitam', 'pcs', 'lusin', 12, 0, 4, 12, 'Toko Kim-Kim', 39000, 'Tizzo Hitam', 'FEB, LPPM, Kemahasiswaan, TU Warek, Perpustakaan, TU Prodi'],
@@ -185,7 +179,7 @@ async function main() {
     (await prisma.user.findUnique({ where: { id: 'u-admin-01' } })) ||
     (await prisma.user.findFirst({ where: { role: 'ADMIN', isActive: true }, orderBy: { createdAt: 'asc' } }));
 
-  // 3. Buat 6 kategori bersih.
+  // 3. Buat kategori bersih.
   const categoryMap = new Map();
   const skuCounters = new Map();
   for (const cat of CATEGORIES) {

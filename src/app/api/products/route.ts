@@ -3,6 +3,9 @@ import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
 import { requireAdmin } from '@/lib/auth-server';
 import { ProductService } from '@/services/product.service';
+import { prisma } from '@/lib/prisma';
+import { getReportMonthRange } from '@/lib/report-period';
+import { ReportService } from '@/services/report.service';
 import { parseStockGroup } from '@/lib/stock-groups';
 
 export async function GET(req: NextRequest) {
@@ -21,15 +24,20 @@ export async function GET(req: NextRequest) {
     const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 500) : 50;
 
-    const result = await ProductService.getProducts({
-      search,
-      categoryId,
-      stockGroup,
-      status,
-      stockStatus,
-      page,
-      limit,
-    });
+    const filters = { search, categoryId, stockGroup, status, stockStatus, page, limit };
+    const month = searchParams.get('stockMonth');
+    if (!month) return NextResponse.json(await ProductService.getProducts(filters));
+    try {
+      getReportMonthRange(month);
+    } catch {
+      return NextResponse.json({ error: 'Bulan stok harus dalam format YYYY-MM.' }, { status: 400 });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const products = await ProductService.getProducts(filters, tx);
+      const items = await ReportService.getProductMonthPositions(tx, month, products.items);
+      return { ...products, items };
+    }, { isolationLevel: 'RepeatableRead' });
 
     return NextResponse.json(result);
   } catch (error: any) {

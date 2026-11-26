@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { OPENING_BALANCE_MONTH, type StockReportPeriod } from '@/lib/report-period';
+import { getReportMonthRange, OPENING_BALANCE_MONTH, type StockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 import { Prisma } from '@prisma/client';
 import { summarizeStockByUnit } from '@/lib/stock-position-totals';
@@ -18,6 +18,46 @@ const movementDistributionJoin = Prisma.sql`
   LEFT JOIN "DistributionItem" di ON di."movementId" = m.id
   LEFT JOIN "Distribution" d ON d.id = di."distributionId"`;
 const movementDate = Prisma.sql`COALESCE(d."distributedAt", m."createdAt")`;
+
+function queryStockDeltas(
+  db: Pick<Prisma.TransactionClient, '$queryRaw'>, start: Date, end: Date, stockGroup?: StockGroup, productIds?: string[],
+) {
+  const movementScope = stockGroup ? Prisma.sql`
+      JOIN "Product" p ON p.id = m."productId"
+      JOIN "Category" c ON c.id = p."categoryId" AND c."stockGroup" = ${stockGroup}
+    ` : Prisma.empty;
+  return db.$queryRaw<Array<{
+    productId: string;
+    firstDate: Date;
+    hasMovement: boolean;
+    afterDelta: number;
+    periodDelta: number;
+    inQty: number;
+    outQty: number;
+    cancelOut: number;
+    cancelIn: number;
+    adjustment: number;
+  }>>`
+    WITH movements AS (
+      SELECT m."productId", m.type, m."stockAfter" - m."stockBefore" AS delta, ${movementDate} AS date
+      FROM "StockMovement" m
+      ${movementScope}
+      ${movementDistributionJoin}
+      ${productIds ? Prisma.sql`WHERE m."productId" IN (${Prisma.join(productIds)})` : Prisma.empty}
+    )
+    SELECT "productId", MIN(date) AS "firstDate",
+      BOOL_OR(date >= ${start} AND date < ${end}) AS "hasMovement",
+      COALESCE(SUM(delta) FILTER (WHERE date >= ${end}), 0)::int AS "afterDelta",
+      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end}), 0)::int AS "periodDelta",
+      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'IN'), 0)::int AS "inQty",
+      COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'OUT'), 0)::int AS "outQty",
+      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta > 0), 0)::int AS "cancelOut",
+      COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta < 0), 0)::int AS "cancelIn",
+      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type NOT IN ('IN', 'OUT', 'REVERSAL')), 0)::int AS "adjustment"
+    FROM movements
+    GROUP BY "productId"
+  `;
+}
 
 function queryOutByProduct(start: Date, end: Date, stockGroup?: StockGroup) {
   return prisma.$queryRaw<{ productId: string; totalOut: number; txCount: number }[]>`
@@ -536,48 +576,41 @@ export class ReportService {
    * Stok awal/akhir dihitung mundur dari stok saat ini memakai selisih stockAfter - stockBefore setiap mutasi,
    * sehingga pembatalan (REVERSAL) dan penyesuaian ikut terhitung dengan benar.
    */
+  static async getProductMonthPositions<T extends { id: string; currentStock: number; createdAt: Date; isActive: boolean }>(
+    db: Prisma.TransactionClient, month: string, products: T[],
+  ) {
+    if (!products.length) return [];
+    const { gte: start, lt: end } = getReportMonthRange(month);
+    const openingBalance = month === OPENING_BALANCE_MONTH;
+    const deltas = await queryStockDeltas(db, start, end, undefined, products.map((product) => product.id));
+    const byId = new Map(deltas.map((row) => [row.productId, row]));
+    return products.map((product) => {
+      const row = byId.get(product.id);
+      const closingStock = product.currentStock - (row?.afterDelta ?? 0);
+      const adjustment = row?.adjustment ?? 0;
+      const openingStock = openingBalance ? closingStock - adjustment : closingStock - (row?.periodDelta ?? 0);
+      const visible = (product.createdAt < end || (row?.firstDate ?? end) < end) &&
+        (product.isActive || row?.hasMovement || openingStock !== 0 || closingStock !== 0);
+      return {
+        ...product,
+        monthPosition: visible ? {
+          closingStock, adjustment,
+          inQty: openingBalance ? 0 : (row?.inQty ?? 0) - (row?.cancelIn ?? 0),
+          outQty: openingBalance ? 0 : (row?.outQty ?? 0) - (row?.cancelOut ?? 0),
+        } : null,
+      };
+    });
+  }
+
   static async getStockPositionReport(period: StockReportPeriod, stockGroup?: StockGroup) {
     const start = period.gte;
     const end = period.lt;
-    const movementScope = stockGroup ? Prisma.sql`
-      JOIN "Product" p ON p.id = m."productId"
-      JOIN "Category" c ON c.id = p."categoryId" AND c."stockGroup" = ${stockGroup}
-    ` : Prisma.empty;
     const isOpeningBalanceMonth = period.kind === 'month' && period.value === OPENING_BALANCE_MONTH;
 
     // Rekonstruksi saldo menggunakan tanggal efektif, termasuk distribusi yang dicatat mundur.
     // Mutasi dan saldo saat ini dibaca dalam snapshot database yang sama.
     const [deltas, products] = await prisma.$transaction([
-      prisma.$queryRaw<Array<{
-        productId: string;
-        firstDate: Date;
-        hasMovement: boolean;
-        afterDelta: number;
-        periodDelta: number;
-        inQty: number;
-        outQty: number;
-        cancelOut: number;
-        cancelIn: number;
-        adjustment: number;
-      }>>`
-        WITH movements AS (
-          SELECT m."productId", m.type, m."stockAfter" - m."stockBefore" AS delta, ${movementDate} AS date
-          FROM "StockMovement" m
-          ${movementScope}
-          ${movementDistributionJoin}
-        )
-        SELECT "productId", MIN(date) AS "firstDate",
-          BOOL_OR(date >= ${start} AND date < ${end}) AS "hasMovement",
-          COALESCE(SUM(delta) FILTER (WHERE date >= ${end}), 0)::int AS "afterDelta",
-          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end}), 0)::int AS "periodDelta",
-          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'IN'), 0)::int AS "inQty",
-          COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'OUT'), 0)::int AS "outQty",
-          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta > 0), 0)::int AS "cancelOut",
-          COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta < 0), 0)::int AS "cancelIn",
-          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type NOT IN ('IN', 'OUT', 'REVERSAL')), 0)::int AS "adjustment"
-        FROM movements
-        GROUP BY "productId"
-      `,
+      queryStockDeltas(prisma, start, end, stockGroup),
       prisma.product.findMany({
         where: stockGroup ? { category: { stockGroup } } : undefined,
         select: {
