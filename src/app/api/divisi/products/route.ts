@@ -5,7 +5,7 @@ import { apiError } from '@/lib/error-log';
 
 export const dynamic = 'force-dynamic';
 
-/** Daftar barang ATK aktif beserta sisa stok untuk dipilih divisi (tanpa harga/supplier). */
+/** Katalog barang ATK aktif untuk formulir pengajuan divisi. */
 export async function GET() {
   try {
     const auth = await requireDivisi();
@@ -13,7 +13,7 @@ export async function GET() {
     const products = await prisma.product.findMany({
       where: { isActive: true, category: { stockGroup: 'ATK' } },
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, unit: true, packUnit: true, packSize: true, currentStock: true, category: { select: { name: true, stockGroup: true } } },
+      select: { id: true, name: true, unit: true, category: { select: { name: true, stockGroup: true } } },
     });
     return NextResponse.json(products.map(({ category, ...p }) => ({ ...p, categoryName: category?.name ?? '-', stockGroup: category?.stockGroup ?? 'ATK' })));
   } catch (error) {

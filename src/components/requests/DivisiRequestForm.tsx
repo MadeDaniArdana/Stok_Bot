@@ -5,15 +5,11 @@ import { useRouter } from 'next/navigation';
 import { LoaderCircle, Plus, Search, Send, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { SignaturePad } from '@/components/ui/SignaturePad';
-import { formatStock } from '@/lib/product-units';
 
 interface Product {
   id: string;
   name: string;
   unit: string;
-  packUnit: string | null;
-  packSize: number | null;
-  currentStock: number;
   categoryName: string;
   stockGroup: 'ATK' | 'LOGISTIK';
 }
@@ -200,28 +196,25 @@ export function DivisiRequestForm({ divisionName, template }: {
               <tr>
                 <th className="px-3 py-2">Nama Barang</th>
                 <th className="hidden px-3 py-2 md:table-cell">Spesifikasi</th>
-                <th className="px-3 py-2 text-right">Stok Tersedia</th>
                 <th className="w-36 px-3 py-2">Kebutuhan*</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {productsError ? (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-rose-600" role="alert">Daftar barang gagal dimuat. Muat ulang halaman untuk mencoba lagi.</td>
+                  <td colSpan={3} className="py-8 text-center text-rose-600" role="alert">Daftar barang gagal dimuat. Muat ulang halaman untuk mencoba lagi.</td>
                 </tr>
               ) : products === null ? (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-slate-400">Memuat daftar barang...</td>
+                  <td colSpan={3} className="py-8 text-center text-slate-400">Memuat daftar barang...</td>
                 </tr>
               ) : visible.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-slate-400">Barang tidak ditemukan. Gunakan tombol Tambah Barang di bawah bila perlu.</td>
+                  <td colSpan={3} className="py-8 text-center text-slate-400">Barang tidak ditemukan. Gunakan tombol Tambah Barang di bawah bila perlu.</td>
                 </tr>
               ) : (
                 visible.map((p) => {
-                  const empty = p.currentStock <= 0;
                   const chosenQty = Number(qty[p.id]) > 0;
-                  const over = Number(qty[p.id]) > p.currentStock;
                   const suggestedQuantity = templateRows.get(p.id)?.quantity;
                   return (
                     <tr key={p.id} className={chosenQty ? 'bg-maroon-50/40' : undefined}>
@@ -262,10 +255,6 @@ export function DivisiRequestForm({ divisionName, template }: {
                           className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs focus:border-maroon-700 focus:outline-none disabled:bg-slate-100"
                         />
                       </td>
-                      <td className={`px-3 py-2 align-top text-right font-semibold ${empty ? 'text-rose-600' : 'text-slate-700'}`}>
-                        {formatStock(p, p.currentStock)}
-                        {empty && <span className="block text-[11px] font-normal">Habis</span>}
-                      </td>
                       <td className="px-3 py-2 align-top">
                         <div className="flex items-center gap-1.5">
                           <input
@@ -277,11 +266,10 @@ export function DivisiRequestForm({ divisionName, template }: {
                             onChange={(e) => setQty((cur) => ({ ...cur, [p.id]: e.target.value }))}
                             placeholder="0"
                             aria-label={`Kebutuhan ${p.name}`}
-                            className={`w-20 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-maroon-500/20 disabled:bg-slate-100 ${over ? 'border-rose-400' : 'border-slate-200'}`}
+                            className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-maroon-500/20"
                           />
                           <span className="text-xs text-slate-500">{p.unit}</span>
                         </div>
-                        {over && <p className="mt-0.5 text-[10px] text-rose-600">Melebihi stok</p>}
                       </td>
                     </tr>
                   );
