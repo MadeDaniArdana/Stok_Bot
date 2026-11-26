@@ -4,7 +4,7 @@ import { isUserFacingError } from '@/lib/api-errors';
 import { requireAdmin } from '@/lib/auth-server';
 import { ProductService } from '@/services/product.service';
 import { prisma } from '@/lib/prisma';
-import { getReportMonthRange } from '@/lib/report-period';
+import { getReportMonthRange, getStockOpeningBalance } from '@/lib/report-period';
 import { ReportService } from '@/services/report.service';
 import { parseStockGroup } from '@/lib/stock-groups';
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       const products = await ProductService.getProducts(filters, tx);
       const items = await ReportService.getProductMonthPositions(tx, month, products.items);
-      return { ...products, items };
+      return { ...products, items, openingBalanceLabel: getStockOpeningBalance(month)?.label ?? null };
     }, { isolationLevel: 'RepeatableRead' });
 
     return NextResponse.json(result);

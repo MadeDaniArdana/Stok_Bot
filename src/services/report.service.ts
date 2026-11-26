@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { getReportMonthRange, OPENING_BALANCE_MONTH, type StockReportPeriod } from '@/lib/report-period';
+import { getReportMonthRange, getStockOpeningBalance, type StockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 import { Prisma } from '@prisma/client';
 import { summarizeStockByUnit } from '@/lib/stock-position-totals';
@@ -20,7 +20,8 @@ const movementDistributionJoin = Prisma.sql`
 const movementDate = Prisma.sql`COALESCE(d."distributedAt", m."createdAt")`;
 
 function queryStockDeltas(
-  db: Pick<Prisma.TransactionClient, '$queryRaw'>, start: Date, end: Date, stockGroup?: StockGroup, productIds?: string[],
+  db: Pick<Prisma.TransactionClient, '$queryRaw'>, start: Date, end: Date,
+  { stockGroup, productIds, recordedFrom }: { stockGroup?: StockGroup; productIds?: string[]; recordedFrom?: Date },
 ) {
   const movementScope = stockGroup ? Prisma.sql`
       JOIN "Product" p ON p.id = m."productId"
@@ -39,21 +40,23 @@ function queryStockDeltas(
     adjustment: number;
   }>>`
     WITH movements AS (
-      SELECT m."productId", m.type, m."stockAfter" - m."stockBefore" AS delta, ${movementDate} AS date
+      SELECT m."productId", m.type, m."stockAfter" - m."stockBefore" AS delta, ${movementDate} AS date,
+             (${movementDate} >= ${start} AND ${movementDate} < ${end}
+              ${recordedFrom ? Prisma.sql`AND m."createdAt" >= ${recordedFrom}` : Prisma.empty}) AS in_period
       FROM "StockMovement" m
       ${movementScope}
       ${movementDistributionJoin}
       ${productIds ? Prisma.sql`WHERE m."productId" IN (${Prisma.join(productIds)})` : Prisma.empty}
     )
     SELECT "productId", MIN(date) AS "firstDate",
-      BOOL_OR(date >= ${start} AND date < ${end}) AS "hasMovement",
+      BOOL_OR(in_period) AS "hasMovement",
       COALESCE(SUM(delta) FILTER (WHERE date >= ${end}), 0)::int AS "afterDelta",
-      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end}), 0)::int AS "periodDelta",
-      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'IN'), 0)::int AS "inQty",
-      COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'OUT'), 0)::int AS "outQty",
-      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta > 0), 0)::int AS "cancelOut",
-      COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta < 0), 0)::int AS "cancelIn",
-      COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type NOT IN ('IN', 'OUT', 'REVERSAL')), 0)::int AS "adjustment"
+      COALESCE(SUM(delta) FILTER (WHERE in_period), 0)::int AS "periodDelta",
+      COALESCE(SUM(delta) FILTER (WHERE in_period AND type = 'IN'), 0)::int AS "inQty",
+      COALESCE(SUM(-delta) FILTER (WHERE in_period AND type = 'OUT'), 0)::int AS "outQty",
+      COALESCE(SUM(delta) FILTER (WHERE in_period AND type = 'REVERSAL' AND delta > 0), 0)::int AS "cancelOut",
+      COALESCE(SUM(-delta) FILTER (WHERE in_period AND type = 'REVERSAL' AND delta < 0), 0)::int AS "cancelIn",
+      COALESCE(SUM(delta) FILTER (WHERE in_period AND type NOT IN ('IN', 'OUT', 'REVERSAL')), 0)::int AS "adjustment"
     FROM movements
     GROUP BY "productId"
   `;
@@ -581,22 +584,24 @@ export class ReportService {
   ) {
     if (!products.length) return [];
     const { gte: start, lt: end } = getReportMonthRange(month);
-    const openingBalance = month === OPENING_BALANCE_MONTH;
-    const deltas = await queryStockDeltas(db, start, end, undefined, products.map((product) => product.id));
+    const deltas = await queryStockDeltas(db, start, end, {
+      productIds: products.map((product) => product.id),
+      recordedFrom: getStockOpeningBalance(month)?.date,
+    });
     const byId = new Map(deltas.map((row) => [row.productId, row]));
     return products.map((product) => {
       const row = byId.get(product.id);
       const closingStock = product.currentStock - (row?.afterDelta ?? 0);
       const adjustment = row?.adjustment ?? 0;
-      const openingStock = openingBalance ? closingStock - adjustment : closingStock - (row?.periodDelta ?? 0);
+      const openingStock = closingStock - (row?.periodDelta ?? 0);
       const visible = (product.createdAt < end || (row?.firstDate ?? end) < end) &&
         (product.isActive || row?.hasMovement || openingStock !== 0 || closingStock !== 0);
       return {
         ...product,
         monthPosition: visible ? {
           closingStock, adjustment,
-          inQty: openingBalance ? 0 : (row?.inQty ?? 0) - (row?.cancelIn ?? 0),
-          outQty: openingBalance ? 0 : (row?.outQty ?? 0) - (row?.cancelOut ?? 0),
+          inQty: (row?.inQty ?? 0) - (row?.cancelIn ?? 0),
+          outQty: (row?.outQty ?? 0) - (row?.cancelOut ?? 0),
         } : null,
       };
     });
@@ -605,12 +610,12 @@ export class ReportService {
   static async getStockPositionReport(period: StockReportPeriod, stockGroup?: StockGroup) {
     const start = period.gte;
     const end = period.lt;
-    const isOpeningBalanceMonth = period.kind === 'month' && period.value === OPENING_BALANCE_MONTH;
+    const recordedFrom = period.kind === 'month' ? getStockOpeningBalance(period.value)?.date : undefined;
 
     // Rekonstruksi saldo menggunakan tanggal efektif, termasuk distribusi yang dicatat mundur.
     // Mutasi dan saldo saat ini dibaca dalam snapshot database yang sama.
     const [deltas, products] = await prisma.$transaction([
-      queryStockDeltas(prisma, start, end, stockGroup),
+      queryStockDeltas(prisma, start, end, { stockGroup, recordedFrom }),
       prisma.product.findMany({
         where: stockGroup ? { category: { stockGroup } } : undefined,
         select: {
@@ -630,11 +635,9 @@ export class ReportService {
         const netIncoming = Number(d?.inQty ?? 0) - Number(d?.cancelIn ?? 0);
         const netOutgoing = Number(d?.outQty ?? 0) - Number(d?.cancelOut ?? 0);
         const adjustment = Number(d?.adjustment ?? 0);
-        const openingStock = isOpeningBalanceMonth
-          ? closingStock - adjustment
-          : closingStock - Number(d?.periodDelta ?? 0);
-        const inQty = isOpeningBalanceMonth ? 0 : netIncoming;
-        const outQty = isOpeningBalanceMonth ? 0 : netOutgoing;
+        const openingStock = closingStock - Number(d?.periodDelta ?? 0);
+        const inQty = netIncoming;
+        const outQty = netOutgoing;
         const group = getStockGroup(p.category?.stockGroup);
         return {
           id: p.id,

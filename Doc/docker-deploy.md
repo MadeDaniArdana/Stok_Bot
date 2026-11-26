@@ -89,3 +89,9 @@ docker compose exec -T db pg_dump -U "${POSTGRES_USER:-stockflow}" -d "${POSTGRE
 - Sebelum mengganti versi aplikasi, buat backup lalu sinkronkan database target versi baru dengan `npx prisma db push`. Rilis ini menambah `User.sessionVersion` dan `WebSession`. Pengguna perlu login ulang dan sesi baru berlaku maksimal delapan jam. Uji bahwa logout, reset kata sandi, dan penonaktifan akun segera mencabut sesi.
 - Jika arsip bukti memakai Blob publik, ikuti migrasi di README dan verifikasi arsip dari panel admin sebelum menghapus salinan lama. Untuk foto pada volume server kampus, batasi akses direktori dan jangan sajikan direktori unggahan sebagai aset publik. Simpan backup database dan foto dengan akses terbatas.
 - Jalankan `npm audit --omit=dev` dari lockfile yang akan dipasang. Uji build, login admin dan divisi, persetujuan, batas akses antar divisi, unggah bukti, dan restore backup pada lingkungan staging kampus dengan data uji.
+
+### Batas saldo awal per lingkungan
+
+Gunakan `STOCK_OPENING_BALANCE_AT` pada konfigurasi server yang memakai database tersebut. Isi tanggal dan jam saldo awal dalam format WIB, misalnya `2026-11-26T15:30:00+07:00` hanya jika itu jadwal stok opname kampus. Kosongkan variabel jika kampus ingin menghitung seluruh transaksi dalam periode bulanan.
+
+Pada bulan yang memuat batas tersebut, transaksi yang dicatat sebelum batas menjadi bagian dari saldo awal. Transaksi mulai dari batas muncul pada Barang Masuk atau Barang Keluar sesuai periode dokumennya. Riwayat tetap tersedia. Konfigurasi ini tidak mengubah skema atau data stok. Untuk Docker Compose, jalankan `docker compose up -d --build app` setelah pull dan mengatur `.env`. Untuk PM2, build ulang lalu restart proses aplikasi dengan konfigurasi baru.

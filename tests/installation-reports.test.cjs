@@ -392,7 +392,15 @@ test('ACC yang gagal setelah pengurangan stok membatalkan distribusi dan bisa di
   assert.deepEqual(alerts, [8]);
 });
 
-test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap satuan', async () => {
+test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap satuan', async (t) => {
+  const previous = process.env.STOCK_OPENING_BALANCE_AT;
+  process.env.STOCK_OPENING_BALANCE_AT = '2026-11-26T15:30:00+07:00';
+  t.after(() => {
+    if (previous === undefined) delete process.env.STOCK_OPENING_BALANCE_AT;
+    else process.env.STOCK_OPENING_BALANCE_AT = previous;
+  });
+  assert.equal(period.getStockOpeningBalance('2026-11').date.toISOString(), '2026-11-26T08:30:00.000Z');
+  assert.equal(period.getStockOpeningBalance('2026-12'), null);
   const { Prisma } = require('@prisma/client');
   const subtotal = loadTypeScript('src/lib/stock-position-totals.ts');
   const stockGroups = loadTypeScript('src/lib/stock-groups.ts');
@@ -408,6 +416,9 @@ test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap 
       assert.match(query.text, /di\."movementId" = m.id/);
       assert.ok(query.values.includes(selectedPeriod.gte));
       assert.ok(query.values.includes(selectedPeriod.lt));
+      const cutoff = query.values.find((value) => value instanceof Date && value.toISOString() === '2026-11-26T08:30:00.000Z');
+      assert.equal(Boolean(cutoff), selectedPeriod.value === '2026-11');
+      if (cutoff) assert.match(query.text, /AND m\."createdAt" >=/);
       return Promise.resolve([
         { productId: 'marker', hasMovement: true, afterDelta: 8, periodDelta: 2, inQty: 5, outQty: 3 },
       ]);
@@ -432,7 +443,7 @@ test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap 
   ]);
 
   for (const [month, expected] of [
-    ['2026-11', [12, 0, 12, 0, 12]],
+    ['2026-11', [10, 5, 15, 3, 12]],
     ['2026-12', [10, 5, 15, 3, 12]],
   ]) {
     selectedPeriod = period.parseStockReportPeriod(month);

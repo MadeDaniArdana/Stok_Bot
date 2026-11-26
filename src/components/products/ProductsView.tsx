@@ -7,7 +7,7 @@ import { formatStock } from '@/lib/product-units';
 import { checkPackSetup, type PackCheck } from '@/lib/unit-guard';
 import { cn } from '@/lib/cn';
 import { getStockGroup, type StockGroup } from '@/lib/stock-groups';
-import { OPENING_BALANCE_MONTH, getCurrentReportMonth } from '@/lib/report-period';
+import { getCurrentReportMonth } from '@/lib/report-period';
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -61,7 +61,6 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const currentMonth = getCurrentReportMonth();
   const [periodMonth, setPeriodMonth] = useState(currentMonth);
   const isCurrentMonth = periodMonth === currentMonth;
-  const isOpeningBalanceMonth = periodMonth === OPENING_BALANCE_MONTH;
 
   const buildProductsUrl = (opts?: { s?: string; cat?: string; ss?: string; st?: string }) => {
     const query = new URLSearchParams({
@@ -78,6 +77,11 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
 
   const initialProductsUrl = buildProductsUrl({ s: '', cat: 'all', ss: searchParams.get('stockStatus') || 'all', st: 'all' });
   const [products, setProducts] = useState<any[]>(() => getSwrCache<any>(initialProductsUrl)?.items || []);
+  const [openingBalance, setOpeningBalance] = useState<{ month: string; label: string } | null>(() => {
+    const label = getSwrCache<any>(initialProductsUrl)?.openingBalanceLabel;
+    return label ? { month: periodMonth, label } : null;
+  });
+  const openingBalanceLabel = openingBalance?.month === periodMonth ? openingBalance.label : null;
   const [categories, setCategories] = useState<any[]>(() => getSwrCache<any[]>('/api/categories') || []);
   const [loading, setLoading] = useState(() => !getSwrCache<any>(initialProductsUrl));
   // Halaman per jenis (/products/atk, dst.) hanya menampilkan kategori & barang jenis tersebut.
@@ -145,6 +149,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
     const cached = getSwrCache<any>(url);
     if (cached && !force) {
       setProducts(cached.items || []);
+      setOpeningBalance(cached.openingBalanceLabel ? { month: periodMonth, label: cached.openingBalanceLabel } : null);
       setLoading(false);
     } else {
       setLoading(true);
@@ -152,7 +157,10 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
     }
     try {
       const data = await fetchSwrJson<any>(url, { force, signal: controller.signal });
-      if (requestId === latestRequest.current) setProducts(data.items || []);
+      if (requestId === latestRequest.current) {
+        setProducts(data.items || []);
+        setOpeningBalance(data.openingBalanceLabel ? { month: periodMonth, label: data.openingBalanceLabel } : null);
+      }
     } catch (e: any) {
       if (e?.name !== 'AbortError') console.error(e);
     } finally {
@@ -516,8 +524,8 @@ Alasan: ${adjReason.trim()}`)) return;
         </div>
         {isAdmin && (
           <p className="text-[11px] text-slate-500">
-            Periode <strong>{monthLabel(periodMonth)}</strong>. {isOpeningBalanceMonth
-              ? 'Barang Masuk dan Barang Keluar ditampilkan 0 untuk penetapan saldo awal. Pembaruan/transaksi tetap memperbarui Stok Saat Ini. Kolom Barang Masuk dan Barang Keluar mulai menghitung pada Desember 2026.'
+            Periode <strong>{monthLabel(periodMonth)}</strong>. {openingBalanceLabel
+              ? `Barang Masuk dan Barang Keluar dihitung sejak ${openingBalanceLabel}. Transaksi sebelumnya masuk saldo awal.`
               : 'Barang Masuk dan Barang Keluar dihitung untuk periode yang dipilih.'}
             {loading && ' Memuat...'}
           </p>
