@@ -18,6 +18,7 @@ interface CustomRow {
   key: number;
   name: string;
   specification: string;
+  need: string;
   unit: string;
   quantity: string;
   itemNotes: string;
@@ -40,8 +41,9 @@ export function DivisiRequestForm({ divisionName, template }: {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [productsError, setProductsError] = useState(false);
   const [search, setSearch] = useState('');
-  // Jumlah dibutuhkan (Kebutuhan*), spesifikasi, & keterangan per barang master.
+  // Pesanan, kebutuhan, spesifikasi, dan keterangan per barang master.
   const [qty, setQty] = useState<Record<string, string>>({});
+  const [need, setNeed] = useState<Record<string, string>>({});
   const [spec, setSpec] = useState<Record<string, string>>({});
   const [itemNote, setItemNote] = useState<Record<string, string>>({});
   const [custom, setCustom] = useState<CustomRow[]>([]);
@@ -82,7 +84,7 @@ export function DivisiRequestForm({ divisionName, template }: {
   const totalItems = chosen.length + customFilled.length;
 
   const addCustom = () =>
-    setCustom((rows) => [...rows, { key: Date.now() + rows.length, name: '', specification: '', unit: 'Pcs', quantity: '0', itemNotes: '' }]);
+    setCustom((rows) => [...rows, { key: Date.now() + rows.length, name: '', specification: '', need: '', unit: 'Pcs', quantity: '0', itemNotes: '' }]);
   const updateCustom = (key: number, patch: Partial<CustomRow>) =>
     setCustom((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
 
@@ -90,7 +92,7 @@ export function DivisiRequestForm({ divisionName, template }: {
     e.preventDefault();
     if (signaturePending) return;
     if (totalItems === 0) {
-      showToast('Belum Ada Barang', 'Isi jumlah kebutuhan pada minimal satu barang.', 'error');
+      showToast('Belum Ada Barang', 'Isi jumlah Pesanan pada minimal satu barang.', 'error');
       return;
     }
     if (custom.some((row) => Number(row.quantity) > 0 && !row.name.trim())) {
@@ -117,12 +119,14 @@ export function DivisiRequestForm({ divisionName, template }: {
               productId: p.id,
               quantity: Number(qty[p.id]),
               specification: spec[p.id] || '',
+              need: need[p.id] || '',
               itemNotes: itemNote[p.id] || '',
             })),
             ...customFilled.map((row) => ({
               name: row.name,
               unit: row.unit,
               specification: row.specification,
+              need: row.need,
               itemNotes: row.itemNotes,
               quantity: Number(row.quantity),
             })),
@@ -190,27 +194,28 @@ export function DivisiRequestForm({ divisionName, template }: {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200">
-        <div className="max-h-[26rem] overflow-y-auto">
-          <table className="w-full text-sm">
+        <div className="max-h-[26rem] overflow-auto">
+          <table className="w-full min-w-[30rem] text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2">Nama Barang</th>
                 <th className="hidden px-3 py-2 md:table-cell">Spesifikasi</th>
-                <th className="w-36 px-3 py-2">Kebutuhan*</th>
+                <th className="px-3 py-2">Kebutuhan</th>
+                <th className="w-36 px-3 py-2">Pesanan*</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {productsError ? (
                 <tr>
-                  <td colSpan={3} className="py-8 text-center text-rose-600" role="alert">Daftar barang gagal dimuat. Muat ulang halaman untuk mencoba lagi.</td>
+                  <td colSpan={4} className="py-8 text-center text-rose-600" role="alert">Daftar barang gagal dimuat. Muat ulang halaman untuk mencoba lagi.</td>
                 </tr>
               ) : products === null ? (
                 <tr>
-                  <td colSpan={3} className="py-8 text-center text-slate-400">Memuat daftar barang...</td>
+                  <td colSpan={4} className="py-8 text-center text-slate-400">Memuat daftar barang...</td>
                 </tr>
               ) : visible.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="py-8 text-center text-slate-400">Barang tidak ditemukan. Gunakan tombol Tambah Barang di bawah bila perlu.</td>
+                  <td colSpan={4} className="py-8 text-center text-slate-400">Barang tidak ditemukan. Gunakan tombol Tambah Barang di bawah bila perlu.</td>
                 </tr>
               ) : (
                 visible.map((p) => {
@@ -252,6 +257,16 @@ export function DivisiRequestForm({ divisionName, template }: {
                         />
                       </td>
                       <td className="px-3 py-2 align-top">
+                        <input
+                          value={need[p.id] ?? ''}
+                          onChange={(e) => setNeed((cur) => ({ ...cur, [p.id]: e.target.value }))}
+                          maxLength={150}
+                          placeholder="Contoh: Keperluan rapat"
+                          aria-label={`Kebutuhan ${p.name}`}
+                          className={inputClass}
+                        />
+                      </td>
+                      <td className="px-3 py-2 align-top">
                         <div className="flex items-center gap-1.5">
                           <input
                             type="number"
@@ -261,9 +276,10 @@ export function DivisiRequestForm({ divisionName, template }: {
                             onFocus={(e) => e.currentTarget.select()}
                             onChange={(e) => setQty((cur) => ({ ...cur, [p.id]: e.target.value }))}
                             placeholder="0"
-                            aria-label={`Kebutuhan ${p.name}`}
-                            className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-maroon-500/20"
+                            aria-label={`Jumlah pesanan ${p.name}`}
+                            className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-maroon-500/20"
                           />
+                          <span className="text-xs text-slate-600">{p.unit}</span>
                         </div>
                       </td>
                     </tr>
@@ -274,7 +290,7 @@ export function DivisiRequestForm({ divisionName, template }: {
           </table>
         </div>
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500">
-          Jumlah kebutuhan dimulai dari 0. Barang dengan jumlah 0 atau kosong tidak ikut dikirim. Admin mengisi Pesanan berdasarkan jumlah yang disetujui dan satuan barang.
+          Isi Spesifikasi dan Kebutuhan sesuai keperluan. Baris dengan Pesanan 0 atau kosong dilewati. Admin dapat menyesuaikan jumlah saat persetujuan.
         </div>
       </div>
 
@@ -313,7 +329,7 @@ export function DivisiRequestForm({ divisionName, template }: {
                     value={row.quantity}
                     onChange={(e) => updateCustom(row.key, { quantity: e.target.value })}
                     placeholder="Jml"
-                    aria-label={`Kebutuhan barang lainnya ${index + 1}`}
+                    aria-label={`Jumlah pesanan barang tambahan ${index + 1}`}
                     className={`${inputClass} bg-white`}
                   />
                   <input
@@ -333,7 +349,15 @@ export function DivisiRequestForm({ divisionName, template }: {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <input
+                    value={row.need}
+                    onChange={(e) => updateCustom(row.key, { need: e.target.value })}
+                    maxLength={150}
+                    placeholder="Kebutuhan (opsional)"
+                    aria-label={`Kebutuhan barang tambahan ${index + 1}`}
+                    className={`${inputClass} bg-white`}
+                  />
                   <input
                     value={row.specification}
                     onChange={(e) => updateCustom(row.key, { specification: e.target.value })}

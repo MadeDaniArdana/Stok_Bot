@@ -367,10 +367,13 @@ test('ACC yang gagal setelah pengurangan stok membatalkan distribusi dan bisa di
     '@/lib/prisma': { prisma },
     './distribution.service': { DistributionService },
   });
-  await RequestService.create({ id: 'divisi', name: 'Keuangan' }, {
+  const submitted = await RequestService.create({ id: 'divisi', name: 'Keuangan' }, {
     stockGroup: 'ATK', receiverName: 'Pengaju', signature: 'data:image/png;base64,YQ==',
-    items: [item],
+    items: [{ ...item, need: 'Untuk rapat', specification: 'A4 75 gr' }],
   });
+  assert.deepEqual(submitted.items.create.map(({ need, specification, quantity }) => [need, specification, quantity]), [
+    ['Untuk rapat', 'A4 75 gr', 4],
+  ]);
   assert.equal(state.stock, 10);
   await assert.rejects(RequestService.approve(requestId, admin), /Tanda tangan admin wajib diisi/);
   assert.deepEqual(state, { status: 'PENDING', stock: 10, distribution: null });

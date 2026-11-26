@@ -99,7 +99,7 @@ function ReviewPanel({
                     {custom && <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Di luar daftar</span>}
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Kebutuhan: {item.quantity}
+                    Kebutuhan: {item.need || '?'}
                     {item.specification && <> · Spek: {item.specification}</>}
                   </p>
                 </div>

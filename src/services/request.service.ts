@@ -36,6 +36,7 @@ const requestSelect = {
       customName: true,
       customUnit: true,
       specification: true,
+      need: true,
       itemNotes: true,
       quantity: true,
       approvedQuantity: true,
@@ -66,6 +67,7 @@ export interface CreateRequestInput {
     name?: string | null;
     unit?: string | null;
     specification?: string | null;
+    need?: string | null;
     itemNotes?: string | null;
     quantity: number;
   }[];
@@ -125,16 +127,17 @@ export class RequestService {
     const items = rawItems.map((item, index) => {
       const quantity = Number(item?.quantity);
       if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error(`Jumlah pada baris ${index + 1} harus bilangan bulat lebih dari nol.`);
+      const need = text(item?.need, `Kebutuhan baris ${index + 1}`, false, 150) ?? '';
       const specification = text(item?.specification, `Spesifikasi baris ${index + 1}`, false, 120);
       const itemNotes = text(item?.itemNotes, `Keterangan baris ${index + 1}`, false, 150);
       if (item?.productId) {
         if (seen.has(item.productId)) throw new Error(`Barang pada baris ${index + 1} sudah ada di baris lain.`);
         seen.add(item.productId);
-        return { productId: item.productId, specification, itemNotes, quantity };
+        return { productId: item.productId, specification, need, itemNotes, quantity };
       }
       const customName = text(item?.name, `Nama barang baris ${index + 1}`, true)!;
       const customUnit = text(item?.unit, `Satuan baris ${index + 1}`, false, 30) ?? 'Pcs';
-      return { productId: null, customName, customUnit, specification, itemNotes, quantity };
+      return { productId: null, customName, customUnit, specification, need, itemNotes, quantity };
     });
 
     const productIds = items.flatMap((i) => (i.productId ? [i.productId] : []));

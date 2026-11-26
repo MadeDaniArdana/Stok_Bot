@@ -52,5 +52,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Kecualikan hanya aset yang diketahui agar route API tetap diperiksa.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|(?:logo-uti|logo-yayasan|icon|apple-icon)\\.png$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|(?:logo-uti|logo-yayasan|kop-pengajuan-atk|icon|apple-icon)\\.png$).*)'],
 };

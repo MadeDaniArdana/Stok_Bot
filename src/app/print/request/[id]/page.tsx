@@ -34,7 +34,6 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
   // Akun divisi hanya boleh membuka formulir miliknya sendiri.
   if (!request || (user.role !== 'ADMIN' && request.requesterId !== user.id)) notFound();
 
-  const approved = request.status === 'APPROVED';
   const documentTitle = `Pengajuan Pengadaan ATK - ${safe(request.divisionName)} (${request.number})`;
   const cell = 'border border-black px-2 py-1';
 
@@ -48,18 +47,9 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
       />
 
       <article style={FONT} className="relative mx-auto max-w-[210mm] bg-white p-10 shadow-lg print:max-w-none print:p-0 print:shadow-none">
-        {/* Kop Resmi Universitas Teknokrat Indonesia */}
-        <header className="flex items-center gap-3 border-b-[3px] border-double border-black pb-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-uti.png" alt="Logo Universitas Teknokrat Indonesia" className="h-14 w-14 shrink-0 object-contain" />
-          <div className="min-w-0">
-            <p className="text-[20px] font-black uppercase leading-tight tracking-wide text-[#c8102e]">
-              Universitas Teknokrat Indonesia
-            </p>
-            <p className="mt-0.5 text-[11px] font-semibold tracking-wide text-black">
-              IZIN OPERASIONAL : SK MENRISTEKDIKTI No. 44/KPT/I/2017
-            </p>
-          </div>
+        <header className="border-b-[3px] border-double border-black pb-2 text-center">
+          <img src="/kop-pengajuan-atk.png" width={719} height={138} alt="Universitas Teknokrat Indonesia" className="mx-auto h-auto w-full max-w-[42rem]" />
+          <p className="text-[11px] font-semibold">IZIN OPERASIONAL : SK MENRISTEKDIKTI No. 44/KPT/I/2017</p>
         </header>
 
         <div className="mt-5 text-center">
@@ -76,7 +66,7 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
               <th rowSpan={2} className="w-10 border border-black px-1.5 py-1.5 text-center">No.</th>
               <th rowSpan={2} className="border border-black px-2 py-1.5 text-center">Nama Barang</th>
               <th rowSpan={2} className="w-36 border border-black px-2 py-1.5 text-center">Spesifikasi</th>
-              <th rowSpan={2} className="w-24 border border-black px-2 py-1.5 text-center">Kebutuhan*</th>
+              <th rowSpan={2} className="w-24 border border-black px-2 py-1.5 text-center">Kebutuhan</th>
               <th colSpan={2} className="border border-black px-2 py-1 text-center">Jumlah</th>
             </tr>
             <tr className="bg-slate-100 print:bg-slate-100">
@@ -90,9 +80,9 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
                 <td className="border border-black px-1.5 py-1 text-center">{index + 1}</td>
                 <td className={cell}>{itemName(item)}</td>
                 <td className={cell}>{item.specification || ''}</td>
-                <td className={`${cell} text-center`}>{item.quantity}</td>
+                <td className={`${cell} text-center`}>{item.need || ''}</td>
                 <td className={`${cell} text-center`}>
-                  {approved && item.approvedQuantity !== null ? itemQty(item, item.approvedQuantity) : ''}
+                  {itemQty(item, item.approvedQuantity ?? item.quantity)}
                 </td>
                 <td className={cell}>{item.itemNotes || (item.noStock ? 'Tanpa stok' : '')}</td>
               </tr>
@@ -101,7 +91,7 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
         </table>
 
         <p className="mt-2 text-[11px]">
-          <span className="font-semibold">Ket :</span> *Jumlah yang dibutuhkan.
+          <span className="font-semibold">Ket :</span> Jumlah Pesanan mengikuti persetujuan admin setelah pengajuan disetujui.
         </p>
         {request.notes && <p className="mt-1 text-[11px] italic">Catatan: {request.notes}</p>}
 

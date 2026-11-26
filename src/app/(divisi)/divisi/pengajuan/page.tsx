@@ -23,9 +23,12 @@ export default async function DivisiRequestPage() {
 
   return (
     <div className="space-y-4">
+      <header className="rounded-2xl border border-slate-200 bg-white px-4 py-2">
+          <img src="/kop-pengajuan-atk.png" width={719} height={138} alt="Universitas Teknokrat Indonesia" className="mx-auto h-auto w-full max-w-[42rem]" />
+      </header>
       <div>
         <h1 className="text-xl font-bold text-slate-900">Buat Pengajuan ATK</h1>
-        <p className="text-xs text-slate-500">Isi jumlah barang ATK yang dibutuhkan. Pengajuan akan diteruskan ke admin untuk direview dan di-ACC.</p>
+        <p className="text-xs text-slate-500">Isi kebutuhan dan jumlah pesanan barang ATK. Pengajuan akan diteruskan ke admin untuk direview dan di-ACC.</p>
       </div>
       <DivisiRequestForm divisionName={user.divisionName ?? user.name} template={template} />
     </div>

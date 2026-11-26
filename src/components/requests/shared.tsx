@@ -29,6 +29,7 @@ export interface RequestItemRow {
   customName: string | null;
   customUnit: string | null;
   specification: string | null;
+  need: string | null;
   itemNotes: string | null;
   quantity: number;
   approvedQuantity: number | null;
@@ -74,10 +75,8 @@ export function ItemsList({ items }: { items: RequestRow['items'] }) {
             )}
           </div>
           <span className="shrink-0 text-right font-semibold text-slate-700">
-            Kebutuhan {item.quantity}
-            {item.approvedQuantity !== null && (
-              <span className="block text-[11px] font-medium text-emerald-700">Pesanan {itemQty(item, item.approvedQuantity)}</span>
-            )}
+            {item.need ? `Kebutuhan: ${item.need}` : null}
+            <span className="block text-[11px] font-medium">Pesanan {itemQty(item, item.approvedQuantity ?? item.quantity)}</span>
           </span>
         </li>
       ))}

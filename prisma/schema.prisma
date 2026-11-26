@@ -344,7 +344,8 @@ model ItemRequestItem {
   customUnit       String?
   specification    String? // spesifikasi barang pada form pengajuan divisi
   itemNotes        String? // keterangan (Ket.) per baris barang
-  quantity         Int // jumlah pengajuan (Kebutuhan*)
+  need             String? // keterangan kebutuhan yang diisi pengaju
+  quantity         Int // jumlah pesanan pengaju
   approvedQuantity Int? // jumlah ACC / Pesanan dari admin
   noStock          Boolean  @default(false) // ACC tapi tidak mengurangi stok
 
