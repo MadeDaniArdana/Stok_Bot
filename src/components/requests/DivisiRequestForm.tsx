@@ -86,7 +86,7 @@ export function DivisiRequestForm({ divisionName, template }: {
   const totalItems = chosen.length + customFilled.length;
 
   const addCustom = () =>
-    setCustom((rows) => [...rows, { key: Date.now() + rows.length, name: '', specification: '', unit: 'Pcs', quantity: '', itemNotes: '' }]);
+    setCustom((rows) => [...rows, { key: Date.now() + rows.length, name: '', specification: '', unit: 'Pcs', quantity: '0', itemNotes: '' }]);
   const updateCustom = (key: number, patch: Partial<CustomRow>) =>
     setCustom((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
 
@@ -97,8 +97,8 @@ export function DivisiRequestForm({ divisionName, template }: {
       showToast('Belum Ada Barang', 'Isi jumlah kebutuhan pada minimal satu barang.', 'error');
       return;
     }
-    if (custom.some((row) => (row.name.trim() !== '') !== (Number(row.quantity) > 0))) {
-      showToast('Barang Lainnya Belum Lengkap', 'Isi nama dan jumlah pada setiap baris barang lainnya, atau hapus barisnya.', 'error');
+    if (custom.some((row) => Number(row.quantity) > 0 && !row.name.trim())) {
+      showToast('Barang Lainnya Belum Lengkap', 'Isi nama untuk setiap barang tambahan yang jumlahnya lebih dari 0.', 'error');
       return;
     }
     if (!signature) {
@@ -148,9 +148,6 @@ export function DivisiRequestForm({ divisionName, template }: {
       <div>
         <p className="text-sm font-semibold text-slate-800">{divisionName}</p>
         <p className="text-xs text-slate-500">{template ? `Template ATK ${template.name}` : 'Formulir ATK standar'}</p>
-        {Boolean(template?.items.length) && (
-          <p className="text-xs text-slate-600">Isi jumlah sesuai kebutuhan. Barang dengan jumlah 0 tidak ikut diajukan.</p>
-        )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -203,7 +200,7 @@ export function DivisiRequestForm({ divisionName, template }: {
               <tr>
                 <th className="px-3 py-2">Nama Barang</th>
                 <th className="hidden px-3 py-2 md:table-cell">Spesifikasi</th>
-                <th className="px-3 py-2 text-right">Stok</th>
+                <th className="px-3 py-2 text-right">Stok Tersedia</th>
                 <th className="w-36 px-3 py-2">Kebutuhan*</th>
               </tr>
             </thead>
@@ -218,7 +215,7 @@ export function DivisiRequestForm({ divisionName, template }: {
                 </tr>
               ) : visible.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-slate-400">Barang tidak ditemukan. Gunakan &quot;Barang Lainnya&quot; di bawah bila perlu.</td>
+                  <td colSpan={4} className="py-8 text-center text-slate-400">Barang tidak ditemukan. Gunakan tombol Tambah Barang di bawah bila perlu.</td>
                 </tr>
               ) : (
                 visible.map((p) => {
@@ -266,7 +263,8 @@ export function DivisiRequestForm({ divisionName, template }: {
                         />
                       </td>
                       <td className={`px-3 py-2 align-top text-right font-semibold ${empty ? 'text-rose-600' : 'text-slate-700'}`}>
-                        {empty ? 'Habis' : formatStock(p, p.currentStock)}
+                        {formatStock(p, p.currentStock)}
+                        {empty && <span className="block text-[11px] font-normal">Habis</span>}
                       </td>
                       <td className="px-3 py-2 align-top">
                         <div className="flex items-center gap-1.5">
@@ -293,7 +291,7 @@ export function DivisiRequestForm({ divisionName, template }: {
           </table>
         </div>
         <div className="border-t border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500">
-          Ket : *Jumlah yang dibutuhkan. Kolom Pesanan (ACC) diisi oleh admin saat review.
+          Jumlah kebutuhan dimulai dari 0. Barang dengan jumlah 0 atau kosong tidak ikut dikirim. Jumlah yang disetujui (ACC) ditentukan oleh admin.
         </div>
       </div>
 
@@ -301,15 +299,15 @@ export function DivisiRequestForm({ divisionName, template }: {
       <div className="rounded-xl border border-slate-200 p-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-xs font-semibold text-slate-800">Barang Lainnya (tidak ada di daftar)</p>
-            <p className="text-[11px] text-slate-500">Isi nama barang, spesifikasi, jumlah kebutuhan, satuan, dan keterangan.</p>
+            <p className="text-xs font-semibold text-slate-800">Barang di Luar Paket</p>
+            <p className="text-[11px] text-slate-500">Barang ATK di luar paket bisa dicari pada daftar di atas. Jika belum ada di daftar, tambahkan di sini.</p>
           </div>
           <button
             type="button"
             onClick={addCustom}
             className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <Plus className="h-3.5 w-3.5" /> Tambah
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Tambah Barang
           </button>
         </div>
         {custom.length > 0 && (
@@ -327,7 +325,7 @@ export function DivisiRequestForm({ divisionName, template }: {
                   />
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     step={1}
                     value={row.quantity}
                     onChange={(e) => updateCustom(row.key, { quantity: e.target.value })}
