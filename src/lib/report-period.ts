@@ -65,7 +65,7 @@ export function parseStockReportPeriod(raw: string | null | undefined, now = new
     value: month,
     ...range,
     label: `${MONTH_NAMES_ID[monthNumber - 1]} ${year}`,
-    openingLabel: month === OPENING_BALANCE_MONTH ? 'termasuk penerimaan November' : `per 1 ${MONTH_NAMES_ID[monthNumber - 1]} ${year}`,
+    openingLabel: month === OPENING_BALANCE_MONTH ? 'penetapan saldo awal November' : `per 1 ${MONTH_NAMES_ID[monthNumber - 1]} ${year}`,
   };
 }
 

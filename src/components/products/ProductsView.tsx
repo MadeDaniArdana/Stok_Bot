@@ -545,7 +545,7 @@ Alasan: ${adjReason.trim()}`)) return;
         {isAdmin && (
           <p className="text-[11px] text-slate-500">
             Periode <strong>{monthLabel(periodMonth)}</strong>. {isOpeningBalanceMonth
-              ? 'Barang Masuk ditampilkan 0 untuk penetapan saldo awal. Penerimaan tetap memperbarui saldo stok. Kolom Barang Masuk mulai menghitung penerimaan pada Desember 2026.'
+              ? 'Barang Masuk dan Barang Keluar ditampilkan 0 untuk penetapan saldo awal. Pembaruan/transaksi tetap memperbarui Stok Saat Ini. Kolom Barang Masuk dan Barang Keluar mulai menghitung pada Desember 2026.'
               : 'Barang Masuk dan Barang Keluar dihitung untuk periode yang dipilih.'}
             {positionLoading && ' Memuat...'}
           </p>
@@ -616,13 +616,14 @@ Alasan: ${adjReason.trim()}`)) return;
                             value === undefined ? <span className="text-slate-300">-</span> : <span className="whitespace-nowrap">{prefix}{value}</span>;
                           const closing = isCurrentMonth ? p.currentStock : pos?.closingStock;
                           const incoming = pos?.inQty;
+                          const outgoing = pos?.outQty;
                           return (
                             <>
                               <td className="py-2.5 px-2 text-center text-emerald-700 font-medium">
                                 {cell(incoming, incoming && incoming > 0 ? '+' : '')}
                               </td>
                               <td className="py-2.5 px-2 text-center text-rose-700 font-medium">
-                                {pos?.outQty ? cell(pos.outQty, '-') : cell(pos ? 0 : undefined)}
+                                {cell(outgoing, outgoing && outgoing > 0 ? '-' : '')}
                               </td>
                               <td className="py-2.5 px-2 text-center">
                                 <div className={cn('font-bold', isCurrentMonth ? (isZero ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900') : 'text-slate-900')}>

@@ -566,10 +566,13 @@ export class ReportService {
         const d = deltaById.get(p.id);
         const closingStock = p.currentStock - (d?.afterDelta ?? 0);
         const netIncoming = Number(d?.inQty ?? 0) - Number(d?.cancelIn ?? 0);
-        const openingStock = closingStock - Number(d?.periodDelta ?? 0) + (isOpeningBalanceMonth ? netIncoming : 0);
-        const inQty = isOpeningBalanceMonth ? 0 : netIncoming;
-        const outQty = Number(d?.outQty ?? 0) - Number(d?.cancelOut ?? 0);
+        const netOutgoing = Number(d?.outQty ?? 0) - Number(d?.cancelOut ?? 0);
         const adjustment = Number(d?.adjustment ?? 0);
+        const openingStock = isOpeningBalanceMonth
+          ? closingStock - adjustment
+          : closingStock - Number(d?.periodDelta ?? 0);
+        const inQty = isOpeningBalanceMonth ? 0 : netIncoming;
+        const outQty = isOpeningBalanceMonth ? 0 : netOutgoing;
         const group = getStockGroup(p.category?.stockGroup);
         return {
           id: p.id,

@@ -429,13 +429,13 @@ test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap 
   ]);
 
   for (const [month, expected] of [
-    ['2026-11', [15, 0, 15, 12]],
-    ['2026-12', [10, 5, 15, 12]],
+    ['2026-11', [12, 0, 12, 0, 12]],
+    ['2026-12', [10, 5, 15, 3, 12]],
   ]) {
     selectedPeriod = period.parseStockReportPeriod(month);
     const position = await ReportService.getStockPositionReport(selectedPeriod, 'ATK');
     const row = position.rows.find((item) => item.id === 'marker');
-    assert.deepEqual([row.openingStock, row.inQty, row.totalAvailable, row.closingStock], expected);
+    assert.deepEqual([row.openingStock, row.inQty, row.totalAvailable, row.outQty, row.closingStock], expected);
   }
 });
 
