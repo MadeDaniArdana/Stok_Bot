@@ -33,7 +33,7 @@ async function main() {
     });
 
     if (keep) {
-      await tx.user.update({ where: { id: keep.id }, data: { email, name, passwordHash, isActive: true, role: 'ADMIN' } });
+      await tx.user.update({ where: { id: keep.id }, data: { email, name, passwordHash, sessionVersion: { increment: 1 }, isActive: true, role: 'ADMIN' } });
     } else {
       await tx.user.create({ data: { email, name, passwordHash, role: 'ADMIN', isActive: true } });
     }
@@ -45,7 +45,7 @@ async function main() {
       ]);
       await tx.telegramUser.deleteMany({ where: { userId: admin.id } });
       if (tasks || movements) {
-        await tx.user.update({ where: { id: admin.id }, data: { role: 'USER', isActive: false, passwordHash: null } });
+        await tx.user.update({ where: { id: admin.id }, data: { role: 'USER', isActive: false, passwordHash: null, sessionVersion: { increment: 1 } } });
       } else {
         await tx.notification.deleteMany({ where: { recipientUserId: admin.id } });
         await tx.user.delete({ where: { id: admin.id } });

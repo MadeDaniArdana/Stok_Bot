@@ -572,3 +572,46 @@ test('laporan Excel mempertahankan logo, filter, tipe data, dan subtotal', async
   assert.equal(sheet.getCell('C7').value.toISOString(), '2026-11-26T00:00:00.000Z');
   assert.equal(sheet.getCell('B8').font.bold, true);
 });
+
+test('sesi dicabut di database dan perubahan versi akun menolak token lama', async () => {
+  const sid = 'a'.repeat(64);
+  const expiresAt = new Date(Date.now() + 60_000);
+  const payload = { sid, uid: 'admin', role: 'ADMIN', version: 3, exp: Math.floor(expiresAt.getTime() / 1000) };
+  let record = { expiresAt, user: { id: 'admin', role: 'ADMIN', isActive: true, sessionVersion: 3 } };
+  const sessionModule = { SESSION_COOKIE: 'stockflow_session', verifySessionToken: async () => payload };
+  const prisma = { webSession: {
+    findUnique: async ({ where }) => where.id === sid ? record : null,
+    deleteMany: async ({ where }) => {
+      assert.deepEqual(where, { id: sid, userId: 'admin' });
+      record = null;
+    },
+  } };
+  const { getSessionUser } = loadTypeScript('src/lib/auth-server.ts', {
+    '@/lib/prisma': { prisma },
+    '@/lib/session': sessionModule,
+    'next/headers': { cookies: async () => ({ get: () => ({ value: 'cookie' }) }) },
+  });
+  assert.equal((await getSessionUser(false)).id, 'admin');
+  record.user.sessionVersion++;
+  assert.equal(await getSessionUser(false), null);
+  record.user.sessionVersion--;
+  const { POST } = loadTypeScript('src/app/api/auth/logout/route.ts', {
+    '@/lib/prisma': { prisma }, '@/lib/session': sessionModule,
+  });
+  const result = await POST({ cookies: { get: () => ({ value: 'cookie' }) } });
+  assert.equal(result.status, 200);
+  assert.equal(await getSessionUser(false), null);
+});
+
+test('proxy menolak mutasi lintas situs dan hanya membuka path publik yang tepat', async () => {
+  const { NextRequest } = require('next/server');
+  const { proxy } = loadTypeScript('src/proxy.ts', {
+    '@/lib/session': { SESSION_COOKIE: 'stockflow_session', verifySessionToken: async () => null },
+  });
+  const request = (path, headers = {}) => new NextRequest('https://stok.example.invalid' + path, { method: 'POST', headers });
+  assert.equal((await proxy(request('/api/auth/login', { 'sec-fetch-site': 'cross-site' }))).status, 403);
+  assert.equal((await proxy(request('/api/auth/login', { origin: 'https://other.example.invalid' }))).status, 403);
+  assert.equal((await proxy(request('/api/auth/login', { origin: 'https://stok.example.invalid' }))).status, 200);
+  assert.equal((await proxy(request('/api/auth/login-other'))).status, 401);
+  assert.equal((await proxy(request('/api/logs/client'))).status, 401);
+});

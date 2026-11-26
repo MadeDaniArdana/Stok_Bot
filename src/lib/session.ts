@@ -3,10 +3,12 @@
  * Format: base64url(payload JSON).base64url(tanda tangan)
  */
 export const SESSION_COOKIE = 'stockflow_session';
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 hari
+export const SESSION_MAX_AGE = 60 * 60 * 8; // 8 jam
 
 export interface SessionPayload {
   uid: string;
+  sid: string;
+  version: number;
   role: string;
   exp: number; // detik sejak epoch
 }
@@ -41,15 +43,14 @@ async function getKey() {
   );
 }
 
-export async function createSessionToken(uid: string, role: string) {
-  const payload: SessionPayload = { uid, role, exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE };
+export async function createSessionToken(payload: SessionPayload) {
   const body = toBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const signature = await crypto.subtle.sign('HMAC', await getKey(), new TextEncoder().encode(body));
   return `${body}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
 export async function verifySessionToken(token: string | undefined | null): Promise<SessionPayload | null> {
-  if (!token) return null;
+  if (!token || token.length > 1024) return null;
   const parts = token.split('.');
   if (parts.length !== 2) return null;
   const [body, signature] = parts;
@@ -65,7 +66,9 @@ export async function verifySessionToken(token: string | undefined | null): Prom
     if (!valid) return null;
 
     const payload = JSON.parse(new TextDecoder().decode(fromBase64Url(body))) as SessionPayload;
-    if (!payload.uid || typeof payload.exp !== 'number' || payload.exp < Date.now() / 1000) return null;
+    if (typeof payload.uid !== 'string' || !payload.uid || !/^[a-f0-9]{64}$/.test(payload.sid) ||
+        !Number.isInteger(payload.version) || (payload.role !== 'ADMIN' && payload.role !== 'DIVISI') ||
+        !Number.isSafeInteger(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {
     return null;

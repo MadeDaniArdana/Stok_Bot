@@ -75,12 +75,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (!response.ok) throw new Error('Logout gagal');
       writeCachedUser(null);
       clearSwrCache();
       clearDistributionBootstrapCache();
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
       window.location.href = '/login';
+    } catch {
+      window.alert('Gagal keluar dari akun. Silakan coba lagi.');
     }
   }, []);
 

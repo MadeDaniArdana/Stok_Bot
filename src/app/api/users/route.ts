@@ -49,6 +49,9 @@ export async function POST(req: NextRequest) {
         }))) {
       return NextResponse.json({ error: 'Pilih template ATK yang tersedia.' }, { status: 400 });
     }
+    if (typeof password === 'string' && password.length > 1024) {
+      return NextResponse.json({ error: 'Kata sandi maksimal 1024 karakter.' }, { status: 400 });
+    }
     const hasPassword = typeof password === 'string' && password.length > 0;
     if ((newRole === 'DIVISI' && !hasPassword) || (hasPassword && password.length < 8)) {
       return NextResponse.json({ error: 'Akun divisi wajib memakai kata sandi minimal 8 karakter.' }, { status: 400 });

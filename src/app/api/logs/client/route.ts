@@ -1,28 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUser } from '@/lib/auth-server';
 import { logError } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 
 /**
- * Menerima error dari browser (halaman admin & halaman upload foto pemasang).
- * Publik karena halaman bukti foto tidak memakai login, jadi dibatasi ukuran dan frekuensinya.
+ * Hanya menerima laporan browser dari pengguna dengan sesi aktif.
  */
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 20;
 const MAX_ENTRIES = 1000;
 const hits = new Map<string, { count: number; start: number }>();
 
-function getClientIp(req: NextRequest) {
-  return (
-    req.headers.get('x-real-ip')?.trim() ||
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    'unknown'
-  );
-}
-
-function allowed(ip: string) {
+function allowed(userId: string) {
   const now = Date.now();
-  const entry = hits.get(ip);
+  const entry = hits.get(userId);
   if (!entry || now - entry.start > WINDOW_MS) {
     if (hits.size >= MAX_ENTRIES) {
       // Hapus hanya entri kedaluwarsa agar tidak mereset rate-limit IP lain.
@@ -35,7 +27,7 @@ function allowed(ip: string) {
         hits.delete(oldestKey);
       }
     }
-    hits.set(ip, { count: 1, start: now });
+    hits.set(userId, { count: 1, start: now });
     return true;
   }
   entry.count += 1;
@@ -43,8 +35,9 @@ function allowed(ip: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const ip = getClientIp(req);
-  if (!allowed(ip)) return NextResponse.json({ ok: false }, { status: 429 });
+  const user = await getSessionUser(false);
+  if (!user) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!allowed(user.id)) return NextResponse.json({ ok: false }, { status: 429 });
 
   const body = await req.json().catch(() => null);
   const message = typeof body?.message === 'string' ? body.message.slice(0, 1000) : '';

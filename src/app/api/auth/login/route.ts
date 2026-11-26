@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
+import { createHash, randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/password';
@@ -20,18 +21,16 @@ class LoginRateLimit extends Error {
   }
 }
 
-function getClientIp(req: NextRequest): string {
-  return (
-    req.headers.get('x-real-ip')?.trim() ||
-    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    'unknown'
-  );
+function getClientIp(req: NextRequest) {
+  if (!process.env.VERCEL && process.env.TRUST_PROXY_IP !== '1') return null;
+  const ip = req.headers.get('x-real-ip')?.trim();
+  return ip && isIP(ip) ? ip.toLowerCase() : null;
 }
 
-async function reserveLoginAttempt(ip: string, email: string) {
+async function reserveLoginAttempt(ip: string | null, email: string) {
   const buckets = [
     { key: `email:${email}`, limit: MAX_EMAIL_ATTEMPTS },
-    { key: `ip:${ip}`, limit: MAX_IP_ATTEMPTS },
+    ...(ip ? [{ key: `ip:${ip}`, limit: MAX_IP_ATTEMPTS }] : []),
   ];
 
   await prisma.$transaction(async (tx) => {
@@ -73,13 +72,21 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     const email = body?.email;
     const password = body?.password;
-    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || email.length > 254 || !password || password.length > 1024) {
       return NextResponse.json({ error: 'Email dan kata sandi wajib diisi.' }, { status: 400 });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
     if (Math.random() < 0.01) {
-      await pruneExpiredAttempts().catch(() => console.warn('Pembersihan percobaan login tertunda.'));
+      await Promise.all([
+        pruneExpiredAttempts(),
+        prisma.$executeRaw`
+          DELETE FROM "WebSession" WHERE id IN (
+            SELECT id FROM "WebSession" WHERE "expiresAt" <= ${new Date()}
+            ORDER BY "expiresAt" LIMIT 500 FOR UPDATE SKIP LOCKED
+          )
+        `,
+      ]).catch(() => console.warn('Pembersihan percobaan login tertunda.'));
     }
     await reserveLoginAttempt(getClientIp(req), normalizedEmail);
 
@@ -90,8 +97,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email atau kata sandi salah.' }, { status: 401 });
     }
 
-    const token = await createSessionToken(user.id, user.role);
-    const response = NextResponse.json({ success: true, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    const sid = randomBytes(32).toString('hex');
+    const exp = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE;
+    const token = await createSessionToken({ uid: user.id, role: user.role, sid, version: user.sessionVersion, exp });
+    await prisma.webSession.create({ data: { id: sid, userId: user.id, expiresAt: new Date(exp * 1000) } });
+    const response = NextResponse.json(
+      { success: true, user: { id: user.id, name: user.name, email: user.email, role: user.role } },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

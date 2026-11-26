@@ -16,82 +16,29 @@ export const SAFE_USER_SELECT = {
   updatedAt: true,
 } as const;
 
-type SafeSessionUser = {
-  id: string;
-  name: string;
-  divisionName: string | null;
-  requestTemplateId: string | null;
-  email: string;
-  role: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-// Cache sesi singkat (10 detik) khusus untuk pemeriksaan izin API (`includeTelegram = false`)
-// agar 3–5 request paralel saat membuka 1 halaman tidak mengulang query SELECT User berkali-kali.
-// Otomatis dibersihkan lewat invalidateUserSessionCache() saat profil/role/status akun diubah.
-const USER_CACHE_TTL_MS = 10_000;
-const USER_CACHE_MAX = 500;
-const userSessionCache = new Map<string, { user: SafeSessionUser | null; expiresAt: number }>();
-
-export function invalidateUserSessionCache(userId?: string) {
-  if (userId) {
-    userSessionCache.delete(userId);
-    return;
-  }
-  userSessionCache.clear();
-}
-
-function readCachedUser(userId: string): { hit: true; user: SafeSessionUser | null } | { hit: false } {
-  const entry = userSessionCache.get(userId);
-  if (!entry) return { hit: false };
-  if (entry.expiresAt <= Date.now()) {
-    userSessionCache.delete(userId);
-    return { hit: false };
-  }
-  return { hit: true, user: entry.user };
-}
-
-function writeCachedUser(userId: string, user: SafeSessionUser | null) {
-  const now = Date.now();
-  if (userSessionCache.size >= USER_CACHE_MAX) {
-    userSessionCache.forEach((entry, key) => {
-      if (entry.expiresAt <= now) userSessionCache.delete(key);
-    });
-    if (userSessionCache.size >= USER_CACHE_MAX) {
-      const oldestKey = userSessionCache.keys().next().value;
-      if (oldestKey) userSessionCache.delete(oldestKey);
-    }
-  }
-  userSessionCache.set(userId, { user, expiresAt: now + USER_CACHE_TTL_MS });
-}
-
-/** Pengguna aktif ber-sesi dengan peran ADMIN atau DIVISI, atau null. */
+/** Periksa sesi di PostgreSQL agar pencabutan berlaku di seluruh instance. */
 export async function getSessionUser(includeTelegram = true) {
   const cookieStore = await cookies();
   const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
   if (!session) return null;
 
-  if (!includeTelegram) {
-    const cached = readCachedUser(session.uid);
-    if (cached.hit) return cached.user;
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.uid },
+  const record = await prisma.webSession.findUnique({
+    where: { id: session.sid },
     select: {
-      ...SAFE_USER_SELECT,
-      ...(includeTelegram ? { telegram: true } : {}),
+      expiresAt: true,
+      user: {
+        select: {
+          ...SAFE_USER_SELECT,
+          sessionVersion: true,
+          ...(includeTelegram ? { telegram: true } : {}),
+        },
+      },
     },
   });
-  const validUser = !user || !user.isActive || (user.role !== 'ADMIN' && user.role !== 'DIVISI') ? null : user;
-
-  if (!includeTelegram) {
-    writeCachedUser(session.uid, validUser);
-  }
-
-  return validUser;
+  if (!record || record.expiresAt.getTime() <= Date.now()) return null;
+  const { sessionVersion, ...user } = record.user;
+  if (user.id !== session.uid || !user.isActive || user.role !== session.role || sessionVersion !== session.version) return null;
+  return user;
 }
 
 /** Hanya ADMIN: dipakai halaman SSR & API admin, jadi akun DIVISI tidak pernah lolos. */

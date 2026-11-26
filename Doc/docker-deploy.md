@@ -57,9 +57,10 @@ docker compose up -d --build app
 ```
 Saat update kode di kemudian hari:
 ```bash
-git pull origin main
-docker compose up -d --build app
-docker compose exec app npx prisma db push
+git pull --ff-only
+docker compose build app
+docker compose run --rm app npx prisma db push
+docker compose up -d app
 ```
 
 ### Opsi B — PostgreSQL di Docker, Next.js tetap lewat PM2/Node
@@ -68,6 +69,7 @@ docker compose up -d db
 npm run db:restore
 # Pastikan .env memakai DATABASE_URL ke 127.0.0.1:5432
 npm ci
+npm run db:push
 npm run build
 pm2 restart all
 ```
@@ -79,3 +81,11 @@ pm2 restart all
 # Backup langsung dari container PostgreSQL Docker (bisa dimasukkan cron harian):
 docker compose exec -T db pg_dump -U "${POSTGRES_USER:-stockflow}" -d "${POSTGRES_DB:-stockflow}" --no-owner --no-privileges --clean --if-exists > "backups/daily-$(date +%F).sql"
 ```
+
+## Pengamanan sebelum server kampus menerima trafik
+
+- Bind aplikasi dan PostgreSQL ke loopback. Docker Compose sudah mengikat kedua port ke `127.0.0.1`. Untuk Node/PM2, jalankan Next dengan `next start --hostname 127.0.0.1`. Izinkan akses aplikasi melalui reverse proxy HTTPS saja.
+- Atur `APP_URL` ke URL HTTPS resmi kampus. Buat `AUTH_SECRET`, `TELEGRAM_WEBHOOK_SECRET`, serta kata sandi database dan admin yang unik untuk lingkungan kampus. Gunakan pembatasan percobaan login di reverse proxy. Jika `TRUST_PROXY_IP=1`, proxy harus menimpa `X-Real-IP` dengan alamat yang diverifikasi (`proxy_set_header X-Real-IP $remote_addr;` untuk Nginx di tepi jaringan). Gunakan batas body 5 MB untuk menangani unggahan bukti 4 MB.
+- Sebelum mengganti versi aplikasi, buat backup lalu sinkronkan database target versi baru dengan `npx prisma db push`. Rilis ini menambah `User.sessionVersion` dan `WebSession`. Pengguna perlu login ulang dan sesi baru berlaku maksimal delapan jam. Uji bahwa logout, reset kata sandi, dan penonaktifan akun segera mencabut sesi.
+- Jika arsip bukti memakai Blob publik, ikuti migrasi di README dan verifikasi arsip dari panel admin sebelum menghapus salinan lama. Untuk foto pada volume server kampus, batasi akses direktori dan jangan sajikan direktori unggahan sebagai aset publik. Simpan backup database dan foto dengan akses terbatas.
+- Jalankan `npm audit --omit=dev` dari lockfile yang akan dipasang. Uji build, login admin dan divisi, persetujuan, batas akses antar divisi, unggah bukti, dan restore backup pada lingkungan staging kampus dengan data uji.

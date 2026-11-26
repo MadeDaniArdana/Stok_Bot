@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getEnvAdminIds } from '@/lib/telegram-admins';
-import { invalidateUserSessionCache, requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
+import { requireAdmin, SAFE_USER_SELECT } from '@/lib/auth-server';
 import { hashPassword } from '@/lib/password';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
@@ -16,8 +16,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const { name, role, password, isActive, telegramUserId, telegramUsername, unlinkTelegram, divisionName, requestTemplateId } = await req.json();
 
-    if (password !== undefined && (typeof password !== 'string' || password.length < 8)) {
-      return NextResponse.json({ error: 'Kata sandi minimal 8 karakter.' }, { status: 400 });
+    if (password !== undefined && (typeof password !== 'string' || password.length < 8 || password.length > 1024)) {
+      return NextResponse.json({ error: 'Kata sandi harus berisi 8 sampai 1024 karakter.' }, { status: 400 });
     }
     if (role !== undefined && role !== 'ADMIN' && role !== 'USER' && role !== 'DIVISI') {
       return NextResponse.json({ error: 'Peran pengguna tidak valid.' }, { status: 400 });
@@ -74,12 +74,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         divisionName: isDivision ? division || undefined : null,
         requestTemplateId: isDivision ? requestTemplateId : null,
         passwordHash: password ? await hashPassword(password) : undefined,
+        sessionVersion: password || (role !== undefined && role !== target.role) || isActive === false
+          ? { increment: 1 }
+          : undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
       },
       select: { id: true },
     });
-    // Hapus cache sesi langsung agar perubahan role/penonaktifan akun segera berlaku.
-    invalidateUserSessionCache(id);
 
     if (unlinkTelegram) {
       await prisma.telegramUser.deleteMany({
@@ -160,7 +161,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       // Notifikasi ikut terhapus (cascade); tautan akun pada catatan di atas menjadi kosong, namanya tetap tersimpan.
       await tx.user.delete({ where: { id: target.id } });
     });
-    invalidateUserSessionCache(target.id);
 
     return NextResponse.json({ success: true, message: `Akun ${target.name} telah dihapus.` });
   } catch (error) {

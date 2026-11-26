@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const currentUser = await getSessionUser();
     if (!currentUser) return NextResponse.json({ error: 'Belum login.' }, { status: 401 });
-    return NextResponse.json({ currentUser });
+    return NextResponse.json({ currentUser }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Failed to load session:', error);
     return NextResponse.json({ error: 'Sesi tidak dapat dimuat.' }, { status: 500 });

@@ -15,6 +15,8 @@ model User {
   requestTemplate   DistributionTemplate? @relation(fields: [requestTemplateId], references: [id], onDelete: Restrict)
   email             String             @unique
   passwordHash      String?
+  sessionVersion    Int                @default(0)
+  sessions          WebSession[]
   role              String             @default("USER") // ADMIN, DIVISI (pengaju barang), USER
   isActive          Boolean            @default(true)
   movements         StockMovement[]
@@ -354,5 +356,15 @@ model LoginAttemptBucket {
   count     Int
   expiresAt DateTime
 
+  @@index([expiresAt])
+}
+
+model WebSession {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+
+  @@index([userId])
   @@index([expiresAt])
 }
