@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, X, LoaderCircle, Printer, PenLine } from 'lucide-react';
+import { Check, X, LoaderCircle, Printer } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { refreshAdminPulse } from '@/lib/admin-pulse';
 import { SearchCombobox, type ComboOption } from '@/components/ui/SearchCombobox';
@@ -42,7 +42,7 @@ function ReviewPanel({
   const [date, setDate] = useState(todayInJakarta);
   const [recipientUnit, setRecipientUnit] = useState(request.divisionName);
   const [signature, setSignature] = useState<string | null>(null);
-  const [signing, setSigning] = useState(false);
+  const [signaturePending, setSignaturePending] = useState(false);
   const [bootstrap, setBootstrap] = useState<DistributionBootstrapData | undefined>(() =>
     getCachedDistributionBootstrap(request.stockGroup as StockGroup)
   );
@@ -66,6 +66,7 @@ function ReviewPanel({
   );
 
   const submit = () => {
+    if (!signature || signaturePending) return;
     onApprove({
       date,
       recipientUnit,
@@ -174,21 +175,15 @@ function ReviewPanel({
         </div>
       </div>
 
-      {signing ? (
-        <div className="sm:max-w-sm">
-          <SignaturePad label="Tanda tangan admin (opsional)" onChange={setSignature} height={110} />
-        </div>
-      ) : (
-        <button type="button" onClick={() => setSigning(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-maroon-800 hover:underline">
-          <PenLine className="h-3.5 w-3.5" /> Tambah tanda tangan admin (opsional)
-        </button>
-      )}
+      <div className="sm:max-w-sm">
+        <SignaturePad label="Tanda tangan admin *" onChange={setSignature} onUploadPendingChange={setSignaturePending} height={110} />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={submit}
-          disabled={busy || request.status === 'PROCESSING' || allZero || !recipientUnit.trim()}
+          disabled={busy || signaturePending || !signature || request.status === 'PROCESSING' || allZero || !recipientUnit.trim()}
           className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Setujui (ACC)

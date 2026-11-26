@@ -3,6 +3,8 @@ import { InstallationTaskService } from '@/services/installation-task.service';
 import { logError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
 
+import { createProofPhotoLink } from '@/lib/proof-photo-link';
+
 export const runtime = 'nodejs';
 
 export async function GET(
@@ -24,7 +26,7 @@ export async function GET(
       notes: task.notes,
       status: task.status,
       completedAt: task.completedAt,
-      photoUrl: task.proofFileName ? `/api/tasks/proof/${token}/photo` : null,
+      photoUrl: task.proofFileName ? createProofPhotoLink(`/api/tasks/proof/${token}/photo`) : null,
     });
   } catch (error) {
     await logError({ source: 'UPLOAD', error, location: 'Buka link bukti (GET /api/tasks/proof)' });
@@ -66,6 +68,7 @@ export async function POST(
       success: true,
       status: completedTask.status,
       completedAt: completedTask.completedAt,
+      photoUrl: createProofPhotoLink(`/api/tasks/proof/${token}/photo`),
     });
   } catch (error) {
     const message = isUserFacingError(error) ? error.message : 'Gagal menyimpan bukti. Silakan coba lagi atau hubungi admin.';

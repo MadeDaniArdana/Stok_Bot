@@ -41,7 +41,7 @@ function qty(row: StockPositionRow, value: number, prefix = '') {
 
 /**
  * Riwayat stok per bulan/tahun: Stok Awal (awal periode), Barang Masuk (masuk), Total, Keluar, dan Sisa Akhir.
- * Bisa dicetak A4 dan diunduh CSV sesuai periode & jenis stok yang dipilih.
+ * Bisa dicetak A4 dan diunduh sebagai Excel sesuai periode & jenis stok yang dipilih.
  */
 export function StockPositionSection({ periode, jenis }: { periode: string; jenis?: string }) {
   const mode: Mode = /^\d{4}$/.test(periode) ? 'year' : 'month';
@@ -135,11 +135,11 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
             Cetak {mode === 'year' ? 'Tahunan' : 'Bulanan'}
           </a>
           <a
-            href={`/api/reports/stock-position?${queryStr}&format=csv`}
+            href={`/api/reports/stock-position?${queryStr}&format=xlsx`}
             className="inline-flex items-center gap-1.5 rounded-xl border border-maroon-200 bg-maroon-50 px-3 py-2 text-xs font-semibold text-maroon-800 shadow-soft hover:bg-maroon-100"
           >
             <Download className="h-4 w-4" />
-            Export CSV {mode === 'year' ? 'Tahunan' : 'Bulanan'}
+            Unduh Excel {mode === 'year' ? 'Tahunan' : 'Bulanan'}
           </a>
           <button
             type="button"

@@ -1,3 +1,4 @@
+import { MAX_SIGNATURE_LENGTH } from '@/lib/signature-limits';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { DistributionService } from './distribution.service';
@@ -7,7 +8,6 @@ export const REQUEST_GROUPS = ['ATK'] as const;
 const MAX_ITEMS = 50;
 const TEXT_LIMIT = 150;
 const SIGNATURE_PATTERN = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
-const MAX_SIGNATURE_LENGTH = 300_000;
 
 /** Kolom untuk daftar/riwayat: sengaja tanpa tanda tangan (besar), yang hanya dibaca halaman cetak. */
 const requestSelect = {
@@ -92,12 +92,9 @@ function text(value: unknown, label: string, required = false, limit = TEXT_LIMI
   return cleaned;
 }
 
-function signature(value: unknown, required: boolean): string | null {
-  if (typeof value !== 'string' || !value) {
-    if (required) throw new Error('Tanda tangan digital wajib diisi.');
-    return null;
-  }
-  if (value.length > MAX_SIGNATURE_LENGTH || !SIGNATURE_PATTERN.test(value)) throw new Error('Tanda tangan tidak valid. Silakan goreskan ulang.');
+function signature(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value) throw new Error(`${label} wajib diisi.`);
+  if (value.length > MAX_SIGNATURE_LENGTH || !SIGNATURE_PATTERN.test(value)) throw new Error('Tanda tangan tidak valid. Silakan gambar ulang atau pilih gambar lain.');
   return value;
 }
 
@@ -118,7 +115,7 @@ export class RequestService {
     if (!(REQUEST_GROUPS as readonly string[]).includes(stockGroup)) throw new Error('Pengajuan barang saat ini hanya tersedia untuk ATK.');
     const receiverName = text(input.receiverName, 'Nama Yang Mengajukan', true, 100)!;
     const divisionHeadName = text(input.divisionHeadName, 'Nama Ka. Divisi', false, 100);
-    const requesterSignature = signature(input.signature, true);
+    const requesterSignature = signature(input.signature, 'Tanda tangan pengaju');
 
     const rawItems = Array.isArray(input.items) ? input.items : [];
     if (rawItems.length === 0) throw new Error('Tambahkan minimal satu barang.');
@@ -228,6 +225,7 @@ export class RequestService {
    * (stok berkurang, tanggal = tanggal ACC). Barang ketikan pengaju harus dipetakan ke barang master atau ditandai "tanpa stok".
    */
   static async approve(id: string, admin: Actor, input: ApproveRequestInput = {}) {
+    const adminSignature = signature(input.adminSignature, 'Tanda tangan admin');
     const { approvedRequest, stockAfter } = await DistributionService.runTransaction(async (tx) => {
       // Kunci pengajuan sampai distribusi dan persetujuan berhasil disimpan bersama.
       const claimed = await tx.itemRequest.updateMany({ where: { id, status: 'PENDING' }, data: { status: 'PROCESSING' } });
@@ -244,7 +242,6 @@ export class RequestService {
       const dateText = input.date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
       // Kepada dan Tempat Penyimpanan selalu disamakan sesuai isian admin saat ACC.
       const recipientUnit = text(input.recipientUnit ?? input.storageLocation ?? request.divisionName, 'Kepada & Tempat Penyimpanan', true)!;
-      const adminSignature = signature(input.adminSignature, false);
       const overrides = new Map((Array.isArray(input.items) ? input.items : []).map((item) => [item.id, item]));
 
       // Tentukan keputusan tiap baris.

@@ -11,7 +11,7 @@ export interface SessionPayload {
   exp: number; // detik sejak epoch
 }
 
-function getSecret() {
+export function getAuthSecret() {
   const secret = process.env.AUTH_SECRET || '';
   if (secret.length < 32 || secret.startsWith('replace-')) {
     throw new Error('AUTH_SECRET belum diset atau kurang dari 32 karakter.');
@@ -34,7 +34,7 @@ function fromBase64Url(value: string) {
 async function getKey() {
   return crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(getSecret()),
+    new TextEncoder().encode(getAuthSecret()),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign', 'verify']

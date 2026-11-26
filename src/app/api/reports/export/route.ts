@@ -5,15 +5,10 @@ import { resolveSummaryPeriod } from '@/lib/report-period';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
 import { ReportService } from '@/services/report.service';
 
+import { excelReportResponse } from '@/lib/excel-report';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function csvCell(value: unknown) {
-  const text = value === null || value === undefined ? '' : String(value);
-  // Cegah formula injection di Excel (angka negatif tetap dibiarkan) dan escape tanda kutip.
-  const safe = /^[=+@]/.test(text) || /^-(?!\d)/.test(text) ? `'${text}` : text;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
 
 /**
  * Unduh Daftar Usulan Pengadaan Barang (habis & menipis) per bulan (?periode=YYYY-MM) atau tahun (?periode=YYYY):
@@ -37,30 +32,20 @@ export async function GET(req: NextRequest) {
           ? `bulan-${summary.period.value}`
           : `${summary.days}hari`;
 
-    const lines = [
-      [`Daftar Usulan Pengadaan Barang - ${summary.period.label}`].map(csvCell).join(','),
-      [`Jenis Stok: ${stockGroup ? getStockGroup(stockGroup).label : 'Semua Jenis'}`].map(csvCell).join(','),
-      '',
-      ['No', 'Kode SKU', 'Nama Barang', 'Jenis', `Stok Sisa (${summary.period.openingLabel})`, 'Stok Masuk', 'Jumlah Stok', 'Satuan']
-        .map(csvCell)
-        .join(','),
-    ];
-    summary.criticalItems.forEach((item, index) => {
-      lines.push(
-        [index + 1, item.sku, item.name, item.stockGroupLabel, item.remainingStock, item.incomingStock, item.totalStock, item.unit]
-          .map(csvCell)
-          .join(',')
-      );
-    });
-
-    return new NextResponse('﻿' + lines.join('\r\n'), {
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="usulan-pengadaan-${groupSlug}-${periodSlug}.csv"`,
-        'Cache-Control': 'no-store',
-      },
+    return await excelReportResponse({
+      filename: `usulan-pengadaan-${groupSlug}-${periodSlug}`,
+      sheetName: 'Usulan Pengadaan',
+      title: 'Daftar Usulan Pengadaan Barang',
+      period: `Periode: ${summary.period.label} | Jenis stok: ${stockGroup ? getStockGroup(stockGroup).label : 'Semua Jenis'}`,
+      columns: [
+        ['No', 7], ['Kode SKU', 26], ['Nama Barang', 36], ['Jenis', 20],
+        [`Stok Sisa (${summary.period.openingLabel})`, 25], ['Stok Masuk', 14], ['Jumlah Stok', 15], ['Satuan', 12],
+      ],
+      rows: summary.criticalItems.map((item, index) => [
+        index + 1, item.sku, item.name, item.stockGroupLabel, item.remainingStock, item.incomingStock, item.totalStock, item.unit,
+      ]),
     });
   } catch (error) {
-    return apiError(error, 'GET /api/reports/export', req, 'Laporan CSV tidak dapat diunduh.');
+    return apiError(error, 'GET /api/reports/export', req, 'Laporan Excel tidak dapat diunduh.');
   }
 }

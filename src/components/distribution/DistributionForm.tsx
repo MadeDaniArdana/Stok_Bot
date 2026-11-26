@@ -236,6 +236,12 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
   const [templates, setTemplates] = useState<Template[]>(() => initialCache?.templates ?? []);
   const [templatesLoading, setTemplatesLoading] = useState(() => usesTemplates && !initialCache);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [templateDeletion, setTemplateDeletion] = useState<{
+    id: string;
+    name: string;
+    accounts: { id: string; name: string; divisionName: string | null }[];
+  } | null>(null);
+  const [replacementId, setReplacementId] = useState('');
   const [templateBusy, setTemplateBusy] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState<string | null>(null);
   const activeTemplate = templates.find((template) => template.id === activeTemplateId) ?? null;
@@ -473,20 +479,28 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     }
   };
 
-  const deleteTemplate = async () => {
-    if (!activeTemplate || !confirm(`Hapus paket "${activeTemplate.name}"? Riwayat distribusi tidak ikut terhapus.`)) return;
+  const deleteTemplate = async (replacement?: string) => {
+    const target = replacement ? templateDeletion : activeTemplate;
+    if (!target || (!replacement && !confirm(`Hapus paket "${target.name}"?`))) return;
     setTemplateBusy(true);
     try {
-      const res = await fetch(`/api/distribution-templates/${activeTemplate.id}`, { method: 'DELETE' });
+      const query = replacement ? `?replacementId=${encodeURIComponent(replacement)}` : '';
+      const res = await fetch(`/api/distribution-templates/${target.id}${query}`, { method: 'DELETE' });
       const data = await res.json();
+      if (res.status === 409 && Array.isArray(data.accounts)) {
+        setReplacementId('');
+        setTemplateDeletion({ id: target.id, name: target.name, accounts: data.accounts });
+        return;
+      }
       if (!res.ok) throw new Error(data.error || 'Paket gagal dihapus.');
       setTemplates((current) => {
-        const next = current.filter((template) => template.id !== activeTemplate.id);
+        const next = current.filter((template) => template.id !== target.id);
         patchCachedDistributionBootstrap(group.id, (cached) => ({ ...cached, templates: next, fetchedAt: Date.now() }));
         return next;
       });
       setActiveTemplateId(null);
-      showToast('Paket Dihapus', `Paket "${activeTemplate.name}" dihapus.`);
+      setTemplateDeletion(null);
+      showToast('Paket Dihapus', `Paket "${target.name}" dihapus.`);
     } catch (error: any) {
       showToast('Gagal Menghapus', error.message, 'error');
     } finally {
@@ -644,6 +658,35 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
           <p className="mt-0.5 text-xs text-slate-500">
             Paket berisi daftar barang tetap untuk setiap unit. Pilih paket, lalu ubah jumlah atau tambah/hapus barang di tabel bila perlu.
           </p>
+          {templateDeletion && (
+            <ModalOverlay role="dialog" aria-modal="true" aria-labelledby="template-replacement-title" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+              <div className="w-full max-w-md space-y-4 rounded-xl bg-white p-5 shadow-xl">
+                <h3 id="template-replacement-title" className="font-bold">Ganti paket untuk akun terdampak</h3>
+                <p className="text-sm">Paket {templateDeletion.name} dipakai oleh akun berikut.</p>
+                <ul className="max-h-36 list-disc overflow-y-auto pl-5 text-sm">
+                  {templateDeletion.accounts.map((account) => (
+                    <li key={account.id}>{account.name}{account.divisionName && ` (${account.divisionName})`}</li>
+                  ))}
+                </ul>
+                <label className="block text-sm">
+                  Paket ATK pengganti
+                  <select className="mt-1 w-full rounded-lg border p-2" value={replacementId} onChange={(e) => setReplacementId(e.target.value)}>
+                    <option value="">Pilih paket pengganti</option>
+                    {templates.filter((template) => template.id !== templateDeletion.id).map((template) => (
+                      <option key={template.id} value={template.id}>{template.name}</option>
+                    ))}
+                  </select>
+                </label>
+                {templates.length <= 1 && <p className="text-sm">Buat paket ATK pengganti sebelum menghapus paket ini.</p>}
+                <div className="flex justify-end gap-3">
+                  <button type="button" disabled={templateBusy} onClick={() => setTemplateDeletion(null)}>Batal</button>
+                  <button type="button" disabled={templateBusy || !replacementId} onClick={() => void deleteTemplate(replacementId)} className="rounded-lg bg-rose-700 px-3 py-2 text-white disabled:opacity-50">
+                    Pindahkan akun dan hapus
+                  </button>
+                </div>
+              </div>
+            </ModalOverlay>
+          )}
           {templatesLoading && templates.length === 0 ? (
             <div className="mt-3 flex flex-wrap gap-2" aria-busy="true" aria-label="Memuat daftar paket distribusi">
               {Array.from({ length: 8 }).map((_, idx) => (
@@ -965,7 +1008,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
                 <button
                   type="button"
                   disabled={templateBusy}
-                  onClick={deleteTemplate}
+                  onClick={() => void deleteTemplate()}
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Hapus Paket

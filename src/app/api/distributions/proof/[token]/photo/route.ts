@@ -4,12 +4,17 @@ import { readTaskProof } from '@/lib/task-proof-storage';
 import { proofResponse } from '@/lib/proof-response';
 import { DistributionService } from '@/services/distribution.service';
 
+import { verifyProofPhotoLink } from '@/lib/proof-photo-link';
+
 export const runtime = 'nodejs';
 
 /** Foto bukti untuk pemegang link (petugas melihat foto yang sudah dikirim). */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params;
+    if (!verifyProofPhotoLink(`/api/distributions/proof/${token}/photo`, request.nextUrl.searchParams)) {
+      return NextResponse.json({ error: 'Tautan foto sudah kedaluwarsa atau tidak valid. Muat ulang halaman bukti.' }, { status: 404 });
+    }
     const distribution = await DistributionService.getByProofToken(token);
     if (!distribution || distribution.status === 'CANCELLED') {
       return NextResponse.json({ error: 'Foto bukti tidak ditemukan.' }, { status: 404 });

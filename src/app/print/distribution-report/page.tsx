@@ -53,18 +53,10 @@ export default async function PrintDistributionReportPage({
   const distributions = await prisma.distribution.findMany({
     where: { stockGroup: group.id, distributedAt: range, status: 'COMPLETED' },
     orderBy: [{ distributedAt: 'asc' }, { createdAt: 'asc' }],
-    include: { items: { include: { product: { select: { id: true, name: true, sku: true, unit: true, packUnit: true, packSize: true } } }, orderBy: { id: 'asc' } } },
+    include: { items: { include: { product: { select: { name: true, unit: true, packUnit: true, packSize: true } } }, orderBy: { id: 'asc' } } },
   });
 
   const lines = distributions.flatMap((distribution) => distribution.items.map((item) => ({ distribution, item })));
-  const recap = new Map<string, { name: string; sku: string; unit: string; product: (typeof lines)[number]['item']['product']; quantity: number; times: number }>();
-  for (const { item } of lines) {
-    const entry = recap.get(item.product.id) ?? { name: item.product.name, sku: item.product.sku, unit: item.unit, product: item.product, quantity: 0, times: 0 };
-    entry.quantity += item.quantity;
-    entry.times += 1;
-    recap.set(item.product.id, entry);
-  }
-  const recapRows = Array.from(recap.values()).sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name, 'id'));
   const today = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 
   return (
@@ -85,39 +77,7 @@ export default async function PrintDistributionReportPage({
         <h1 className="mt-4 text-center text-[15px] font-bold uppercase">Laporan Distribusi {group.label}</h1>
         <p className="text-center text-[12px]">Periode: {periodLabel}</p>
 
-        <p className="mt-4 text-[12px]">
-          Jumlah dokumen: <strong>{distributions.length}</strong> · Baris barang: <strong>{lines.length}</strong> · Jenis barang: <strong>{recapRows.length}</strong>
-        </p>
-
-        <h2 className="mt-4 text-[13px] font-bold">A. Rekapitulasi per Barang</h2>
-        <table className="mt-1 w-full border-collapse border border-black text-[12px]">
-          <thead>
-            <tr className="bg-slate-200">
-              <th className={`${cell} w-8`}>No</th>
-              <th className={cell}>Nama Barang</th>
-              <th className={cell}>Kode</th>
-              <th className={cell}>Jumlah Keluar</th>
-              <th className={cell}>Frekuensi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recapRows.length === 0 ? (
-              <tr><td colSpan={5} className={`${cell} py-3 text-center italic`}>Tidak ada distribusi pada periode ini.</td></tr>
-            ) : (
-              recapRows.map((row, index) => (
-                <tr key={row.sku}>
-                  <td className={`${cell} text-center`}>{index + 1}</td>
-                  <td className={cell}>{row.name}</td>
-                  <td className={`${cell} font-mono text-[10px]`}>{row.sku}</td>
-                  <td className={`${cell} text-center`}>{formatItemQuantity(row.quantity, row.unit, row.product)}</td>
-                  <td className={`${cell} text-center`}>{row.times}x</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-
-        <h2 className="mt-5 text-[13px] font-bold">B. Rincian Distribusi</h2>
+        <h2 className="mt-4 text-[13px] font-bold">Rincian Distribusi</h2>
         <table className="mt-1 w-full border-collapse border border-black text-[12px]">
           <thead>
             {isListrik ? (

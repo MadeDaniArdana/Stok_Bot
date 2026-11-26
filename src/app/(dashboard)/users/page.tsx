@@ -20,9 +20,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
-import { DIVISION_OPTIONS } from '@/lib/division-options';
-
-type RequestTemplateOption = { id: string; name: string; recipientUnit: string };
+import { DIVISION_OPTIONS, findDivisionTemplate, type RequestTemplateOption } from '@/lib/division-options';
 
 export default function UsersPage() {
   const { showToast } = useToast();
@@ -41,6 +39,7 @@ export default function UsersPage() {
   // Form State
   const [formName, setFormName] = useState('');
   const [formDivision, setFormDivision] = useState('');
+  const [customDivision, setCustomDivision] = useState(false);
   const [formTemplate, setFormTemplate] = useState('auto');
   const [templates, setTemplates] = useState<RequestTemplateOption[]>([]);
   const [templateStatus, setTemplateStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -90,12 +89,14 @@ export default function UsersPage() {
     return () => controller.abort();
   }, [showDivisionFields]);
 
-  const divisionOptions = Array.from(new Set([...DIVISION_OPTIONS, ...templates.map((template) => template.recipientUnit)]))
-    .sort((a, b) => a.localeCompare(b, 'id'));
+  const defaultTemplateIds = new Set(DIVISION_OPTIONS.map((division) => findDivisionTemplate(division, templates)?.id));
+  const divisionOptions = Array.from(new Set([
+    ...DIVISION_OPTIONS,
+    ...templates.filter((template) => !defaultTemplateIds.has(template.id)).map((template) => template.recipientUnit),
+    ...(editingUser?.divisionName && !customDivision ? [editingUser.divisionName as string] : []),
+  ])).sort((a, b) => a.localeCompare(b, 'id'));
   const assignedTemplate = formTemplate === 'auto'
-    ? templates.find((template) => [template.recipientUnit, template.name].some(
-      (value) => value.trim().toLowerCase() === formDivision.trim().toLowerCase()
-    ))?.id ?? null
+    ? findDivisionTemplate(formDivision, templates)?.id ?? null
     : formTemplate || null;
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -223,6 +224,7 @@ export default function UsersPage() {
   const resetForm = () => {
     setFormName('');
     setFormDivision('');
+    setCustomDivision(false);
     setFormTemplate('auto');
     setFormEmail('');
     setFormRole('USER');
@@ -365,7 +367,8 @@ export default function UsersPage() {
                                 setEditingUser(u);
                                 setFormName(u.name);
                                 setFormDivision(u.role === 'DIVISI' ? u.divisionName ?? u.name : '');
-                                setFormTemplate(u.requestTemplateId ?? '');
+                                setCustomDivision(u.role === 'DIVISI' && !u.divisionName);
+                                setFormTemplate(u.role === 'DIVISI' ? u.requestTemplateId ?? '' : 'auto');
                                 setFormEmail(u.email);
                                 setFormRole(u.role);
                                 setFormTgId(u.telegram?.telegramUserId || '');
@@ -485,19 +488,33 @@ export default function UsersPage() {
                   <label htmlFor="account-division" className="block font-semibold text-slate-700 mb-1">
                     Nama Divisi <span className="text-rose-500">*</span>
                   </label>
-                  <input
+                  <select
                     id="account-division"
-                    list="account-divisions"
                     required
-                    maxLength={100}
-                    value={formDivision}
-                    onChange={(e) => setFormDivision(e.target.value)}
-                    placeholder="Pilih atau ketik nama divisi"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                  />
-                  <datalist id="account-divisions">
-                    {divisionOptions.map((division) => <option key={division} value={division} />)}
-                  </datalist>
+                    value={customDivision ? 'other' : formDivision}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCustomDivision(value === 'other');
+                      setFormDivision(value === 'other' ? '' : value);
+                      setFormTemplate('auto');
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
+                  >
+                    <option value="">Pilih divisi</option>
+                    {divisionOptions.map((division) => <option key={division} value={division}>{division}</option>)}
+                    <option value="other">Divisi lainnya</option>
+                  </select>
+                  {customDivision && (
+                    <input
+                      required
+                      maxLength={100}
+                      aria-label="Nama divisi lainnya"
+                      value={formDivision}
+                      onChange={(e) => setFormDivision(e.target.value)}
+                      placeholder="Ketik nama divisi"
+                      className="mt-2 w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    />
+                  )}
                 </div>
                 <div>
                   <label htmlFor="account-template" className="block font-semibold text-slate-700 mb-1">Template Pengajuan ATK</label>

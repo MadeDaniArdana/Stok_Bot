@@ -2,20 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { requireAdmin } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
-import { getReportMonthRange } from '@/lib/report-period';
+import { getReportMonthRange, parseStockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
+
+import { excelDateWib, excelReportResponse } from '@/lib/excel-report';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function csvCell(value: unknown) {
-  const text = value === null || value === undefined ? '' : String(value);
-  // Cegah formula injection di Excel dan escape tanda kutip.
-  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
-
-/** Unduh riwayat distribusi satu bulan sebagai CSV (satu baris per barang). */
+/** Unduh riwayat distribusi satu bulan sebagai Excel (satu baris per barang). */
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAdmin();
@@ -34,45 +29,44 @@ export async function GET(req: NextRequest) {
 
     const group = getStockGroup(stockGroup);
     const rows = await prisma.distribution.findMany({
-      where: { stockGroup, distributedAt: range },
+      where: { stockGroup, distributedAt: range, status: 'COMPLETED' },
       orderBy: [{ distributedAt: 'asc' }, { createdAt: 'asc' }],
-      include: { items: { include: { product: { select: { name: true, sku: true } } }, orderBy: { id: 'asc' } } },
+      select: {
+        distributedAt: true, recipientUnit: true, handoverName: true, receiverName: true,
+        number: true, orderNumber: true, storageLocation: true, notes: true,
+        items: {
+          orderBy: { id: 'asc' },
+          select: { location: true, quantity: true, unit: true, product: { select: { name: true, sku: true } } },
+        },
+      },
     });
 
-    const header = ['Tanggal', 'No. Dokumen', group.recipientLabel, 'No. Nota Pesanan', 'SKU', 'Nama Barang', 'Jumlah', 'Satuan', 'Tempat Penyimpanan', 'Penerima', group.handoverLabel, 'Status', 'Catatan'];
-    const lines = [header.map(csvCell).join(',')];
-    for (const row of rows) {
-      const date = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'short' }).format(row.distributedAt);
-      for (const item of row.items) {
-        lines.push(
-          [
-            date,
-            row.number,
-            row.recipientUnit,
-            row.orderNumber,
-            item.product.sku,
-            item.product.name,
-            item.quantity,
-            item.unit,
-            row.storageLocation,
-            row.receiverName,
-            row.handoverName,
-            row.status === 'CANCELLED' ? 'Dibatalkan' : 'Selesai',
-            row.status === 'CANCELLED' ? row.cancelReason : row.notes,
-          ]
-            .map(csvCell)
-            .join(',')
-        );
-      }
-    }
-
-    // BOM agar Excel membaca UTF-8 dengan benar; pemisah ";" tidak dipakai supaya tetap CSV standar.
-    return new NextResponse('\uFEFF' + lines.join('\r\n'), {
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="distribusi-${group.slug}-${month}.csv"`,
-        'Cache-Control': 'no-store',
-      },
+    const isListrik = stockGroup === 'LISTRIK';
+    return await excelReportResponse({
+      filename: `distribusi-${group.slug}-${month}`,
+      sheetName: 'Rincian Distribusi',
+      title: `Laporan Distribusi ${group.label}`,
+      period: `Periode: ${parseStockReportPeriod(month).label}`,
+      columns: [
+        ['No', 7], ['Tanggal', 15], [isListrik ? 'Ruang' : 'Kepada', 25],
+        ['Nama Barang', 36], ['Jumlah', 12], ['Satuan', 12], [isListrik ? 'Nama' : 'Penerima', 24],
+        ['No. Dokumen', 21], ['No. Nota Pesanan', 21], ['SKU', 24],
+        ['Tempat Penyimpanan', 23], ['Catatan', 32],
+      ],
+      rows: (function* () {
+        let index = 0;
+        for (const row of rows) {
+          const date = excelDateWib(row.distributedAt);
+          const recipient = isListrik ? row.handoverName : row.receiverName;
+          for (const item of row.items) {
+            yield [
+              ++index, date, isListrik ? item.location || row.recipientUnit : row.recipientUnit,
+              item.product.name, item.quantity, item.unit, recipient,
+              row.number, row.orderNumber, item.product.sku, row.storageLocation, row.notes,
+            ];
+          }
+        }
+      })(),
     });
   } catch (error) {
     return apiError(error, 'GET /api/distributions/export', req, 'Terjadi kesalahan pada server. Detail tercatat di menu Log Error.');

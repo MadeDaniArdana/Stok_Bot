@@ -124,7 +124,7 @@ export default function ReportsPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-maroon-200 bg-maroon-50 px-3.5 py-2 text-xs font-semibold text-maroon-800 shadow-soft hover:bg-maroon-100"
           >
             <Download className="h-4 w-4" />
-            Unduh CSV Pengadaan
+            Unduh Excel Pengadaan
           </a>
         </div>
       </div>

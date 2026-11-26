@@ -52,6 +52,7 @@ export function DivisiRequestForm({ divisionName, template }: {
   const [receiverName, setReceiverName] = useState('');
   const [divisionHeadName, setDivisionHeadName] = useState('');
   const [signature, setSignature] = useState<string | null>(null);
+  const [signaturePending, setSignaturePending] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -91,6 +92,7 @@ export function DivisiRequestForm({ divisionName, template }: {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (signaturePending) return;
     if (totalItems === 0) {
       showToast('Belum Ada Barang', 'Isi jumlah kebutuhan pada minimal satu barang.', 'error');
       return;
@@ -100,7 +102,7 @@ export function DivisiRequestForm({ divisionName, template }: {
       return;
     }
     if (!signature) {
-      showToast('Tanda Tangan Kosong', 'Goreskan tanda tangan digital sebelum mengirim.', 'error');
+      showToast('Tanda Tangan Kosong', 'Gambar atau unggah tanda tangan sebelum mengirim.', 'error');
       return;
     }
     setSubmitting(true);
@@ -146,6 +148,9 @@ export function DivisiRequestForm({ divisionName, template }: {
       <div>
         <p className="text-sm font-semibold text-slate-800">{divisionName}</p>
         <p className="text-xs text-slate-500">{template ? `Template ATK ${template.name}` : 'Formulir ATK standar'}</p>
+        {Boolean(template?.items.length) && (
+          <p className="text-xs text-slate-600">Isi jumlah sesuai kebutuhan. Barang dengan jumlah 0 tidak ikut diajukan.</p>
+        )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -269,7 +274,8 @@ export function DivisiRequestForm({ divisionName, template }: {
                             type="number"
                             min={0}
                             step={1}
-                            value={qty[p.id] ?? ''}
+                            value={qty[p.id] ?? '0'}
+                            onFocus={(e) => e.currentTarget.select()}
                             onChange={(e) => setQty((cur) => ({ ...cur, [p.id]: e.target.value }))}
                             placeholder="0"
                             aria-label={`Kebutuhan ${p.name}`}
@@ -376,7 +382,7 @@ export function DivisiRequestForm({ divisionName, template }: {
       </div>
 
       <div className="sm:max-w-sm">
-        <SignaturePad label="Tanda Tangan Yang Mengajukan *" onChange={setSignature} />
+        <SignaturePad label="Tanda Tangan Yang Mengajukan *" onChange={setSignature} onUploadPendingChange={setSignaturePending} />
         <p className="mt-1 text-[11px] text-slate-500">Tanda tangan tercetak pada surat pengajuan &amp; form distribusi barang saat disetujui.</p>
       </div>
 
@@ -384,7 +390,7 @@ export function DivisiRequestForm({ divisionName, template }: {
         <p className="text-xs text-slate-500">{totalItems} barang dipilih</p>
         <button
           type="submit"
-          disabled={submitting || totalItems === 0}
+          disabled={submitting || signaturePending || totalItems === 0}
           className="inline-flex items-center gap-2 rounded-xl bg-maroon-800 px-5 py-2.5 text-xs font-semibold text-white hover:bg-maroon-900 disabled:opacity-50"
         >
           {submitting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Kirim Pengajuan

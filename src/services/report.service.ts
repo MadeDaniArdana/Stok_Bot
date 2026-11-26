@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import type { StockReportPeriod } from '@/lib/report-period';
+import { OPENING_BALANCE_MONTH, type StockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
 import { Prisma } from '@prisma/client';
 import { summarizeStockByUnit } from '@/lib/stock-position-totals';
@@ -510,6 +510,11 @@ export class ReportService {
   static async getStockPositionReport(period: StockReportPeriod, stockGroup?: StockGroup) {
     const start = period.gte;
     const end = period.lt;
+    const movementScope = stockGroup ? Prisma.sql`
+      JOIN "Product" p ON p.id = m."productId"
+      JOIN "Category" c ON c.id = p."categoryId" AND c."stockGroup" = ${stockGroup}
+    ` : Prisma.empty;
+    const isOpeningBalanceMonth = period.kind === 'month' && period.value === OPENING_BALANCE_MONTH;
 
     // Rekonstruksi saldo menggunakan tanggal efektif, termasuk distribusi yang dicatat mundur.
     // Mutasi dan saldo saat ini dibaca dalam snapshot database yang sama.
@@ -529,6 +534,7 @@ export class ReportService {
         WITH movements AS (
           SELECT m."productId", m.type, m."stockAfter" - m."stockBefore" AS delta, ${movementDate} AS date
           FROM "StockMovement" m
+          ${movementScope}
           ${movementDistributionJoin}
         )
         SELECT "productId", MIN(date) AS "firstDate",
@@ -559,8 +565,9 @@ export class ReportService {
       .map((p) => {
         const d = deltaById.get(p.id);
         const closingStock = p.currentStock - (d?.afterDelta ?? 0);
-        const openingStock = closingStock - Number(d?.periodDelta ?? 0);
-        const inQty = Number(d?.inQty ?? 0) - Number(d?.cancelIn ?? 0);
+        const netIncoming = Number(d?.inQty ?? 0) - Number(d?.cancelIn ?? 0);
+        const openingStock = closingStock - Number(d?.periodDelta ?? 0) + (isOpeningBalanceMonth ? netIncoming : 0);
+        const inQty = isOpeningBalanceMonth ? 0 : netIncoming;
         const outQty = Number(d?.outQty ?? 0) - Number(d?.cancelOut ?? 0);
         const adjustment = Number(d?.adjustment ?? 0);
         const group = getStockGroup(p.category?.stockGroup);

@@ -1,0 +1,1 @@
+export const MAX_SIGNATURE_LENGTH = 300_000;

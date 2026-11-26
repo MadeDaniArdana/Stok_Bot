@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const photo = await readTaskProof(task.proofFileName);
     if (!photo) return NextResponse.json({ error: 'File foto tidak ditemukan.' }, { status: 404 });
 
-    return proofResponse(request, photo, task.proofMimeType, 'private, max-age=86400');
+    return proofResponse(request, photo, task.proofMimeType, 'private, no-store');
   } catch (error) {
     await logError({ source: 'UPLOAD', error, location: 'GET /api/tasks/[id]/photo', context: { tugasId: id } });
     return NextResponse.json({ error: 'Foto bukti tidak dapat dimuat.' }, { status: 500 });

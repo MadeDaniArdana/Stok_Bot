@@ -5,19 +5,14 @@ import { parseStockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
 import { ReportService } from '@/services/report.service';
 
+import { excelReportResponse } from '@/lib/excel-report';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function csvCell(value: unknown) {
-  const text = value === null || value === undefined ? '' : String(value);
-  // Cegah formula injection di Excel (angka negatif tetap dibiarkan) dan escape tanda kutip.
-  const safe = /^[=+@]/.test(text) || /^-(?!\d)/.test(text) ? `'${text}` : text;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
-
 /**
  * Riwayat posisi stok per bulan (?periode=YYYY-MM) atau per tahun (?periode=YYYY):
- * stok lama, stok baru (masuk), total, keluar, dan sisa akhir. Tambahkan ?format=csv untuk unduh Excel.
+ * stok lama, stok baru (masuk), total, keluar, dan sisa akhir. Tambahkan ?format=xlsx untuk unduh Excel.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -29,65 +24,28 @@ export async function GET(req: NextRequest) {
     const stockGroup = parseStockGroup(searchParams.get('jenis')) ?? undefined;
     const report = await ReportService.getStockPositionReport(period, stockGroup);
 
-    if (searchParams.get('format') !== 'csv') return NextResponse.json(report);
-
-    const header = [
-      'No',
-      'Kode SKU',
-      'Nama Barang',
-      'Jenis',
-      'Kategori',
-      'Satuan',
-      `Stok Awal (${period.openingLabel})`,
-      'Barang Masuk',
-      'Total (Awal + Masuk)',
-      'Keluar',
-      ...(report.hasAdjustment ? ['Penyesuaian'] : []),
-      'Sisa Akhir',
-    ];
-    const lines = [
-      [`Riwayat Stok ${period.label}`].map(csvCell).join(','),
-      [`Jenis Stok: ${stockGroup ? getStockGroup(stockGroup).label : 'Semua Jenis'}`].map(csvCell).join(','),
-      '',
-      header.map(csvCell).join(','),
-    ];
-    report.rows.forEach((row, index) => {
-      lines.push(
-        [
-          index + 1,
-          row.sku,
-          row.name,
-          row.stockGroupLabel,
-          row.category,
-          row.unit,
-          row.openingStock,
-          row.inQty,
-          row.totalAvailable,
-          row.outQty,
-          ...(report.hasAdjustment ? [row.adjustment] : []),
-          row.closingStock,
-        ]
-          .map(csvCell)
-          .join(',')
-      );
-    });
-    for (const t of report.totalsByUnit) {
-      lines.push(
-        ['', '', `SUBTOTAL (${t.itemCount} jenis barang)`, '', '', t.unit, t.openingStock, t.inQty,
-          t.totalAvailable, t.outQty, ...(report.hasAdjustment ? [t.adjustment] : []), t.closingStock]
-          .map(csvCell)
-          .join(',')
-      );
-    }
+    if (searchParams.get('format') !== 'xlsx') return NextResponse.json(report);
 
     const groupSlug = stockGroup ? getStockGroup(stockGroup).slug : 'semua';
     const fileLabel = period.kind === 'year' ? `tahun-${period.value}` : `bulan-${period.value}`;
-    return new NextResponse('\uFEFF' + lines.join('\r\n'), {
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="riwayat-stok-${groupSlug}-${fileLabel}.csv"`,
-        'Cache-Control': 'no-store',
-      },
+    return await excelReportResponse({
+      filename: `riwayat-stok-${groupSlug}-${fileLabel}`,
+      sheetName: 'Posisi Stok',
+      title: 'Laporan Posisi Stok',
+      period: `Periode: ${period.label} | Jenis stok: ${stockGroup ? getStockGroup(stockGroup).label : 'Semua Jenis'}`,
+      columns: [
+        ['No', 7], ['Kode SKU', 26], ['Nama Barang', 36], ['Jenis', 19], ['Kategori', 23], ['Satuan', 12],
+        [`Stok Awal (${period.openingLabel})`, 25], ['Barang Masuk', 15], ['Total (Awal + Masuk)', 19], ['Keluar', 12],
+        ...(report.hasAdjustment ? [['Penyesuaian', 15] as [string, number]] : []), ['Sisa Akhir', 13],
+      ],
+      rows: report.rows.map((row, index) => [
+        index + 1, row.sku, row.name, row.stockGroupLabel, row.category, row.unit, row.openingStock,
+        row.inQty, row.totalAvailable, row.outQty, ...(report.hasAdjustment ? [row.adjustment] : []), row.closingStock,
+      ]),
+      subtotals: report.totalsByUnit.map((row) => [
+        null, null, `Subtotal (${row.itemCount} jenis barang)`, null, null, row.unit, row.openingStock,
+        row.inQty, row.totalAvailable, row.outQty, ...(report.hasAdjustment ? [row.adjustment] : []), row.closingStock,
+      ]),
     });
   } catch (error) {
     return apiError(error, 'GET /api/reports/stock-position', req, 'Riwayat stok tidak dapat dimuat.');

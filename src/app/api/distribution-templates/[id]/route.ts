@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
-import { requireAdmin } from '@/lib/auth-server';
+import { invalidateUserSessionCache, requireAdmin } from '@/lib/auth-server';
 import { DistributionTemplateService } from '@/services/distribution-template.service';
 
 /** Perbarui isi paket (barang & jumlah) dengan tabel terbaru dari form. */
@@ -26,7 +26,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (auth.error) return auth.error;
     const { id } = await params;
 
-    await DistributionTemplateService.remove(id);
+    const replacementId = req.nextUrl.searchParams.get('replacementId') || undefined;
+    const { accounts } = await DistributionTemplateService.remove(id, replacementId);
+    if (accounts.length && !replacementId) {
+      return NextResponse.json({ error: 'Pilih paket pengganti untuk akun yang memakai paket ini.', accounts }, { status: 409 });
+    }
+    for (const account of accounts) invalidateUserSessionCache(account.id);
     return NextResponse.json({ success: true });
   } catch (error) {
     if (isUserFacingError(error)) return NextResponse.json({ error: error.message }, { status: 400 });

@@ -207,7 +207,7 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
       if (!response.ok) throw new Error(data.error || 'Foto gagal dikirim.');
       const locations = task?.locations?.map((l) =>
         l.location === data.location
-          ? { ...l, done: true, photoUrl: `${apiBase}/${encodeURIComponent(token)}/photo?location=${encodeURIComponent(l.location)}&t=${Date.now()}` }
+          ? { ...l, done: true, photoUrl: data.photoUrl ?? null }
           : l
       );
       setTask((current) => current ? {
@@ -215,7 +215,7 @@ export function TaskProofPage({ token, apiBase = '/api/tasks/proof' }: { token: 
         status: data.status,
         completedAt: data.completedAt,
         locations,
-        photoUrl: multi ? null : `${apiBase}/${encodeURIComponent(token)}/photo`,
+        photoUrl: multi ? null : data.photoUrl ?? null,
       } : current);
       setActiveLocation(locations?.find((l) => !l.done)?.location ?? '');
       setPhoto(null);

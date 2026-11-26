@@ -164,8 +164,32 @@ export class DistributionTemplateService {
     }
   }
 
-  static async remove(id: string) {
-    const deleted = await prisma.distributionTemplate.deleteMany({ where: { id } });
-    if (deleted.count === 0) throw new Error('Paket tidak ditemukan.');
+  static async remove(id: string, replacementId?: string) {
+    return prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "DistributionTemplate" WHERE id = ${id} FOR UPDATE
+      `;
+      if (locked.length === 0) throw new Error('Paket tidak ditemukan.');
+
+      const accounts = await tx.user.findMany({
+        where: { requestTemplateId: id },
+        select: { id: true, name: true, divisionName: true },
+        orderBy: { name: 'asc' },
+      });
+      if (accounts.length > 0) {
+        if (!replacementId) return { accounts };
+        const replacement = await tx.distributionTemplate.findFirst({
+          where: { id: replacementId, stockGroup: 'ATK', NOT: { id } },
+          select: { id: true },
+        });
+        if (!replacement) throw new Error('Pilih paket ATK pengganti yang tersedia.');
+        await tx.user.updateMany({
+          where: { requestTemplateId: id },
+          data: { requestTemplateId: replacement.id },
+        });
+      }
+      await tx.distributionTemplate.delete({ where: { id } });
+      return { accounts };
+    });
   }
 }

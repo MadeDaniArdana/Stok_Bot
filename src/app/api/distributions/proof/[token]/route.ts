@@ -4,6 +4,8 @@ import { isUserFacingError } from '@/lib/api-errors';
 import { DistributionService } from '@/services/distribution.service';
 import { formatItemQuantity } from '@/lib/product-units';
 
+import { createProofPhotoLink } from '@/lib/proof-photo-link';
+
 export const runtime = 'nodejs';
 
 /**
@@ -31,7 +33,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           .map((item) => `${item.product.name} - ${formatItemQuantity(item.quantity, item.unit, item.product)}`)
           .join(', '),
         done: Boolean(proof) || legacy,
-        photoUrl: proof || legacy ? `${base}?location=${encodeURIComponent(location)}` : null,
+        photoUrl: proof || legacy ? createProofPhotoLink(base, location) : null,
       };
     });
     const multi = locations.length > 1;
@@ -46,7 +48,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       notes: distribution.notes,
       status: distribution.proofFileName ? 'COMPLETED' : 'PENDING',
       completedAt: distribution.proofUploadedAt,
-      photoUrl: !multi && distribution.proofFileName ? base : null,
+      photoUrl: !multi && distribution.proofFileName ? createProofPhotoLink(base) : null,
     });
   } catch (error) {
     await logError({ source: 'UPLOAD', error, location: 'Buka link foto distribusi (GET /api/distributions/proof)' });
@@ -69,7 +71,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       photo,
       typeof location === 'string' ? location : null
     );
-    return NextResponse.json({ success: true, status: completed ? 'COMPLETED' : 'PENDING', completedAt: uploadedAt, location: savedLocation });
+    return NextResponse.json({
+      success: true,
+      status: completed ? 'COMPLETED' : 'PENDING',
+      completedAt: uploadedAt,
+      location: savedLocation,
+      photoUrl: createProofPhotoLink(`/api/distributions/proof/${token}/photo`, savedLocation),
+    });
   } catch (error) {
     // Petugas hanya melihat pesan validasi (format foto, sudah dikirim, dll.), bukan detail database.
     const message = isUserFacingError(error) ? error.message : 'Foto gagal disimpan. Silakan coba lagi atau hubungi admin.';

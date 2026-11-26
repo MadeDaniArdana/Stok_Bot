@@ -12,7 +12,7 @@ model User {
   name              String
   divisionName      String?
   requestTemplateId String?
-  requestTemplate   DistributionTemplate? @relation(fields: [requestTemplateId], references: [id], onDelete: SetNull)
+  requestTemplate   DistributionTemplate? @relation(fields: [requestTemplateId], references: [id], onDelete: Restrict)
   email             String             @unique
   passwordHash      String?
   role              String             @default("USER") // ADMIN, DIVISI (pengaju barang), USER
@@ -347,4 +347,12 @@ model ItemRequestItem {
   noStock          Boolean  @default(false) // ACC tapi tidak mengurangi stok
 
   @@index([requestId])
+}
+
+model LoginAttemptBucket {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/password';
@@ -5,17 +6,19 @@ import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from '@/lib/sessi
 
 export const runtime = 'nodejs';
 
-// Rate limit login berbasis sliding-window per IP dan per email (in-memory di server).
+// Batas percobaan per IP dan email dibagi oleh seluruh instance aplikasi.
 // Batas IP diset 30 agar beberapa staf di satu jaringan Wi-Fi kampus (NAT bersama) tidak saling mengunci,
-// sementara batas per-email tetap ketat (5x gagal).
+// sementara batas per-email tetap ketat (5 percobaan).
 const WINDOW_MS = 15 * 60 * 1000; // 15 menit
-const MAX_IP_FAILURES = 30;
-const MAX_EMAIL_FAILURES = 5;
-const MAX_BUCKETS = 2000;
+const MAX_IP_ATTEMPTS = 30;
+const MAX_EMAIL_ATTEMPTS = 5;
 const DUMMY_PASSWORD_HASH = `scrypt:${'00'.repeat(16)}:${'00'.repeat(64)}`;
 
-type RateBucket = { count: number; resetAt: number };
-const failureBuckets = new Map<string, RateBucket>();
+class LoginRateLimit extends Error {
+  constructor(readonly retryAfter: number) {
+    super('Batas percobaan login tercapai.');
+  }
+}
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -25,36 +28,44 @@ function getClientIp(req: NextRequest): string {
   );
 }
 
-function pruneBuckets(now: number) {
-  if (failureBuckets.size < 1000) return;
-  failureBuckets.forEach((bucket, key) => {
-    if (bucket.resetAt <= now) failureBuckets.delete(key);
+async function reserveLoginAttempt(ip: string, email: string) {
+  const buckets = [
+    { key: `email:${email}`, limit: MAX_EMAIL_ATTEMPTS },
+    { key: `ip:${ip}`, limit: MAX_IP_ATTEMPTS },
+  ];
+
+  await prisma.$transaction(async (tx) => {
+    for (const bucket of buckets) {
+      const key = createHash('sha256').update(bucket.key).digest('hex');
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + WINDOW_MS);
+      const [result] = await tx.$queryRaw<{ count: number; expiresAt: Date }[]>`
+        INSERT INTO "LoginAttemptBucket" ("key", "count", "expiresAt")
+        VALUES (${key}, 1, ${expiresAt})
+        ON CONFLICT ("key") DO UPDATE SET
+          "count" = CASE WHEN "LoginAttemptBucket"."expiresAt" <= ${now}
+            THEN 1 ELSE "LoginAttemptBucket"."count" + 1 END,
+          "expiresAt" = CASE WHEN "LoginAttemptBucket"."expiresAt" <= ${now}
+            THEN ${expiresAt} ELSE "LoginAttemptBucket"."expiresAt" END
+        RETURNING "count", "expiresAt"
+      `;
+      if (result.count > bucket.limit) {
+        throw new LoginRateLimit(Math.max(1, Math.ceil((result.expiresAt.getTime() - now.getTime()) / 1000)));
+      }
+    }
   });
-  while (failureBuckets.size > MAX_BUCKETS) {
-    const oldestKey = failureBuckets.keys().next().value;
-    if (!oldestKey) break;
-    failureBuckets.delete(oldestKey);
-  }
 }
 
-function checkRateLimit(key: string, max: number, now: number): number {
-  const bucket = failureBuckets.get(key);
-  if (!bucket) return 0;
-  if (bucket.resetAt <= now) {
-    failureBuckets.delete(key);
-    return 0;
-  }
-  return bucket.count >= max ? Math.ceil((bucket.resetAt - now) / 1000) : 0;
-}
-
-function recordFailure(key: string, now: number) {
-  pruneBuckets(now);
-  const bucket = failureBuckets.get(key);
-  if (!bucket || bucket.resetAt <= now) {
-    failureBuckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
-  } else {
-    bucket.count += 1;
-  }
+async function pruneExpiredAttempts() {
+  await prisma.$executeRaw`
+    DELETE FROM "LoginAttemptBucket" WHERE "key" IN (
+      SELECT "key" FROM "LoginAttemptBucket"
+      WHERE "expiresAt" <= ${new Date()}
+      ORDER BY "expiresAt"
+      LIMIT 500
+      FOR UPDATE SKIP LOCKED
+    )
+  `;
 }
 
 export async function POST(req: NextRequest) {
@@ -67,33 +78,17 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const ip = getClientIp(req);
-    const ipKey = `ip:${ip}`;
-    const emailKey = `email:${normalizedEmail}`;
-    const now = Date.now();
-
-    const retryAfter = Math.max(
-      checkRateLimit(ipKey, MAX_IP_FAILURES, now),
-      checkRateLimit(emailKey, MAX_EMAIL_FAILURES, now)
-    );
-    if (retryAfter > 0) {
-      return NextResponse.json(
-        { error: 'Terlalu banyak percobaan login. Silakan coba lagi beberapa menit lagi.' },
-        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
-      );
+    if (Math.random() < 0.01) {
+      await pruneExpiredAttempts().catch(() => console.warn('Pembersihan percobaan login tertunda.'));
     }
+    await reserveLoginAttempt(getClientIp(req), normalizedEmail);
 
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     // Tetap jalankan scrypt untuk mencegah enumerasi akun lewat perbedaan waktu respons.
     const valid = await verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
     if (!user || !user.passwordHash || !valid || !user.isActive || (user.role !== 'ADMIN' && user.role !== 'DIVISI')) {
-      recordFailure(ipKey, now);
-      recordFailure(emailKey, now);
       return NextResponse.json({ error: 'Email atau kata sandi salah.' }, { status: 401 });
     }
-
-    failureBuckets.delete(emailKey);
-    failureBuckets.delete(ipKey);
 
     const token = await createSessionToken(user.id, user.role);
     const response = NextResponse.json({ success: true, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
@@ -106,6 +101,12 @@ export async function POST(req: NextRequest) {
     });
     return response;
   } catch (error) {
+    if (error instanceof LoginRateLimit) {
+      return NextResponse.json(
+        { error: 'Terlalu banyak percobaan login. Silakan coba lagi beberapa menit lagi.' },
+        { status: 429, headers: { 'Retry-After': String(error.retryAfter) } }
+      );
+    }
     console.error('Login failed:', error);
     return NextResponse.json({ error: 'Login gagal diproses. Coba lagi.' }, { status: 500 });
   }

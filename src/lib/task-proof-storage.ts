@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
-import { del, put } from '@vercel/blob';
+import { del, get, put } from '@vercel/blob';
 import sharp from 'sharp';
 
 // Batas body request Vercel Function sekitar 4,5 MB, jadi foto dibatasi 4 MB.
@@ -12,12 +12,8 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'image/webp': '.webp',
 };
 const LOCAL_FILE_PATTERN = /^[a-f0-9-]+\.(jpg|png|webp)$/i;
-const BLOB_HOST_PATTERN = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i;
-
-/** Vercel Blob dipakai jika token tersedia (produksi). Tanpa token, foto disimpan di folder lokal. */
-function useBlobStorage() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
-}
+const PUBLIC_BLOB_PATTERN = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i;
+const PRIVATE_BLOB_PATTERN = /^https:\/\/[a-z0-9-]+\.private\.blob\.vercel-storage\.com\//i;
 
 function getLocalProofDirectory() {
   return process.env.TASK_PROOF_DIRECTORY || path.join(process.cwd(), 'uploads', 'task-proofs');
@@ -71,9 +67,11 @@ export async function saveTaskProof(file: File) {
 
   const fileName = `${randomUUID()}${extension}`;
 
-  if (useBlobStorage()) {
+  const token = process.env.PROOF_PRIVATE_BLOB_TOKEN;
+  if (token) {
     const blob = await put(`task-proofs/${fileName}`, contents, {
-      access: 'public',
+      access: 'private',
+      token,
       contentType: file.type,
       addRandomSuffix: true,
     });
@@ -82,7 +80,7 @@ export async function saveTaskProof(file: File) {
 
   if (process.env.VERCEL) {
     // Filesystem Vercel tidak persisten; tanpa Blob foto akan hilang.
-    throw new Error('Penyimpanan foto belum dikonfigurasi (BLOB_READ_WRITE_TOKEN kosong). Hubungi admin.');
+    throw new Error('Penyimpanan foto belum dikonfigurasi (PROOF_PRIVATE_BLOB_TOKEN kosong). Hubungi admin.');
   }
 
   const directory = getLocalProofDirectory();
@@ -92,8 +90,12 @@ export async function saveTaskProof(file: File) {
 }
 
 export async function deleteTaskProof(reference: string) {
-  if (BLOB_HOST_PATTERN.test(reference)) {
-    await del(reference);
+  if (PRIVATE_BLOB_PATTERN.test(reference)) {
+    await del(reference, { token: getPrivateBlobToken() });
+    return;
+  }
+  if (PUBLIC_BLOB_PATTERN.test(reference)) {
+    await del(reference, { token: process.env.BLOB_READ_WRITE_TOKEN });
     return;
   }
   if (!LOCAL_FILE_PATTERN.test(reference)) return;
@@ -102,9 +104,20 @@ export async function deleteTaskProof(reference: string) {
   });
 }
 
+function getPrivateBlobToken() {
+  const token = process.env.PROOF_PRIVATE_BLOB_TOKEN;
+  if (!token) throw new Error('PROOF_PRIVATE_BLOB_TOKEN belum dikonfigurasi.');
+  return token;
+}
+
 export async function readTaskProof(reference: string): Promise<Buffer | null> {
-  if (BLOB_HOST_PATTERN.test(reference)) {
-    const response = await fetch(reference, { cache: 'no-store' });
+  if (PRIVATE_BLOB_PATTERN.test(reference)) {
+    const result = await get(reference, { access: 'private', token: getPrivateBlobToken() });
+    if (result?.statusCode !== 200) return null;
+    return Buffer.from(await new Response(result.stream).arrayBuffer());
+  }
+  if (PUBLIC_BLOB_PATTERN.test(reference)) {
+    const response = await fetch(reference, { cache: 'no-store', redirect: 'error' });
     if (!response.ok) return null;
     return Buffer.from(await response.arrayBuffer());
   }

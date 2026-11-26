@@ -1,3 +1,5 @@
+export const OPENING_BALANCE_MONTH = '2026-11';
+
 /** Bulan kalender laporan menggunakan WIB, terlepas dari zona waktu browser/server. */
 export function getCurrentReportMonth(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -63,7 +65,7 @@ export function parseStockReportPeriod(raw: string | null | undefined, now = new
     value: month,
     ...range,
     label: `${MONTH_NAMES_ID[monthNumber - 1]} ${year}`,
-    openingLabel: `per 1 ${MONTH_NAMES_ID[monthNumber - 1]} ${year}`,
+    openingLabel: month === OPENING_BALANCE_MONTH ? 'termasuk penerimaan November' : `per 1 ${MONTH_NAMES_ID[monthNumber - 1]} ${year}`,
   };
 }
 

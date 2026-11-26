@@ -297,24 +297,31 @@ export class ProductService {
    */
   static async deleteProduct(id: string) {
     return prisma.$transaction(async (tx) => {
-      const existing = await tx.product.findUnique({ where: { id }, select: { id: true, name: true } });
+      const [existing] = await tx.$queryRaw<{ name: string; currentStock: number }[]>`
+        SELECT name, "currentStock" FROM "Product" WHERE id = ${id} FOR UPDATE
+      `;
       if (!existing) throw new Error('Barang tidak ditemukan.');
 
-      const [distributionCount, taskCount] = await Promise.all([
+      if (existing.currentStock !== 0 || await tx.stockMovement.findFirst({ where: { productId: id }, select: { id: true } })) {
+        throw new Error('Barang masih memiliki stok atau riwayat mutasi. Nonaktifkan barang ini agar riwayat tetap utuh.');
+      }
+
+      const [distributionCount, taskCount, requestCount] = await Promise.all([
         tx.distributionItem.count({ where: { productId: id } }),
         tx.installationTask.count({ where: { productId: id } }),
+        tx.itemRequestItem.count({ where: { productId: id } }),
       ]);
-      if (distributionCount > 0 || taskCount > 0) {
+      if (distributionCount > 0 || taskCount > 0 || requestCount > 0) {
         const usedIn = [
           distributionCount > 0 ? `${distributionCount} dokumen distribusi` : '',
           taskCount > 0 ? `${taskCount} tugas pemasangan` : '',
+          requestCount > 0 ? `${requestCount} baris pengajuan` : '',
         ].filter(Boolean).join(' dan ');
         throw new Error(
           `Barang "${existing.name}" sudah tercatat di ${usedIn}, jadi tidak bisa dihapus agar laporan lama tetap utuh. Nonaktifkan barang ini saja.`
         );
       }
 
-      await tx.stockMovement.deleteMany({ where: { productId: id } });
       await tx.distributionTemplateItem.deleteMany({ where: { productId: id } });
       await tx.notification.deleteMany({ where: { productId: id } });
       return tx.product.delete({ where: { id } });

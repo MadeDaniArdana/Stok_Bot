@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 
 export default async function DivisiRequestPage() {
-  const user = await getSessionUser(false);
+  const user = await getSessionUser();
   if (user?.role !== 'DIVISI') redirect(user ? '/dashboard' : '/login');
 
   const template = user.requestTemplateId

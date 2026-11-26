@@ -8,7 +8,6 @@ import {
   History,
   Search,
   Filter,
-  Download,
   RotateCcw,
   Send,
   Globe,
@@ -135,59 +134,9 @@ export default function StockHistoryPage() {
     }
   };
 
-  // Export CSV function
-  const handleExportCSV = () => {
-    if (movements.length === 0) {
-      showToast('Tidak Ada Data', 'Tidak ada data untuk diekspor pada filter ini.', 'error');
-      return;
-    }
-
-    const headers = [
-      'Waktu',
-      'SKU',
-      'Nama Barang',
-      'Aktivitas',
-      'Jumlah',
-      'Satuan',
-      'Stok Sebelum',
-      'Stok Sesudah',
-      'Pelaku',
-      'Sumber',
-      'Catatan',
-    ];
-
-    // Escape tanda kutip & cegah formula injection di Excel (= + - @ di awal sel), sama seperti export CSV server.
-    const cell = (value: unknown) => {
-      const text = value === null || value === undefined ? '' : String(value);
-      const safe = /^[=+@\t\r]/.test(text) || /^-(?!\d)/.test(text) ? `'${text}` : text;
-      return `"${safe.replace(/"/g, '""')}"`;
-    };
-    const rows = movements.map((m) => [
-      new Date(m.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
-      m.product?.sku || '',
-      m.product?.name || '',
-      m.type,
-      m.quantity,
-      m.product?.unit || '',
-      m.stockBefore,
-      m.stockAfter,
-      m.source === 'TELEGRAM' && m.actor?.telegram?.username ? '@' + m.actor.telegram.username : personName(m.actor?.name, m.actorName, 'Sistem'),
-      m.source,
-      m.notes || '',
-    ].map(cell));
-
-    // Blob (bukan data: URI) agar karakter seperti # tidak memotong isi file; BOM agar Excel membaca UTF-8.
-    const csv = '﻿' + [headers.map(cell).join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `StockFlow-Mutasi-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast('Ekspor Berhasil', 'File CSV riwayat pergerakan stok telah diunduh.');
-  };
+  const excelQuery = new URLSearchParams({
+    productId, type, source, actorUserId, startDate, endDate, format: 'xlsx',
+  });
 
   // Export PDF: ambil seluruh transaksi sesuai filter aktif (bukan hanya 100 baris di layar).
   const handleExportPDF = async () => {
@@ -235,13 +184,10 @@ export default function StockHistoryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={handleExportCSV}
-            className="action-button action-success"
-          >
+          <a href={`/api/stock/movements?${excelQuery}`} className="action-button action-success">
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Ekspor ke CSV</span>
-          </button>
+            <span>Unduh Excel</span>
+          </a>
           <button
             onClick={handleExportPDF}
             disabled={exportingPdf}

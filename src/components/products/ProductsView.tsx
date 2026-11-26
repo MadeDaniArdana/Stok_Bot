@@ -7,7 +7,7 @@ import { formatStock } from '@/lib/product-units';
 import { checkPackSetup, type PackCheck } from '@/lib/unit-guard';
 import { cn } from '@/lib/cn';
 import { getStockGroup, type StockGroup } from '@/lib/stock-groups';
-import { getCurrentReportMonth } from '@/lib/report-period';
+import { OPENING_BALANCE_MONTH, getCurrentReportMonth } from '@/lib/report-period';
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -137,6 +137,7 @@ function ProductsContent({ stockGroup }: { stockGroup: StockGroup | null }) {
   const [positions, setPositions] = useState<Map<string, any>>(() => toPositionMap(getSwrCache<any>(positionUrl)));
   const [positionLoading, setPositionLoading] = useState(false);
   const isCurrentMonth = periodMonth === currentMonth;
+  const isOpeningBalanceMonth = periodMonth === OPENING_BALANCE_MONTH;
 
   // Fetch products
   // Penanda permintaan terbaru + AbortController agar respons lama tidak menimpa hasil filter terbaru.
@@ -526,7 +527,7 @@ Alasan: ${adjReason.trim()}`)) return;
                 max={currentMonth}
                 onChange={(e) => e.target.value && setPeriodMonth(e.target.value)}
                 aria-label="Periode stok per bulan"
-                title="Periode kolom stok sisa / baru / keluar"
+                title="Periode stok per bulan"
                 className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700 bg-white"
               />
               {!isCurrentMonth && (
@@ -543,7 +544,9 @@ Alasan: ${adjReason.trim()}`)) return;
         </div>
         {isAdmin && (
           <p className="text-[11px] text-slate-500">
-            Periode <strong>{monthLabel(periodMonth)}</strong>. Stok awal membawa saldo akhir bulan sebelumnya. Stok pertama barang baru tercatat di Barang Masuk dan ikut menambah saldo. Angka memakai satuan dasar.
+            Periode <strong>{monthLabel(periodMonth)}</strong>. {isOpeningBalanceMonth
+              ? 'Barang Masuk ditampilkan 0 untuk penetapan saldo awal. Penerimaan tetap memperbarui saldo stok. Kolom Barang Masuk mulai menghitung penerimaan pada Desember 2026.'
+              : 'Barang Masuk dan Barang Keluar dihitung untuk periode yang dipilih.'}
             {positionLoading && ' Memuat...'}
           </p>
         )}
@@ -558,7 +561,6 @@ Alasan: ${adjReason.trim()}`)) return;
                 <th className="py-3 px-3">Barang</th>
                 {isAdmin ? (
                   <>
-                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Stok Awal</th>
                     <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Barang Masuk</th>
                     <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Barang Keluar</th>
                     <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">{isCurrentMonth ? 'Stok Saat Ini' : 'Stok Akhir'}</th>
@@ -574,13 +576,13 @@ Alasan: ${adjReason.trim()}`)) return;
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 5} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 7 : 5} className="py-12 text-center text-slate-400">
                     Memuat data barang...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 5} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 7 : 5} className="py-12 text-center text-slate-400">
                     Belum ada data barang yang cocok dengan kriteria pencarian.
                   </td>
                 </tr>
@@ -613,13 +615,11 @@ Alasan: ${adjReason.trim()}`)) return;
                           const cell = (value: number | undefined, prefix = '') =>
                             value === undefined ? <span className="text-slate-300">-</span> : <span className="whitespace-nowrap">{prefix}{value}</span>;
                           const closing = isCurrentMonth ? p.currentStock : pos?.closingStock;
+                          const incoming = pos?.inQty;
                           return (
                             <>
-                              <td className="py-2.5 px-2 text-center text-slate-700 font-medium">
-                                {cell(pos?.openingStock)}
-                              </td>
                               <td className="py-2.5 px-2 text-center text-emerald-700 font-medium">
-                                {pos?.inQty ? cell(pos.inQty, '+') : cell(pos ? 0 : undefined)}
+                                {cell(incoming, incoming && incoming > 0 ? '+' : '')}
                               </td>
                               <td className="py-2.5 px-2 text-center text-rose-700 font-medium">
                                 {pos?.outQty ? cell(pos.outQty, '-') : cell(pos ? 0 : undefined)}

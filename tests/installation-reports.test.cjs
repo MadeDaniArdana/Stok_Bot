@@ -363,6 +363,7 @@ test('ACC yang gagal setelah pengurangan stok membatalkan distribusi dan bisa di
   });
   DistributionService.createInTransaction = (tx, input) => tx.applyDistribution(input);
   const { RequestService } = loadTypeScript('src/services/request.service.ts', {
+    '@/lib/signature-limits': loadTypeScript('src/lib/signature-limits.ts'),
     '@/lib/prisma': { prisma },
     './distribution.service': { DistributionService },
   });
@@ -371,7 +372,10 @@ test('ACC yang gagal setelah pengurangan stok membatalkan distribusi dan bisa di
     items: [item],
   });
   assert.equal(state.stock, 10);
+  await assert.rejects(RequestService.approve(requestId, admin), /Tanda tangan admin wajib diisi/);
+  assert.deepEqual(state, { status: 'PENDING', stock: 10, distribution: null });
   const approve = () => RequestService.approve(requestId, admin, {
+    adminSignature: 'data:image/png;base64,YQ==',
     date: '2026-02-03',
     items: [{ id: item.id, approvedQuantity: 2 }],
   });
@@ -389,7 +393,7 @@ test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap 
   const { Prisma } = require('@prisma/client');
   const subtotal = loadTypeScript('src/lib/stock-position-totals.ts');
   const stockGroups = loadTypeScript('src/lib/stock-groups.ts');
-  const january = period.parseStockReportPeriod('2026-01');
+  let selectedPeriod = period.parseStockReportPeriod('2026-01');
   const product = (id, unit, currentStock) => ({
     id, sku: id, name: id, unit, currentStock, createdAt: new Date('2025-12-01'),
     isActive: true, category: { stockGroup: 'ATK', name: 'ATK' },
@@ -399,10 +403,10 @@ test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap 
       const query = Prisma.sql(strings, ...values);
       assert.match(query.text, /COALESCE\(d\."distributedAt", m\."createdAt"\)/);
       assert.match(query.text, /di\."movementId" = m.id/);
-      assert.ok(query.values.includes(january.gte));
-      assert.ok(query.values.includes(january.lt));
+      assert.ok(query.values.includes(selectedPeriod.gte));
+      assert.ok(query.values.includes(selectedPeriod.lt));
       return Promise.resolve([
-        { productId: 'marker', hasMovement: true, afterDelta: 8, periodDelta: -3, outQty: 3 },
+        { productId: 'marker', hasMovement: true, afterDelta: 8, periodDelta: 2, inQty: 5, outQty: 3 },
       ]);
     },
     product: { findMany: async () => [product('marker', 'PCS', 20), product('pen', 'pcs', 2), product('paper', 'rim', 5)] },
@@ -415,11 +419,156 @@ test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap 
     '@/lib/prisma': { prisma },
     '@/lib/stock-groups': stockGroups,
     '@/lib/stock-position-totals': subtotal,
+    '@/lib/report-period': period,
   });
-  const report = await ReportService.getStockPositionReport(january, 'ATK');
+  const report = await ReportService.getStockPositionReport(selectedPeriod, 'ATK');
   const marker = report.rows.find((r) => r.id === 'marker');
-  assert.deepEqual([marker.openingStock, marker.outQty, marker.closingStock], [15, 3, 12]);
+  assert.deepEqual([marker.openingStock, marker.inQty, marker.outQty, marker.closingStock], [10, 5, 3, 12]);
   assert.deepEqual(report.totalsByUnit.map((r) => [r.unit, r.itemCount, r.closingStock]), [
     ['pcs', 2, 14], ['rim', 1, 5],
   ]);
+
+  for (const [month, expected] of [
+    ['2026-11', [15, 0, 15, 12]],
+    ['2026-12', [10, 5, 15, 12]],
+  ]) {
+    selectedPeriod = period.parseStockReportPeriod(month);
+    const position = await ReportService.getStockPositionReport(selectedPeriod, 'ATK');
+    const row = position.rows.find((item) => item.id === 'marker');
+    assert.deepEqual([row.openingStock, row.inQty, row.totalAvailable, row.closingStock], expected);
+  }
+});
+
+test('template otomatis dicocokkan berdasarkan divisi dan menghindari pilihan ambigu', () => {
+  const { findDivisionTemplate } = loadTypeScript('src/lib/division-options.ts');
+  const warek = { id: 'warek', name: 'Warek', recipientUnit: 'Tata Usaha Warek' };
+  const ftik = { id: 'ftik', name: 'FTIK', recipientUnit: 'Tata Usaha FTIK' };
+  assert.equal(findDivisionTemplate(' TU  Warek ', [warek, ftik]), warek);
+  assert.equal(findDivisionTemplate('FTIK', [warek, ftik]), ftik);
+  assert.equal(findDivisionTemplate('Keuangan', [warek, ftik]), undefined);
+  assert.equal(findDivisionTemplate('Tata Usaha FTIK', [ftik, { ...ftik, id: 'other' }]), undefined);
+});
+
+test('tautan foto hanya berlaku untuk rute, lokasi, dan waktu yang ditandatangani', () => {
+  const { createProofPhotoLink, verifyProofPhotoLink } = loadTypeScript('src/lib/proof-photo-link.ts', {
+    '@/lib/session': { getAuthSecret: () => 'a-test-key-used-only-in-this-test-suite' },
+  });
+  const route = '/api/distributions/proof/test-token/photo';
+  const query = new URL(createProofPhotoLink(route, 'Ruang A'), 'https://stockflow.test').searchParams;
+  assert.equal(verifyProofPhotoLink(route, query), true);
+  assert.equal(verifyProofPhotoLink(route.replace('test-token', 'other-token'), query), false);
+  query.set('location', 'Ruang B');
+  assert.equal(verifyProofPhotoLink(route, query), false);
+  query.set('location', 'Ruang A');
+  query.set('expires', '1');
+  assert.equal(verifyProofPhotoLink(route, query), false);
+});
+
+test('paket yang dipakai akun baru dapat dihapus setelah akun dipindah', async () => {
+  const accounts = [{ id: 'account', name: 'Akun ATK', divisionName: 'FTIK' }];
+  const operations = [];
+  const tx = {
+    $queryRaw: async () => [{ id: 'original' }],
+    user: {
+      findMany: async () => accounts,
+      updateMany: async (args) => operations.push(['move', args]),
+    },
+    distributionTemplate: {
+      findFirst: async ({ where }) => where.id === 'replacement' ? { id: where.id } : null,
+      delete: async (args) => operations.push(['delete', args]),
+    },
+  };
+  const { DistributionTemplateService } = loadTypeScript('src/services/distribution-template.service.ts', {
+    '@/lib/prisma': { prisma: { $transaction: (work) => work(tx) } },
+    '@/lib/stock-groups': loadTypeScript('src/lib/stock-groups.ts'),
+  });
+  assert.deepEqual(await DistributionTemplateService.remove('original'), { accounts });
+  await assert.rejects(DistributionTemplateService.remove('original', 'invalid'), /paket ATK pengganti/);
+  assert.deepEqual(operations, []);
+  await DistributionTemplateService.remove('original', 'replacement');
+  assert.deepEqual(operations, [
+    ['move', { where: { requestTemplateId: 'original' }, data: { requestTemplateId: 'replacement' } }],
+    ['delete', { where: { id: 'original' } }],
+  ]);
+});
+
+test('barang dengan mutasi tetap dilindungi meski stoknya sudah nol', async () => {
+  const tx = {
+    $queryRaw: async () => [{ name: 'Spidol', currentStock: 0 }],
+    stockMovement: { findFirst: async () => ({ id: 'movement' }) },
+  };
+  const { ProductService } = loadTypeScript('src/services/product.service.ts', {
+    '@/lib/prisma': { prisma: { $transaction: (work) => work(tx) } },
+    './stock-snapshot.service': {},
+    '@/lib/product-units': productUnits,
+    '@/lib/unit-guard': {},
+  });
+  await assert.rejects(ProductService.deleteProduct('marker'), /riwayat mutasi/);
+});
+
+test('login menerapkan batas bersama sebelum memeriksa kata sandi', async () => {
+  const buckets = new Map();
+  let checks = 0;
+  const prisma = {
+    $executeRaw: async () => 0,
+    $transaction: async (work) => {
+      const next = new Map(buckets);
+      const result = await work({
+        $queryRaw: async (_sql, key, expiresAt) => {
+          const count = (next.get(key) ?? 0) + 1;
+          next.set(key, count);
+          return [{ count, expiresAt }];
+        },
+      });
+      next.forEach((count, key) => buckets.set(key, count));
+      return result;
+    },
+    user: { findUnique: async () => null },
+  };
+  const loadRoute = () => loadTypeScript('src/app/api/auth/login/route.ts', {
+    '@/lib/prisma': { prisma },
+    '@/lib/password': { verifyPassword: async () => { checks++; return false; } },
+    '@/lib/session': {},
+  });
+  const first = loadRoute();
+  const second = loadRoute();
+  const request = (email, ip) => new Request('https://stockflow.test/api/auth/login', {
+    method: 'POST',
+    headers: { 'x-real-ip': ip },
+    body: JSON.stringify({ email, password: 'a-test-password' }),
+  });
+  for (let i = 0; i < 5; i++) {
+    assert.equal((await first.POST(request('test@stockflow.test', '192.0.2.4'))).status, 401);
+  }
+  const limited = await second.POST(request(' TEST@stockflow.test ', '192.0.2.5'));
+  assert.equal(limited.status, 429);
+  assert.ok(Number(limited.headers.get('retry-after')) > 0);
+  assert.equal(checks, 5);
+});
+
+test('laporan Excel mempertahankan logo, filter, tipe data, dan subtotal', async () => {
+  const { ValueType, Workbook } = require('exceljs');
+  const { excelDateWib, excelReportResponse } = loadTypeScript('src/lib/excel-report.ts');
+  const response = await excelReportResponse({
+    filename: 'uji-posisi-stok',
+    sheetName: 'Posisi Stok',
+    title: 'Laporan Posisi Stok',
+    period: 'November 2026',
+    columns: [['Barang', 24], ['Jumlah', 14], ['Waktu (WIB)', 22, 'dd/mm/yyyy hh:mm']],
+    rows: (function* () {
+      yield ['=HYPERLINK("https://example.invalid")', 5, excelDateWib(new Date('2026-11-25T17:00:00Z'))];
+    })(),
+    subtotals: [['Subtotal', 5, null]],
+  });
+  assert.match(response.headers.get('content-disposition'), /uji-posisi-stok\.xlsx/);
+  const workbook = new Workbook();
+  await workbook.xlsx.load(await response.arrayBuffer());
+  const sheet = workbook.getWorksheet('Posisi Stok');
+  assert.equal(sheet.getImages().length, 1);
+  assert.equal(sheet.views[0].ySplit, 6);
+  assert.equal(sheet.autoFilter, 'A6:C7');
+  assert.equal(sheet.getCell('A7').type, ValueType.String);
+  assert.equal(sheet.getCell('B7').value, 5);
+  assert.equal(sheet.getCell('C7').value.toISOString(), '2026-11-26T00:00:00.000Z');
+  assert.equal(sheet.getCell('B8').font.bold, true);
 });

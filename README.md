@@ -144,3 +144,12 @@ Hanya akun dengan role `ADMIN` dan kata sandi yang dapat masuk ke web. Akun admi
 | `ADMIN_PASSWORD` | Kata sandi admin (wajib, tidak disimpan di repo) |
 
 Semua halaman dan API dikunci login, kecuali link bukti foto (`/proof/...`) dan webhook Telegram.
+
+### Upgrade penyimpanan bukti dan batas login
+
+1. Terapkan skema dengan `npx prisma db push` sebelum menjalankan versi ini. Skema menambahkan tabel pembatas login dan melindungi referensi template akun.
+2. Buat [Vercel Blob store privat](https://vercel.com/docs/vercel-blob/private-storage), lalu isi `PROOF_PRIVATE_BLOB_TOKEN` di lingkungan aplikasi. Pertahankan `BLOB_READ_WRITE_TOKEN` lama selama migrasi. Instalasi lokal tanpa token memakai volume foto lokal yang sudah ada.
+3. Setelah semua instance versi lama berhenti menulis, hitung foto publik dengan `node --env-file=.env scripts/migrate-proof-blobs.cjs`. Jalankan ulang dengan `--apply` untuk menyalin arsip dan memperbarui referensi database. Simpan jurnal lokal `backups/proof-migration.jsonl` sampai proses selesai.
+4. Verifikasi foto dari laporan admin. Dari direktori dan database yang sama, jalankan ulang skrip dengan `--purge-public` untuk menghapus salinan publik lama. Langkah ini hanya memproses URL yang tercatat dalam jurnal.
+
+Tautan foto dari halaman bukti berlaku 15 menit. Buka ulang halaman bukti untuk memperoleh tautan baru. Batas login menghitung percobaan per email dan per IP dalam jendela 15 menit. Pada reverse proxy mandiri, timpa header IP dari klien dengan IP yang diverifikasi proxy.
