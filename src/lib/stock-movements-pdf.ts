@@ -1,3 +1,4 @@
+import { addPdfLetterhead } from '@/lib/pdf-letterhead';
 import { personName } from '@/lib/deleted-account';
 import { formatStock } from '@/lib/product-units';
 
@@ -9,22 +10,6 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const SOURCE_LABEL: Record<string, string> = { WEB: 'Web', TELEGRAM: 'Telegram', SYSTEM: 'Sistem' };
-
-async function loadImageDataUrl(src: string): Promise<string | null> {
-  try {
-    const res = await fetch(src);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
 
 function actorLabel(m: any) {
   if (m.source === 'TELEGRAM' && m.actor?.telegram?.username) return `@${m.actor.telegram.username}`;
@@ -52,17 +37,7 @@ export async function downloadStockMovementsPdf(movements: any[], filterLines: s
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 10;
 
-  const logo = await loadImageDataUrl('/logo-yayasan.png');
-  if (logo) doc.addImage(logo, 'PNG', marginX, 8, 12, 12);
-  const textX = logo ? marginX + 15 : marginX;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('UNIVERSITAS TEKNOKRAT INDONESIA', textX, 13.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('Bagian Umum dan Rumah Tangga', textX, 18.5);
-  doc.setLineWidth(0.6);
-  doc.line(marginX, 23, pageWidth - marginX, 23);
+  await addPdfLetterhead(doc, marginX, 23);
 
   const now = new Date();
   const today = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' }).format(now);

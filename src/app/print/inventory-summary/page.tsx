@@ -1,3 +1,4 @@
+import { ReportLetterhead } from '@/components/print/ReportLetterhead';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
@@ -55,16 +56,7 @@ export default async function PrintInventorySummaryPage({
       <PrintToolbar backHref="/reports" backLabel="Kembali ke Ringkasan" documentTitle={documentTitle} />
 
       <article style={FONT} className="mx-auto max-w-[210mm] bg-white p-10 shadow-lg print:max-w-none print:p-0 print:shadow-none">
-        <header className="flex items-center gap-3 border-b-2 border-black pb-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-yayasan.png" alt="" className="h-12 w-12 object-contain" />
-          <div>
-            <p className="text-[16px] font-bold uppercase leading-none tracking-wide">
-              Universitas <span className="text-[#800020]">Teknokrat</span> Indonesia
-            </p>
-            <p className="mt-1 text-[11px] leading-none">Bagian Umum dan Rumah Tangga</p>
-          </div>
-        </header>
+        <ReportLetterhead />
 
         <h1 className="mt-4 text-center text-[15px] font-bold uppercase">
           Laporan Ringkasan Persediaan & Usulan Pengadaan

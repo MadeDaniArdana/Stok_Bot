@@ -1,3 +1,4 @@
+import { ReportLetterhead } from '@/components/print/ReportLetterhead';
 import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
@@ -47,10 +48,7 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
       />
 
       <article style={FONT} className="relative mx-auto max-w-[210mm] bg-white p-10 shadow-lg print:max-w-none print:p-0 print:shadow-none">
-        <header className="border-b-[3px] border-double border-black pb-2 text-center">
-          <img src="/kop-pengajuan-atk.png" width={719} height={138} alt="Universitas Teknokrat Indonesia" className="mx-auto h-auto w-full max-w-[42rem]" />
-          <p className="text-[11px] font-semibold">IZIN OPERASIONAL : SK MENRISTEKDIKTI No. 44/KPT/I/2017</p>
-        </header>
+        <ReportLetterhead doubleRule subtitle="IZIN OPERASIONAL : SK MENRISTEKDIKTI No. 44/KPT/I/2017" />
 
         <div className="mt-5 text-center">
           <h1 className="text-[14px] font-bold uppercase tracking-wide">PENGAJUAN PENGADAAN BARANG ATK</h1>

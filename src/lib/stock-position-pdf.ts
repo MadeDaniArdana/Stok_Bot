@@ -1,3 +1,4 @@
+import { addPdfLetterhead } from '@/lib/pdf-letterhead';
 import { formatStock } from '@/lib/product-units';
 import { summarizeStockByUnit } from '@/lib/stock-position-totals';
 
@@ -27,22 +28,6 @@ function qty(row: StockPositionPdfRow, value: number) {
   return value < 0 ? `-${formatStock(row, -value)}` : formatStock(row, value);
 }
 
-async function loadImageDataUrl(src: string): Promise<string | null> {
-  try {
-    const res = await fetch(src);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
 /** Buat & unduh PDF A4 Riwayat Stok (Stok Awal, Barang Masuk, Total, Keluar, Sisa Akhir) di browser. */
 export async function downloadStockPositionPdf(
   report: StockPositionPdfReport,
@@ -57,18 +42,7 @@ export async function downloadStockPositionPdf(
   const showAdj = options.rows ? rows.some((r) => r.adjustment !== 0) : report.hasAdjustment;
 
   // Kop
-  const logo = await loadImageDataUrl('/logo-yayasan.png');
-  if (logo) doc.addImage(logo, 'PNG', marginX, 10, 13, 13);
-  const textX = logo ? marginX + 16 : marginX;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(0, 0, 0);
-  doc.text('UNIVERSITAS TEKNOKRAT INDONESIA', textX, 16);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('Bagian Umum dan Rumah Tangga', textX, 21);
-  doc.setLineWidth(0.6);
-  doc.line(marginX, 26, pageWidth - marginX, 26);
+  await addPdfLetterhead(doc, marginX, 26);
 
   const today = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
