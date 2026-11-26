@@ -18,6 +18,7 @@ const requestSelect = {
   requesterName: true,
   divisionName: true,
   receiverName: true,
+  divisionHeadName: true,
   notes: true,
   status: true,
   rejectReason: true,
@@ -34,6 +35,8 @@ const requestSelect = {
       productId: true,
       customName: true,
       customUnit: true,
+      specification: true,
+      itemNotes: true,
       quantity: true,
       approvedQuantity: true,
       noStock: true,
@@ -53,16 +56,25 @@ export interface CreateRequestInput {
   notes?: string | null;
   /** Opsional: bila tidak diisi, memakai nama akun divisi (admin menetapkan Kepada & Tempat Penyimpanan saat ACC). */
   recipientTo?: string | null;
-  /** Nama penerima/pengaju yang menandatangani. */
+  /** Nama yang mengajukan / penerima (penanda tangan). */
   receiverName: string;
+  /** Nama Ka. Divisi pada blok "Mengetahui," (opsional). */
+  divisionHeadName?: string | null;
   /** Tanda tangan digital (PNG data URL). */
   signature: string;
-  items: { productId?: string | null; name?: string | null; unit?: string | null; quantity: number }[];
+  items: {
+    productId?: string | null;
+    name?: string | null;
+    unit?: string | null;
+    specification?: string | null;
+    itemNotes?: string | null;
+    quantity: number;
+  }[];
 }
 
 export interface ApproveRequestInput {
   /** Jumlah ACC per baris; baris yang tidak dikirim memakai jumlah pengajuan. */
-  items?: { id: string; approvedQuantity?: number; productId?: string | null; noStock?: boolean }[];
+  items?: { id: string; approvedQuantity?: number; productId?: string | null; noStock?: boolean; itemNotes?: string | null }[];
   /** Tanggal ACC (YYYY-MM-DD, WIB); kosong = hari ini. */
   date?: string | null;
   /** Kepada & Tempat Penyimpanan (diisi admin saat review; selalu sama di PDF & Distribusi). */
@@ -104,7 +116,8 @@ export class RequestService {
     const stockGroup = input.stockGroup || 'ATK';
     if (!(REQUEST_GROUPS as readonly string[]).includes(stockGroup)) throw new Error('Pengajuan barang saat ini hanya tersedia untuk ATK.');
     const recipientTo = text(input.recipientTo, 'Unit pengaju') ?? user.name;
-    const receiverName = text(input.receiverName, 'Nama', true, 100)!;
+    const receiverName = text(input.receiverName, 'Nama Yang Mengajukan', true, 100)!;
+    const divisionHeadName = text(input.divisionHeadName, 'Nama Ka. Divisi', false, 100);
     const requesterSignature = signature(input.signature, true);
 
     const rawItems = Array.isArray(input.items) ? input.items : [];
@@ -115,14 +128,16 @@ export class RequestService {
     const items = rawItems.map((item, index) => {
       const quantity = Number(item?.quantity);
       if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error(`Jumlah pada baris ${index + 1} harus bilangan bulat lebih dari nol.`);
+      const specification = text(item?.specification, `Spesifikasi baris ${index + 1}`, false, 120);
+      const itemNotes = text(item?.itemNotes, `Keterangan baris ${index + 1}`, false, 150);
       if (item?.productId) {
         if (seen.has(item.productId)) throw new Error(`Barang pada baris ${index + 1} sudah ada di baris lain.`);
         seen.add(item.productId);
-        return { productId: item.productId, quantity };
+        return { productId: item.productId, specification, itemNotes, quantity };
       }
       const customName = text(item?.name, `Nama barang baris ${index + 1}`, true)!;
       const customUnit = text(item?.unit, `Satuan baris ${index + 1}`, false, 30) ?? 'Pcs';
-      return { productId: null, customName, customUnit, quantity };
+      return { productId: null, customName, customUnit, specification, itemNotes, quantity };
     });
 
     const productIds = items.flatMap((i) => (i.productId ? [i.productId] : []));
@@ -155,6 +170,7 @@ export class RequestService {
             requesterName: user.name,
             divisionName: recipientTo,
             receiverName,
+            divisionHeadName,
             requesterSignature,
             notes,
             items: { create: items },
@@ -183,7 +199,7 @@ export class RequestService {
     });
   }
 
-  /** Untuk halaman cetak (memuat tanda tangan). */
+  /** Untuk halaman cetak Form Pengajuan (memuat tanda tangan). */
   static getForPrint(id: string) {
     return prisma.itemRequest.findUnique({
       where: { id },
@@ -191,13 +207,18 @@ export class RequestService {
         ...requestSelect,
         requesterSignature: true,
         adminSignature: true,
-        items: {
-          select: {
-            ...requestSelect.items.select,
-            product: { select: { id: true, name: true, unit: true, packUnit: true, packSize: true } },
-          },
-          orderBy: { id: 'asc' as const },
-        },
+      },
+    });
+  }
+
+  /** Untuk halaman cetak Form Distribusi ATK yang berasal dari pengajuan divisi (memuat Pengajuan vs ACC + tanda tangan). */
+  static getByDistributionId(distributionId: string) {
+    return prisma.itemRequest.findFirst({
+      where: { distributionId },
+      select: {
+        ...requestSelect,
+        requesterSignature: true,
+        adminSignature: true,
       },
     });
   }
@@ -230,7 +251,9 @@ export class RequestService {
         if (!productId && approved > 0 && !noStock) {
           throw new Error(`Barang "${item.customName ?? `baris ${index + 1}`}" belum dipetakan ke barang master. Pilih barangnya atau tandai "tanpa stok".`);
         }
-        return { id: item.id, approved, productId, noStock };
+        const itemNotes =
+          override?.itemNotes !== undefined ? text(override.itemNotes, `Keterangan baris ${index + 1}`, false, 150) : item.itemNotes;
+        return { id: item.id, approved, productId, noStock, itemNotes };
       });
 
       // Gabungkan barang master yang sama (distribusi tidak boleh memuat baris ganda).
@@ -258,7 +281,7 @@ export class RequestService {
         for (const d of decisions) {
           await tx.itemRequestItem.update({
             where: { id: d.id },
-            data: { approvedQuantity: d.approved, productId: d.productId, noStock: d.noStock },
+            data: { approvedQuantity: d.approved, productId: d.productId, noStock: d.noStock, itemNotes: d.itemNotes },
           });
         }
         return tx.itemRequest.update({
@@ -285,11 +308,11 @@ export class RequestService {
   }
 
   static async reject(id: string, reason: string, admin: Actor) {
-    const text = typeof reason === 'string' ? reason.trim().slice(0, 300) : '';
-    if (!text) throw new Error('Alasan penolakan wajib diisi.');
+    const textVal = typeof reason === 'string' ? reason.trim().slice(0, 300) : '';
+    if (!textVal) throw new Error('Alasan penolakan wajib diisi.');
     const done = await prisma.itemRequest.updateMany({
       where: { id, status: 'PENDING' },
-      data: { status: 'REJECTED', rejectReason: text, decidedAt: new Date(), decidedByName: admin.name },
+      data: { status: 'REJECTED', rejectReason: textVal, decidedAt: new Date(), decidedByName: admin.name },
     });
     if (done.count === 0) throw new Error('Pengajuan tidak ditemukan atau sudah diproses.');
     return prisma.itemRequest.findUniqueOrThrow({ where: { id }, select: requestSelect });

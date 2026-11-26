@@ -26,16 +26,21 @@ export function DivisiRequestCard({ r }: { r: RequestRow }) {
       <ItemsList items={r.items} />
       {r.notes && <p className="text-xs text-slate-600">Catatan: {r.notes}</p>}
       {r.status === 'REJECTED' && <p className="text-xs text-rose-700">Alasan ditolak: {r.rejectReason}</p>}
-      {r.status === 'APPROVED' && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-emerald-700">
-            Disetujui{r.distributionNumber ? `, barang diserahkan (Distribusi ${r.distributionNumber})` : ''}.
-          </p>
-          <a href={`/print/request/${r.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            <Printer className="h-3.5 w-3.5" /> Cetak PDF
-          </a>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <p className="text-xs text-emerald-700">
+          {r.status === 'APPROVED'
+            ? `Disetujui${r.distributionNumber ? `, barang diserahkan (Distribusi ${r.distributionNumber})` : ''}.`
+            : ''}
+        </p>
+        <a
+          href={`/print/request/${r.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          <Printer className="h-3.5 w-3.5" /> Cetak Pengajuan
+        </a>
+      </div>
     </div>
   );
 }

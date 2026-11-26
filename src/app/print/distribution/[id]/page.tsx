@@ -5,10 +5,13 @@ import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { getCurrentUser } from '@/lib/auth-server';
 import { getStockGroup } from '@/lib/stock-groups';
 import { DistributionService } from '@/services/distribution.service';
+import { RequestService } from '@/services/request.service';
+import { itemName, itemQty } from '@/components/requests/shared';
 import { formatItemQuantity } from '@/lib/product-units';
 
 const FONT = { fontFamily: 'Arial, Helvetica, sans-serif' };
 const getDistribution = cache((id: string) => DistributionService.getById(id));
+const getLinkedRequest = cache((id: string) => RequestService.getByDistributionId(id));
 const getAuthUser = cache(() => getCurrentUser());
 
 const safeFilePart = (value: string) =>
@@ -31,7 +34,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 const longDate = (date: Date) =>
-  new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+  new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric' }).format(date);
 const shortDate = (date: Date) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'numeric', year: '2-digit' }).format(date).replace(/\//g, '-');
 const monthYear = (date: Date) =>
@@ -41,13 +44,14 @@ export default async function PrintDistributionPage({ params }: { params: Promis
   const user = await getAuthUser();
   if (!user) redirect('/login');
   const { id } = await params;
-  const distribution = await getDistribution(id);
+  const [distribution, linkedRequest] = await Promise.all([getDistribution(id), getLinkedRequest(id)]);
   if (!distribution) notFound();
   const group = getStockGroup(distribution.stockGroup);
   const cancelled = distribution.status === 'CANCELLED';
   const isListrik = group.id === 'LISTRIK';
+  // Form Distribusi ATK dari pengajuan divisi menampilkan kolom Jumlah Pengajuan vs Jumlah ACC + tanda tangan digital.
+  const isFromRequest = group.id === 'ATK' && Boolean(linkedRequest);
   const documentTitle = buildDocumentTitle(distribution);
-  // Tabel mengikuti jumlah barang, tanpa baris kosong tambahan.
   const blankRows = 0;
 
   return (
@@ -125,6 +129,45 @@ export default async function PrintDistributionPage({ params }: { params: Promis
               ))}
             </tbody>
           </table>
+        ) : isFromRequest && linkedRequest ? (
+          <>
+            <table className="mt-4 text-[12px] font-bold">
+              <tbody>
+                <tr><td className="w-32 py-0.5">Kepada</td><td>: {distribution.recipientUnit}</td></tr>
+                <tr><td className="py-0.5">No. Nota Pesanan</td><td>: -</td></tr>
+                <tr><td className="py-0.5">Tgl Pesanan</td><td>: {longDate(linkedRequest.createdAt)}</td></tr>
+              </tbody>
+            </table>
+
+            <table className="mt-3 w-full border-collapse border border-black text-[12px]">
+              <thead>
+                <tr className="bg-slate-200 print:bg-slate-200">
+                  <th className="w-8 border border-black px-1 py-1">No</th>
+                  <th className="border border-black px-2 py-1">Nama Barang</th>
+                  <th className="w-[4.5rem] border border-black px-1 py-1 leading-tight">Jumlah Pengajuan</th>
+                  <th className="w-[4.5rem] border border-black px-1 py-1 leading-tight">Jumlah ACC</th>
+                  <th className="w-28 border border-black px-2 py-1 leading-tight">Tempat Penyimpanan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {linkedRequest.items.map((item, index) => (
+                  <tr key={item.id}>
+                    <td className="border border-black px-1 py-0.5 text-center">{index + 1}</td>
+                    <td className="border border-black px-2 py-0.5">{itemName(item)}</td>
+                    <td className="border border-black px-2 py-0.5 text-center">{itemQty(item, item.quantity)}</td>
+                    <td className="border border-black px-2 py-0.5 text-center">
+                      {item.approvedQuantity !== null ? itemQty(item, item.approvedQuantity) : '-'}
+                    </td>
+                    {index === 0 && (
+                      <td rowSpan={linkedRequest.items.length} className="border border-black px-2 py-1 text-center align-middle">
+                        {distribution.storageLocation || distribution.recipientUnit}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         ) : (
           <>
             <table className="mt-4 text-[12px] font-bold">
@@ -179,13 +222,25 @@ export default async function PrintDistributionPage({ params }: { params: Promis
           <div>
             <p>&nbsp;</p>
             <p>Penerima,</p>
-            <div className="h-16" />
-            <p className="font-bold">{distribution.receiverName || '(.................................)'}</p>
+            <div className="flex h-16 items-center">
+              {isFromRequest && linkedRequest?.requesterSignature && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={linkedRequest.requesterSignature} alt="Tanda tangan penerima" className="max-h-16 max-w-full object-contain" />
+              )}
+            </div>
+            <p className="font-bold">
+              {distribution.receiverName || (isFromRequest ? linkedRequest?.receiverName || linkedRequest?.requesterName : null) || '(.................................)'}
+            </p>
           </div>
           <div className="text-left">
-            <p>Bandarlampung, {monthYear(distribution.distributedAt)}</p>
+            <p>Bandarlampung, {isFromRequest || group.id === 'ATK' ? longDate(distribution.distributedAt) : monthYear(distribution.distributedAt)}</p>
             <p>{isListrik ? 'Petugas,' : 'Yang menyerahkan,'}</p>
-            <div className="h-16" />
+            <div className="flex h-16 items-center">
+              {isFromRequest && linkedRequest?.adminSignature && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={linkedRequest.adminSignature} alt="Tanda tangan penyerah" className="max-h-16 max-w-full object-contain" />
+              )}
+            </div>
             <p className="font-bold">{distribution.handoverName}</p>
           </div>
         </footer>

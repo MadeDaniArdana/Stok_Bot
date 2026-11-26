@@ -5,15 +5,17 @@ export interface RequestRow {
   id: string;
   number: string;
   stockGroup: string;
-  /** "Kepada" */
+  /** "Kepada" / Unit */
   divisionName: string;
   requesterName: string;
   receiverName: string | null;
+  divisionHeadName: string | null;
   notes: string | null;
   status: 'PENDING' | 'PROCESSING' | 'APPROVED' | 'REJECTED';
   rejectReason: string | null;
   decidedAt: string | null;
   decidedByName: string | null;
+  distributionId: string | null;
   distributionNumber: string | null;
   approvedDate: string | null;
   storageLocation: string | null;
@@ -26,6 +28,8 @@ export interface RequestItemRow {
   productId: string | null;
   customName: string | null;
   customUnit: string | null;
+  specification: string | null;
+  itemNotes: string | null;
   quantity: number;
   approvedQuantity: number | null;
   noStock: boolean;
@@ -34,7 +38,7 @@ export interface RequestItemRow {
 
 export const itemName = (item: RequestItemRow) => item.product?.name ?? item.customName ?? '-';
 export const itemQty = (item: RequestItemRow, quantity: number) =>
-  item.product ? formatItemQuantity(quantity, item.product.unit, item.product) : ` `;
+  item.product ? formatItemQuantity(quantity, item.product.unit, item.product) : `${quantity} ${item.customUnit ?? 'Pcs'}`;
 
 const STATUS: Record<RequestRow['status'], { label: string; className: string }> = {
   PENDING: { label: 'Menunggu', className: 'bg-amber-50 text-amber-800 border-amber-200' },
@@ -55,11 +59,20 @@ export function ItemsList({ items }: { items: RequestRow['items'] }) {
   return (
     <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100 text-sm">
       {items.map((item) => (
-        <li key={item.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
-          <span className="text-slate-800">
-            {itemName(item)}
-            {!item.product && <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Di luar daftar</span>}
-          </span>
+        <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-1.5">
+          <div className="min-w-0">
+            <span className="text-slate-800">
+              {itemName(item)}
+              {!item.product && <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Di luar daftar</span>}
+            </span>
+            {(item.specification || item.itemNotes) && (
+              <p className="text-[11px] text-slate-500">
+                {item.specification && <>Spek: {item.specification}</>}
+                {item.specification && item.itemNotes && ' · '}
+                {item.itemNotes && <>Ket: {item.itemNotes}</>}
+              </p>
+            )}
+          </div>
           <span className="shrink-0 text-right font-semibold text-slate-700">
             {itemQty(item, item.quantity)}
             {item.approvedQuantity !== null && item.approvedQuantity !== item.quantity && (

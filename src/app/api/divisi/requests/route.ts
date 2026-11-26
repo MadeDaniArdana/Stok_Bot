@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       notes: body.notes,
       recipientTo: body.recipientTo,
       receiverName: body.receiverName,
+      divisionHeadName: body.divisionHeadName,
       signature: body.signature,
       items: body.items,
     });

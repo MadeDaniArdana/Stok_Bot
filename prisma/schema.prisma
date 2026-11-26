@@ -304,8 +304,9 @@ model ItemRequest {
   requesterId        String?
   requester          User?             @relation(fields: [requesterId], references: [id], onDelete: SetNull)
   requesterName      String // disalin agar tetap ada bila akun dihapus
-  divisionName       String // "Kepada" (unit tujuan) yang diisi pengaju
-  receiverName       String? // nama penerima yang diketik pengaju (penanda tangan)
+  divisionName       String // "Kepada" (unit tujuan) yang ditetapkan admin
+  receiverName       String? // nama yang mengajukan / penerima (penanda tangan)
+  divisionHeadName   String? // nama Ka. Divisi pada blok "Mengetahui," di form pengajuan
   notes              String?
   requesterSignature String? // tanda tangan digital pengaju (PNG data URL)
   adminSignature     String? // tanda tangan digital admin saat review (opsional)
@@ -333,8 +334,10 @@ model ItemRequestItem {
   product          Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
   customName       String? // nama barang yang diketik pengaju
   customUnit       String?
-  quantity         Int // jumlah pengajuan
-  approvedQuantity Int? // jumlah ACC dari admin
+  specification    String? // spesifikasi barang pada form pengajuan divisi
+  itemNotes        String? // keterangan (Ket.) per baris barang
+  quantity         Int // jumlah pengajuan (Kebutuhan*)
+  approvedQuantity Int? // jumlah ACC / Pesanan dari admin
   noStock          Boolean  @default(false) // ACC tapi tidak mengurangi stok
 
   @@index([requestId])

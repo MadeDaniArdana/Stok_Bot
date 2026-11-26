@@ -267,12 +267,8 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     if (!isListrik && defaultHandover && !handoverTouched.current) setHandoverName(defaultHandover);
   }, [defaultHandover, isListrik]);
 
-  // Kepada & Penerima memakai pilihan yang sama.
+  // Pilihan dropdown Penerima (dari paket distribusi, daftar tetap, & nama sebelumnya).
   const sharedOptions = useMemo<ComboOption[]>(() => [...recipientOptions, ...receiverOptions.map((value) => ({ value }))], [recipientOptions, receiverOptions]);
-  const changeRecipient = (value: string) => {
-    setRecipientUnit(value);
-    if (!isListrik && !receiverTouched.current) setReceiverName(value);
-  };
 
   const applyBootstrap = useCallback((data: DistributionBootstrapData) => {
     setProducts(data.products);
@@ -427,10 +423,11 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
     const skipped = template.items.length - usable.length;
     setActiveTemplateId(template.id);
     setNewTemplateName(null);
-    setRecipientUnit(template.recipientUnit);
+    const primaryRecipient = isListrik ? template.recipientUnit : template.receiverName || template.recipientUnit;
+    setRecipientUnit(primaryRecipient);
     setStorageLocation(template.storageLocation || '');
     receiverTouched.current = false;
-    setReceiverName(template.receiverName || (isListrik ? '' : template.recipientUnit));
+    setReceiverName(isListrik ? template.receiverName || '' : primaryRecipient);
     setRows(
       usable.length
         ? usable.map((item) => ({ key: nextKey.current++, productId: item.productId, quantity: item.quantity > 0 ? String(item.quantity) : '' }))
@@ -717,15 +714,18 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
 
           <div className={isListrik ? '' : 'lg:col-span-2'}>
             <label htmlFor="dist-recipient" className="mb-1 block text-xs font-semibold text-slate-700">
-              {group.recipientLabel} <span className="text-rose-500">*</span>
+              {isListrik ? group.recipientLabel : 'Penerima'} <span className="text-rose-500">*</span>
             </label>
             <SearchCombobox
               id="dist-recipient"
               required
               value={recipientUnit}
-              onChange={changeRecipient}
+              onChange={(value) => {
+                setRecipientUnit(value);
+                if (!isListrik) setReceiverName(value);
+              }}
               options={sharedOptions}
-              placeholder={group.recipientPlaceholder}
+              placeholder={isListrik ? group.recipientPlaceholder : 'Cari, pilih paket, atau ketik nama penerima'}
             />
           </div>
 
@@ -803,7 +803,7 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
               </div>
               <div>
                 <label htmlFor="dist-storage" className="mb-1 block text-xs font-semibold text-slate-700">Tempat Penyimpanan</label>
-                <input id="dist-storage" value={storageLocation} onChange={(e) => setStorageLocation(e.target.value)} placeholder={recipientUnit ? `Default: ${recipientUnit}` : 'Default: sama dengan tujuan'} maxLength={150} className={inputClass} />
+                <input id="dist-storage" value={storageLocation} onChange={(e) => setStorageLocation(e.target.value)} placeholder={recipientUnit ? `Default: ${recipientUnit}` : 'Default: sama dengan penerima'} maxLength={150} className={inputClass} />
               </div>
               <div>
                 <label htmlFor="dist-handover" className="mb-1 block text-xs font-semibold text-slate-700">
@@ -829,24 +829,25 @@ export function DistributionForm({ group }: { group: StockGroupConfig }) {
             </>
           )}
 
-          <div>
-            <label htmlFor="dist-receiver" className="mb-1 block text-xs font-semibold text-slate-700">
-              Penerima <span className="font-normal text-slate-400">(opsional)</span>
-            </label>
-            <SearchCombobox
-              id="dist-receiver"
-              value={receiverName}
-              onChange={(value) => {
-                receiverTouched.current = true;
-                setReceiverName(value);
-              }}
-              options={isListrik ? [] : sharedOptions}
-              placeholder={isListrik ? 'Boleh dikosongkan' : 'Cari, pilih, atau ketik nama baru'}
-            />
-            {!isListrik && <p className="mt-1 text-[11px] text-slate-500">Otomatis sama dengan Kepada. Ubah, ketik nama lain, atau kosongkan bila perlu.</p>}
-          </div>
+          {isListrik && (
+            <div>
+              <label htmlFor="dist-receiver" className="mb-1 block text-xs font-semibold text-slate-700">
+                Penerima <span className="font-normal text-slate-400">(opsional)</span>
+              </label>
+              <SearchCombobox
+                id="dist-receiver"
+                value={receiverName}
+                onChange={(value) => {
+                  receiverTouched.current = true;
+                  setReceiverName(value);
+                }}
+                options={[]}
+                placeholder="Boleh dikosongkan"
+              />
+            </div>
+          )}
 
-          <div className={isListrik ? 'sm:col-span-2' : 'sm:col-span-2 lg:col-span-1'}>
+          <div className={isListrik ? 'sm:col-span-2' : 'sm:col-span-2 lg:col-span-3'}>
             <label htmlFor="dist-notes" className="mb-1 block text-xs font-semibold text-slate-700">
               Catatan <span className="font-normal text-slate-400">(opsional)</span>
             </label>

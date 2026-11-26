@@ -34,6 +34,9 @@ function ReviewPanel({
   onReject: () => void;
 }) {
   const [acc, setAcc] = useState<Record<string, string>>(() => Object.fromEntries(request.items.map((i) => [i.id, String(i.quantity)])));
+  const [notesByItem, setNotesByItem] = useState<Record<string, string>>(() =>
+    Object.fromEntries(request.items.map((i) => [i.id, i.itemNotes ?? '']))
+  );
   const [mapTo, setMapTo] = useState<Record<string, string>>({});
   const [noStock, setNoStock] = useState<Record<string, boolean>>({});
   const [date, setDate] = useState(todayInJakarta);
@@ -70,6 +73,7 @@ function ReviewPanel({
       items: request.items.map((item) => ({
         id: item.id,
         approvedQuantity: Number(acc[item.id] || 0),
+        itemNotes: notesByItem[item.id] ?? '',
         productId: item.product ? undefined : mapTo[item.id] || undefined,
         noStock: item.product ? undefined : Boolean(noStock[item.id]),
       })),
@@ -93,9 +97,12 @@ function ReviewPanel({
                     {itemName(item)}
                     {custom && <span className="ml-1.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Di luar daftar</span>}
                   </p>
-                  <p className="text-[11px] text-slate-500">Diajukan: {itemQty(item, item.quantity)}</p>
+                  <p className="text-[11px] text-slate-500">
+                    Kebutuhan: {itemQty(item, item.quantity)}
+                    {item.specification && <> · Spek: {item.specification}</>}
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <label htmlFor={`acc-${item.id}`} className="text-[11px] font-semibold text-slate-600">ACC</label>
                   <input
                     id={`acc-${item.id}`}
@@ -107,6 +114,14 @@ function ReviewPanel({
                     className={`${fieldClass} w-20 !py-1.5`}
                   />
                   <span className="text-xs text-slate-500">{item.product?.unit ?? item.customUnit}</span>
+                  <input
+                    value={notesByItem[item.id] ?? ''}
+                    onChange={(e) => setNotesByItem((cur) => ({ ...cur, [item.id]: e.target.value }))}
+                    maxLength={150}
+                    placeholder="Ket. (opsional)"
+                    aria-label={`Keterangan ${itemName(item)}`}
+                    className={`${fieldClass} w-36 !py-1.5 text-xs`}
+                  />
                 </div>
               </div>
               {custom && Number(acc[item.id]) > 0 && (
@@ -314,16 +329,26 @@ export function RequestAdminList({ view }: { view: 'incoming' | 'history' }) {
                       ? `Di-ACC ${r.decidedByName ?? ''} • ${r.approvedDate ? formatDay(r.approvedDate) : r.decidedAt ? formatDateTime(r.decidedAt) : ''} • Distribusi ${r.distributionNumber ?? '(tanpa pengurangan stok)'}`
                       : `Ditolak ${r.decidedByName ?? ''} • ${r.decidedAt ? formatDateTime(r.decidedAt) : ''} • Alasan: ${r.rejectReason ?? '-'}`}
                   </p>
-                  {r.status === 'APPROVED' && (
+                  <div className="flex flex-wrap gap-2">
                     <a
                       href={`/print/request/${r.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                     >
-                      <Printer className="h-3.5 w-3.5" /> Cetak PDF
+                      <Printer className="h-3.5 w-3.5" /> Cetak Pengajuan
                     </a>
-                  )}
+                    {r.status === 'APPROVED' && r.distributionId && (
+                      <a
+                        href={`/print/distribution/${r.distributionId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-maroon-200 bg-maroon-50 px-3 py-1.5 text-xs font-semibold text-maroon-800 hover:bg-maroon-100"
+                      >
+                        <Printer className="h-3.5 w-3.5" /> Cetak Form Distribusi
+                      </a>
+                    )}
+                  </div>
                 </div>
               </>
             )}

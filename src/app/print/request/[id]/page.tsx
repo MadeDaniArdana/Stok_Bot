@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { getSessionUser } from '@/lib/auth-server';
-import { getStockGroup } from '@/lib/stock-groups';
 import { RequestService } from '@/services/request.service';
 import { itemName, itemQty } from '@/components/requests/shared';
 
@@ -20,10 +19,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const request = await getRequest(id);
   if (!request) return { title: 'Dokumen Tidak Ditemukan - StockFlow' };
-  return { title: `Form Pengajuan ${getStockGroup(request.stockGroup).shortLabel} - ${safe(request.divisionName)} (${request.number})` };
+  return { title: `Pengajuan Pengadaan ATK - ${safe(request.divisionName)} (${request.number})` };
 }
 
-/** Formulir PDF pengajuan barang divisi (Jumlah Pengajuan vs Jumlah ACC + tanda tangan digital). */
+/**
+ * Formulir cetak Pengajuan Pengadaan Barang ATK dari Divisi,
+ * mengikuti template resmi "Format Pengajuan ATK dari Divisi.xlsx".
+ */
 export default async function PrintRequestPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(false);
   if (!user) redirect('/login');
@@ -32,103 +34,97 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
   // Akun divisi hanya boleh membuka formulir miliknya sendiri.
   if (!request || (user.role !== 'ADMIN' && request.requesterId !== user.id)) notFound();
 
-  const group = getStockGroup(request.stockGroup);
   const approved = request.status === 'APPROVED';
-  const signedDate = approved ? request.approvedDate ?? request.decidedAt ?? request.createdAt : request.createdAt;
-  const documentTitle = `Form Pengajuan ${group.shortLabel} - ${safe(request.divisionName)} (${request.number})`;
-  const cell = 'border border-black px-2 py-0.5';
+  const documentTitle = `Pengajuan Pengadaan ATK - ${safe(request.divisionName)} (${request.number})`;
+  const cell = 'border border-black px-2 py-1';
 
   return (
     <>
-      <style>{'@page { size: A5 portrait; margin: 10mm; }'}</style>
+      <style>{'@page { size: A4 portrait; margin: 14mm; }'}</style>
       <PrintToolbar
         backHref={user.role === 'ADMIN' ? '/requests/history' : '/divisi/riwayat'}
         backLabel="Kembali"
         documentTitle={documentTitle}
       />
 
-      <article style={FONT} className="relative mx-auto max-w-[148mm] bg-white p-8 shadow-lg print:max-w-none print:p-0 print:shadow-none">
-        <header className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-yayasan.png" alt="" className="h-11 w-11 object-contain" />
-            <div>
-              <p style={{ fontFamily: '"Times New Roman", Times, serif' }} className="text-[10px] font-bold uppercase leading-none tracking-wide">Yayasan Pendidikan</p>
-              <p className="text-[18px] font-black uppercase leading-none tracking-tight text-[#800020]">Teknokrat</p>
-            </div>
+      <article style={FONT} className="relative mx-auto max-w-[210mm] bg-white p-10 shadow-lg print:max-w-none print:p-0 print:shadow-none">
+        {/* Kop Resmi Universitas Teknokrat Indonesia */}
+        <header className="flex items-center gap-3 border-b-[3px] border-double border-black pb-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-uti.png" alt="Logo Universitas Teknokrat Indonesia" className="h-14 w-14 shrink-0 object-contain" />
+          <div className="min-w-0">
+            <p className="text-[20px] font-black uppercase leading-tight tracking-wide text-[#c8102e]">
+              Universitas Teknokrat Indonesia
+            </p>
+            <p className="mt-0.5 text-[11px] font-semibold tracking-wide text-black">
+              IZIN OPERASIONAL : SK MENRISTEKDIKTI No. 44/KPT/I/2017
+            </p>
           </div>
-          {group.documentCode && (
-            <table className="text-[11px]">
-              <tbody>
-                <tr><td className="pr-1">Kode Dok</td><td>: {group.documentCode}</td></tr>
-                <tr><td className="pr-1">Revisi</td><td>: {group.documentRevision}</td></tr>
-              </tbody>
-            </table>
-          )}
         </header>
 
-        <h1 className="mt-4 text-center text-[15px] font-bold uppercase">FORM DISTRIBUSI BARANG</h1>
-        <p className="text-center font-mono text-[10px] text-slate-500">{request.number}</p>
+        <div className="mt-5 text-center">
+          <h1 className="text-[14px] font-bold uppercase tracking-wide">PENGAJUAN PENGADAAN BARANG ATK</h1>
+          <p className="text-[14px] font-bold uppercase tracking-wide">UNIVERSITAS TEKNOKRAT INDONESIA</p>
+          <p className="mt-1 font-mono text-[10px] text-slate-600">
+            {request.number} · {request.divisionName}
+          </p>
+        </div>
 
-        <table className="mt-4 text-[12px] font-bold">
-          <tbody>
-            <tr><td className="w-32 py-0.5">Kepada</td><td>: {request.divisionName}</td></tr>
-            <tr><td className="py-0.5">No. Nota Pesanan</td><td>: -</td></tr>
-            <tr><td className="py-0.5">Tgl Pesanan</td><td>: {dayMonthYear(request.createdAt)}</td></tr>
-          </tbody>
-        </table>
-
-        <table className="mt-3 w-full border-collapse border border-black text-[12px]">
+        <table className="mt-5 w-full border-collapse border border-black text-[12px]">
           <thead>
-            <tr className="bg-slate-200 print:bg-slate-200">
-              <th className="w-8 border border-black px-1 py-1">No</th>
-              <th className="border border-black px-2 py-1">Nama Barang</th>
-              <th className="w-[4.5rem] border border-black px-1 py-1 leading-tight">Jumlah Pengajuan</th>
-              <th className="w-[4.5rem] border border-black px-1 py-1 leading-tight">Jumlah ACC</th>
-              <th className="w-28 border border-black px-2 py-1 leading-tight">Tempat Penyimpanan</th>
+            <tr className="bg-slate-100 print:bg-slate-100">
+              <th rowSpan={2} className="w-10 border border-black px-1.5 py-1.5 text-center">No.</th>
+              <th rowSpan={2} className="border border-black px-2 py-1.5 text-center">Nama Barang</th>
+              <th rowSpan={2} className="w-36 border border-black px-2 py-1.5 text-center">Spesifikasi</th>
+              <th rowSpan={2} className="w-24 border border-black px-2 py-1.5 text-center">Kebutuhan*</th>
+              <th colSpan={2} className="border border-black px-2 py-1 text-center">Jumlah</th>
+            </tr>
+            <tr className="bg-slate-100 print:bg-slate-100">
+              <th className="w-24 border border-black px-2 py-1 text-center">Pesanan</th>
+              <th className="w-28 border border-black px-2 py-1 text-center">Ket.</th>
             </tr>
           </thead>
           <tbody>
             {request.items.map((item, index) => (
               <tr key={item.id}>
-                <td className="border border-black px-1 py-0.5 text-center">{index + 1}</td>
+                <td className="border border-black px-1.5 py-1 text-center">{index + 1}</td>
                 <td className={cell}>{itemName(item)}</td>
+                <td className={cell}>{item.specification || ''}</td>
                 <td className={`${cell} text-center`}>{itemQty(item, item.quantity)}</td>
-                <td className={`${cell} text-center`}>{approved && item.approvedQuantity !== null ? itemQty(item, item.approvedQuantity) : '-'}</td>
-                {index === 0 && (
-                  <td rowSpan={request.items.length} className="border border-black px-2 py-1 text-center align-middle">
-                    {request.storageLocation || request.divisionName}
-                  </td>
-                )}
+                <td className={`${cell} text-center`}>
+                  {approved && item.approvedQuantity !== null ? itemQty(item, item.approvedQuantity) : ''}
+                </td>
+                <td className={cell}>{item.itemNotes || (item.noStock ? 'Tanpa stok' : '')}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {request.notes && <p className="mt-2 text-[11px] italic">Catatan: {request.notes}</p>}
+        <p className="mt-2 text-[11px]">
+          <span className="font-semibold">Ket :</span> *Jumlah yang dibutuhkan.
+        </p>
+        {request.notes && <p className="mt-1 text-[11px] italic">Catatan: {request.notes}</p>}
 
-        <footer className="mt-6 grid grid-cols-2 gap-6 text-[12px]">
+        {/* Blok Tanda Tangan sesuai template Excel */}
+        <footer className="mt-8 grid grid-cols-2 gap-10 text-[12px]">
           <div>
             <p>&nbsp;</p>
-            <p>Penerima,</p>
+            <p>Mengetahui,</p>
+            <p>Ka. Divisi,</p>
+            <div className="h-16" />
+            <p className="font-bold">{request.divisionHeadName || '.......................'}</p>
+          </div>
+          <div className="pl-6">
+            <p>Bandar Lampung, {dayMonthYear(request.createdAt)}</p>
+            <p>Yang Mengajukan,</p>
+            <p>&nbsp;</p>
             <div className="flex h-16 items-center">
               {request.requesterSignature && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={request.requesterSignature} alt="Tanda tangan penerima" className="max-h-16 max-w-full object-contain" />
+                <img src={request.requesterSignature} alt="Tanda tangan yang mengajukan" className="max-h-16 max-w-full object-contain" />
               )}
             </div>
             <p className="font-bold">{request.receiverName || request.requesterName}</p>
-          </div>
-          <div className="text-left">
-            <p>Bandarlampung, {dayMonthYear(signedDate)}</p>
-            <p>Yang menyerahkan,</p>
-            <div className="flex h-16 items-center">
-              {request.adminSignature && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={request.adminSignature} alt="Tanda tangan penyerah" className="max-h-16 max-w-full object-contain" />
-              )}
-            </div>
-            <p className="font-bold">{approved ? request.decidedByName : '(.................................)'}</p>
           </div>
         </footer>
       </article>

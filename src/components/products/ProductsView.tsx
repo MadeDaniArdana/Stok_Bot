@@ -543,7 +543,7 @@ Alasan: ${adjReason.trim()}`)) return;
         </div>
         {isAdmin && (
           <p className="text-[11px] text-slate-500">
-            Kolom stok periode <strong>{monthLabel(periodMonth)}</strong>: Jumlah Barang Masuk = barang masuk bulan ini, Sisa Stok = sisa dari bulan sebelumnya, Jumlah Keluar Barang = barang keluar bulan ini, Total Jumlah Stok = (Sisa Stok + Masuk) − Keluar ± penyesuaian. Semua angka dalam satuan dasar pada kolom Satuan.
+            Kolom stok periode <strong>{monthLabel(periodMonth)}</strong>: Barang Masuk = total masuk bulan ini, Barang Keluar = total keluar bulan ini, Stok Saat Ini = akumulasi stok terkini di gudang (termasuk update/penyesuaian stok). Semua angka dalam satuan dasar pada kolom Satuan.
             {positionLoading && ' Memuat...'}
           </p>
         )}
@@ -558,13 +558,12 @@ Alasan: ${adjReason.trim()}`)) return;
                 <th className="py-3 px-3">Barang</th>
                 {isAdmin ? (
                   <>
-                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Jumlah Barang Masuk</th>
-                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Sisa Stok</th>
-                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Jumlah Keluar Barang</th>
-                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Total Jumlah Stok</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Barang Masuk</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Barang Keluar</th>
+                    <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Stok Saat Ini</th>
                   </>
                 ) : (
-                  <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Total Jumlah Stok</th>
+                  <th className="py-3 px-2 text-center w-[5.5rem] whitespace-normal leading-tight">Stok Saat Ini</th>
                 )}
                 <th className="py-3 px-2 text-center">Satuan</th>
                 <th className="py-3 px-2 text-center">Status</th>
@@ -574,13 +573,13 @@ Alasan: ${adjReason.trim()}`)) return;
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 5} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 7 : 5} className="py-12 text-center text-slate-400">
                     Memuat data barang...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 5} className="py-12 text-center text-slate-400">
+                  <td colSpan={isAdmin ? 7 : 5} className="py-12 text-center text-slate-400">
                     Belum ada data barang yang cocok dengan kriteria pencarian.
                   </td>
                 </tr>
@@ -618,7 +617,6 @@ Alasan: ${adjReason.trim()}`)) return;
                               <td className="py-2.5 px-2 text-center text-emerald-700 font-medium">
                                 {pos?.inQty ? cell(pos.inQty, '+') : cell(pos ? 0 : undefined)}
                               </td>
-                              <td className="py-2.5 px-2 text-center text-slate-600">{cell(pos?.openingStock)}</td>
                               <td className="py-2.5 px-2 text-center text-rose-700 font-medium">
                                 {pos?.outQty ? cell(pos.outQty, '-') : cell(pos ? 0 : undefined)}
                               </td>
