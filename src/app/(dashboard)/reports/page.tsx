@@ -46,6 +46,7 @@ function buildQuery(periode: string, groupFilter: GroupFilter) {
 function buildSummaryUrl(periode: string, groupFilter: GroupFilter) {
   const params = new URLSearchParams({ periode });
   if (groupFilter !== 'ALL') params.set('jenis', groupFilter);
+  params.set('includePosition', '1');
   return `/api/reports/summary?${params.toString()}`;
 }
 
@@ -60,15 +61,18 @@ export default function ReportsPage() {
   const initialUrl = buildSummaryUrl(currentMonth, 'ALL');
   const [data, setData] = useState<any>(() => getSwrCache(initialUrl) ?? null);
   const [loading, setLoading] = useState(() => !getSwrCache(initialUrl));
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     const url = buildSummaryUrl(periode, groupFilter);
     const cached = getSwrCache<any>(url);
+    setSummaryError(null);
     if (cached) {
       setData(cached);
       setLoading(false);
     } else {
+      setData(null);
       setLoading(true);
     }
 
@@ -77,7 +81,7 @@ export default function ReportsPage() {
         if (!controller.signal.aborted) setData(json);
       })
       .catch((e: any) => {
-        if (e?.name !== 'AbortError') console.error(e);
+        if (!controller.signal.aborted && !cached) setSummaryError(e?.message || 'Ringkasan persediaan tidak dapat dimuat.');
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -364,7 +368,13 @@ export default function ReportsPage() {
       </section>
 
       {/* Riwayat Posisi Stok per Bulan / Tahun */}
-      <StockPositionSection periode={periode} jenis={groupFilter === 'ALL' ? undefined : groupFilter} />
+      <StockPositionSection
+        periode={periode}
+        jenis={groupFilter === 'ALL' ? undefined : groupFilter}
+        data={data?.period?.value === periode && (data.stockGroup ?? 'ALL') === groupFilter ? data.position ?? null : null}
+        loading={loading}
+        loadError={summaryError}
+      />
 
       {/* Analitik Bawah: Top Barang Dipakai, Unit/Gedung Aktif, & Sebaran Kategori */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">

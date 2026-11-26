@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -18,6 +19,11 @@ export const SAFE_USER_SELECT = {
 
 /** Periksa sesi di PostgreSQL agar pencabutan berlaku di seluruh instance. */
 export async function getSessionUser(includeTelegram = true) {
+  return readSessionUser(includeTelegram);
+}
+
+// React cache hanya berlaku dalam satu render server, sehingga sesi tercabut tidak tersimpan antar-request.
+const readSessionUser = cache(async (includeTelegram: boolean) => {
   const cookieStore = await cookies();
   const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
   if (!session) return null;
@@ -39,7 +45,7 @@ export async function getSessionUser(includeTelegram = true) {
   const { sessionVersion, ...user } = record.user;
   if (user.id !== session.uid || !user.isActive || user.role !== session.role || sessionVersion !== session.version) return null;
   return user;
-}
+});
 
 /** Hanya ADMIN: dipakai halaman SSR & API admin, jadi akun DIVISI tidak pernah lolos. */
 export async function getCurrentUser(includeTelegram = false) {

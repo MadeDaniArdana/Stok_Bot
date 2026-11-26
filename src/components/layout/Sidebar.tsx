@@ -184,7 +184,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'admin', mobileOpen, on
       return;
     }
     if (href === '/reports') {
-      prefetchSwrJson(`/api/reports/summary?periode=${getCurrentReportMonth()}`);
+      prefetchSwrJson(`/api/reports/summary?periode=${getCurrentReportMonth()}&includePosition=1`);
       return;
     }
     if (href.startsWith('/distribution/')) {

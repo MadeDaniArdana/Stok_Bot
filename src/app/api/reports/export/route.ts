@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const period = resolveSummaryPeriod(searchParams.get('periode'), searchParams.get('days'));
     const stockGroup = parseStockGroup(searchParams.get('jenis')) ?? undefined;
 
-    const summary = await ReportService.getDashboardSummary(period, stockGroup);
+    const summary = await ReportService.getProcurementReport(period, stockGroup);
     const groupSlug = stockGroup ? getStockGroup(stockGroup).slug : 'semua';
     const periodSlug =
       summary.period.kind === 'year'

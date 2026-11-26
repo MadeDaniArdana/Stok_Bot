@@ -19,6 +19,20 @@ const movementDistributionJoin = Prisma.sql`
   LEFT JOIN "Distribution" d ON d.id = di."distributionId"`;
 const movementDate = Prisma.sql`COALESCE(d."distributedAt", m."createdAt")`;
 
+function queryOutByProduct(start: Date, end: Date, stockGroup?: StockGroup) {
+  return prisma.$queryRaw<{ productId: string; totalOut: number; txCount: number }[]>`
+    SELECT m."productId", SUM(m.quantity)::int AS "totalOut", COUNT(*)::int AS "txCount"
+    FROM "StockMovement" m
+    ${movementDistributionJoin}
+    JOIN "Product" p ON p.id = m."productId"
+    LEFT JOIN "Category" c ON c.id = p."categoryId"
+    WHERE m.type = 'OUT' AND ${movementDate} >= ${start} AND ${movementDate} < ${end}
+      ${stockGroup ? Prisma.sql`AND c."stockGroup" = ${stockGroup}` : Prisma.empty}
+    GROUP BY m."productId"
+    ORDER BY "totalOut" DESC, m."productId"
+      `;
+}
+
 function queryDailyTrendRows(start: Date, end: Date, stockGroup?: StockGroup, countMovements = false): Promise<DailyTrendRow[]> {
   const scope = stockGroup
     ? Prisma.sql`AND EXISTS (
@@ -274,7 +288,7 @@ export class ReportService {
    * unit penerima, sebaran kategori, dan Daftar Usulan Pengadaan (Stok Sisa awal periode + Stok Masuk = Jumlah Stok).
    * `period` boleh berupa jumlah hari (Dashboard) atau periode bulan/tahun dari parseStockReportPeriod.
    */
-  static async getDashboardSummary(period: number | StockReportPeriod = 30, stockGroup?: StockGroup) {
+  static async getDashboardSummary(period: number | StockReportPeriod = 30, stockGroup?: StockGroup, includePosition = false) {
     const isDays = typeof period === 'number';
     const range = isDays ? this.daysRange(period) : period;
     const start = range.gte;
@@ -309,17 +323,7 @@ export class ReportService {
           category: { select: { name: true, stockGroup: true } },
         },
       }),
-      prisma.$queryRaw<{ productId: string; totalOut: number; txCount: number }[]>`
-        SELECT m."productId", SUM(m.quantity)::int AS "totalOut", COUNT(*)::int AS "txCount"
-        FROM "StockMovement" m
-        ${movementDistributionJoin}
-        JOIN "Product" p ON p.id = m."productId"
-        LEFT JOIN "Category" c ON c.id = p."categoryId"
-        WHERE m.type = 'OUT' AND ${movementDate} >= ${start} AND ${movementDate} < ${end}
-          ${stockGroup ? Prisma.sql`AND c."stockGroup" = ${stockGroup}` : Prisma.empty}
-        GROUP BY m."productId"
-        ORDER BY "totalOut" DESC, m."productId"
-      `,
+      queryOutByProduct(start, end, stockGroup),
       queryDailyTrendRows(start, end, stockGroup, true),
       prisma.stockMovement.findMany({
         where: movementPeriodWhere,
@@ -368,10 +372,6 @@ export class ReportService {
       days,
       periodKind
     );
-    const outStatsByProduct = new Map(
-      outByProduct.map((row) => [row.productId, { totalOut: row.totalOut, txCount: row.txCount }])
-    );
-
     // Top 10 barang paling banyak digunakan
     const topOutGroups = outByProduct.slice(0, 10);
     const productById = new Map(
@@ -441,14 +441,67 @@ export class ReportService {
       (a, b) => b.itemCount - a.itemCount || a.name.localeCompare(b.name, 'id')
     );
 
+    const criticalItems = this.buildProcurementItems(position, activeProducts, outByProduct);
+    const outOfStockCount = criticalItems.filter((i) => i.isZero).length;
+
+    return {
+      days,
+      period: { kind: periodKind, value: range.value, label: range.label, openingLabel: range.openingLabel },
+      stockGroup: stockGroup ?? null,
+      trendGranularity,
+      ...(includePosition ? { position } : {}),
+      kpi: {
+        totalActiveSku: activeProducts.length,
+        inStockSku: position.rows.filter((p) => p.isActive && p.closingStock > 0).length,
+        incomingSku: position.rows.filter((p) => p.inQty > 0).length,
+        outgoingSku: position.rows.filter((p) => p.outQty > 0).length,
+        movedSku: position.rows.filter((p) => p.hasMovement).length,
+        lowStockCount: criticalItems.length - outOfStockCount,
+        outOfStockCount,
+      },
+      stockGroupStats: Array.from(stockGroupMap.values()),
+      criticalItems,
+      recentActivities,
+      topConsumed,
+      topUnits,
+      dailyTrends,
+      categoryStats,
+    };
+  }
+
+  /** Ekspor pengadaan hanya mengambil data yang dipakai workbook. */
+  static async getProcurementReport(period: number | StockReportPeriod, stockGroup?: StockGroup) {
+    const isDays = typeof period === 'number';
+    const range = isDays ? this.daysRange(period) : period;
+    const [position, activeProducts, outByProduct] = await Promise.all([
+      this.getStockPositionReport(range, stockGroup),
+      prisma.product.findMany({
+        where: { isActive: true, ...(stockGroup ? { category: { stockGroup } } : {}) },
+        select: { id: true, minimumStock: true },
+      }),
+      queryOutByProduct(range.gte, range.lt, stockGroup),
+    ]);
+    return {
+      days: Math.max(1, Math.round((range.lt.getTime() - range.gte.getTime()) / DAY_MS)),
+      period: { kind: isDays ? 'days' as const : range.kind, value: range.value, label: range.label, openingLabel: range.openingLabel },
+      criticalItems: this.buildProcurementItems(position, activeProducts, outByProduct),
+    };
+  }
+
+  private static buildProcurementItems(
+    position: Awaited<ReturnType<typeof ReportService.getStockPositionReport>>,
+    activeProducts: { id: string; minimumStock: number }[],
+    outByProduct: Awaited<ReturnType<typeof queryOutByProduct>>,
+  ) {
     // Daftar Usulan Pengadaan: barang aktif yang sisa akhir periodenya habis / di bawah batas minimum.
     // Stok Sisa = sisa dari periode sebelumnya (awal periode), Stok Masuk = barang masuk selama periode.
+    const outStatsByProduct = new Map(outByProduct.map((row) => [row.productId, row.totalOut]));
     const minimumById = new Map(activeProducts.map((p) => [p.id, p.minimumStock]));
-    const criticalItems = position.rows
+    return position.rows
       .filter((r) => r.isActive && minimumById.has(r.id) && r.closingStock <= (minimumById.get(r.id) ?? 0))
       .map((r) => {
         const minimumStock = minimumById.get(r.id) ?? 0;
-        const usedInPeriod = outStatsByProduct.get(r.id)?.totalOut ?? 0;
+        const usedInPeriod = outStatsByProduct.get(r.id) ?? 0;
         return {
           id: r.id,
           sku: r.sku,
@@ -475,30 +528,6 @@ export class ReportService {
         if (a.isZero !== b.isZero) return a.isZero ? -1 : 1;
         return b.usedInPeriod - a.usedInPeriod || a.currentStock - b.currentStock || a.name.localeCompare(b.name, 'id');
       });
-    const outOfStockCount = criticalItems.filter((i) => i.isZero).length;
-
-    return {
-      days,
-      period: { kind: periodKind, value: range.value, label: range.label, openingLabel: range.openingLabel },
-      stockGroup: stockGroup ?? null,
-      trendGranularity,
-      kpi: {
-        totalActiveSku: activeProducts.length,
-        inStockSku: position.rows.filter((p) => p.isActive && p.closingStock > 0).length,
-        incomingSku: position.rows.filter((p) => p.inQty > 0).length,
-        outgoingSku: position.rows.filter((p) => p.outQty > 0).length,
-        movedSku: position.rows.filter((p) => p.hasMovement).length,
-        lowStockCount: criticalItems.length - outOfStockCount,
-        outOfStockCount,
-      },
-      stockGroupStats: Array.from(stockGroupMap.values()),
-      criticalItems,
-      recentActivities,
-      topConsumed,
-      topUnits,
-      dailyTrends,
-      categoryStats,
-    };
   }
 
   /**

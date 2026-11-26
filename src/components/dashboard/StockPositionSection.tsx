@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Download, FileText, History, Loader2, Printer, Search } from 'lucide-react';
-import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { StockQty } from '@/components/ui/StockQty';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
 import type { summarizeStockByUnit } from '@/lib/stock-position-totals';
@@ -43,24 +42,24 @@ function qty(row: StockPositionRow, value: number, prefix = '') {
  * Riwayat stok per bulan/tahun: Stok Awal (awal periode), Barang Masuk (masuk), Total, Keluar, dan Sisa Akhir.
  * Bisa dicetak A4 dan diunduh sebagai Excel sesuai periode & jenis stok yang dipilih.
  */
-export function StockPositionSection({ periode, jenis }: { periode: string; jenis?: string }) {
+export function StockPositionSection({ periode, jenis, data, loading, loadError }: {
+  periode: string; jenis?: string; data: StockPositionReport | null; loading: boolean; loadError: string | null;
+}) {
   const mode: Mode = /^\d{4}$/.test(periode) ? 'year' : 'month';
   const [search, setSearch] = useState('');
   const [onlyMoved, setOnlyMoved] = useState(false);
+  const [rowLimit, setRowLimit] = useState(50);
 
   const params = new URLSearchParams({ periode });
   if (jenis) params.set('jenis', jenis);
   const queryStr = params.toString();
-  const url = `/api/reports/stock-position?${queryStr}`;
-
-  const [data, setData] = useState<StockPositionReport | null>(() => getSwrCache<StockPositionReport>(url) ?? null);
-  const [loading, setLoading] = useState(() => !getSwrCache(url));
-  const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const handleExportPdf = async () => {
     if (!data || exportingPdf) return;
     setExportingPdf(true);
+    setExportError(null);
     try {
       const group = parseStockGroup(jenis);
       const { downloadStockPositionPdf } = await import('@/lib/stock-position-pdf');
@@ -69,35 +68,11 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
         groupSlug: group ? getStockGroup(group).slug : 'semua',
       });
     } catch (e: any) {
-      setError(e?.message || 'PDF gagal dibuat.');
+      setExportError(e?.message || 'PDF gagal dibuat.');
     } finally {
       setExportingPdf(false);
     }
   };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const cached = getSwrCache<StockPositionReport>(url);
-    if (cached) {
-      setData(cached);
-      setLoading(false);
-    } else {
-      setData(null);
-      setLoading(true);
-    }
-    setError(null);
-    fetchSwrJson<StockPositionReport>(url, { signal: controller.signal })
-      .then((json) => {
-        if (!controller.signal.aborted) setData(json);
-      })
-      .catch((e: any) => {
-        if (e?.name !== 'AbortError') setError(e?.message || 'Riwayat stok tidak dapat dimuat.');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [url]);
 
   const rows = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase('id-ID');
@@ -182,7 +157,7 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
         </div>
       </div>
 
-      {!loading && !error && data && data.totalsByUnit.length > 0 && (
+      {!loading && !loadError && data && data.totalsByUnit.length > 0 && (
         <div className="overflow-x-auto border-t border-slate-100 px-5 py-3">
           <p className="mb-2 text-xs font-semibold text-slate-800">Subtotal per satuan ({data.itemCount} jenis barang)</p>
           <table className="w-full whitespace-nowrap text-right text-xs tabular-nums">
@@ -212,8 +187,9 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
         </div>
       )}
 
-      {error ? (
-        <p className="p-6 text-center text-sm text-rose-600">{error}</p>
+      {exportError && <p role="alert" className="px-5 py-2 text-sm text-rose-600">{exportError}</p>}
+      {loadError ? (
+        <p role="alert" className="p-6 text-center text-sm text-rose-600">{loadError}</p>
       ) : (
         <div className="max-h-[560px] overflow-auto border-t border-slate-100">
           <table className="w-full text-left text-sm tabular-nums">
@@ -242,7 +218,7 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => (
+                rows.slice(0, rowLimit).map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/70">
                     <td className="px-3.5 py-2.5 min-w-[12rem]">
                       <p className="font-semibold text-slate-900 leading-snug">{row.name}</p>
@@ -275,6 +251,11 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
             </tbody>
           </table>
         </div>
+      )}
+      {rows.length > rowLimit && (
+        <button type="button" onClick={() => setRowLimit((limit) => limit + 50)} className="mx-5 my-3 text-sm font-semibold text-maroon-800 hover:underline">
+          Tampilkan lebih banyak ({rowLimit} dari {rows.length} barang)
+        </button>
       )}
       <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-2.5 text-[11px] text-slate-500">
         Stok Awal = stok {data?.period.openingLabel ?? 'awal periode'} · Total = Stok Awal + Barang Masuk · Sisa Akhir = Total − Keluar
