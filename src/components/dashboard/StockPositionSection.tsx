@@ -5,6 +5,7 @@ import { Download, FileText, History, Loader2, Printer, Search } from 'lucide-re
 import { fetchSwrJson, getSwrCache } from '@/lib/client-swr';
 import { StockQty } from '@/components/ui/StockQty';
 import { getStockGroup, parseStockGroup } from '@/lib/stock-groups';
+import type { summarizeStockByUnit } from '@/lib/stock-position-totals';
 
 type Mode = 'month' | 'year';
 
@@ -28,17 +29,8 @@ interface StockPositionRow {
 interface StockPositionReport {
   period: { kind: Mode; value: string; label: string; openingLabel: string };
   hasAdjustment: boolean;
-  totals: {
-    openingStock: number;
-    inQty: number;
-    totalAvailable: number;
-    outQty: number;
-    adjustment: number;
-    closingStock: number;
-    itemCount: number;
-    itemsWithIn: number;
-    itemsWithOut: number;
-  };
+  itemCount: number;
+  totalsByUnit: ReturnType<typeof summarizeStockByUnit>;
   rows: StockPositionRow[];
 }
 
@@ -48,7 +40,7 @@ function qty(row: StockPositionRow, value: number, prefix = '') {
 }
 
 /**
- * Riwayat stok per bulan/tahun: Stok Lama (awal periode), Stok Baru (masuk), Total, Keluar, dan Sisa Akhir.
+ * Riwayat stok per bulan/tahun: Stok Awal (awal periode), Barang Masuk (masuk), Total, Keluar, dan Sisa Akhir.
  * Bisa dicetak A4 dan diunduh CSV sesuai periode & jenis stok yang dipilih.
  */
 export function StockPositionSection({ periode, jenis }: { periode: string; jenis?: string }) {
@@ -90,6 +82,7 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
       setData(cached);
       setLoading(false);
     } else {
+      setData(null);
       setLoading(true);
     }
     setError(null);
@@ -117,7 +110,6 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
 
   const showAdj = Boolean(data?.hasAdjustment);
   const colCount = 6 + (showAdj ? 1 : 0);
-  const t = data?.totals;
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
@@ -125,7 +117,7 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
         <div>
           <h3 className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-900">
             <History className="h-4 w-4 text-maroon-700" />
-            Riwayat Stok Lama & Stok Baru
+            Riwayat Posisi Stok
           </h3>
           <p className="mt-0.5 text-xs text-slate-500">
             Stok awal periode, barang masuk, total, barang keluar, dan sisa akhir per barang
@@ -190,21 +182,33 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
         </div>
       </div>
 
-      {/* Ringkasan total periode */}
-      {t && (
-        <div className="grid grid-cols-2 gap-px bg-slate-100 text-center sm:grid-cols-4">
-          {[
-            { label: 'Stok Lama', value: t.openingStock, hint: data?.period.openingLabel },
-            { label: 'Stok Baru (Masuk)', value: t.inQty, hint: `${t.itemsWithIn} barang` },
-            { label: 'Keluar', value: t.outQty, hint: `${t.itemsWithOut} barang` },
-            { label: 'Sisa Akhir', value: t.closingStock, hint: `${t.itemCount} barang` },
-          ].map((s) => (
-            <div key={s.label} className="bg-white px-3 py-3">
-              <p className="text-[11px] font-medium text-slate-500">{s.label}</p>
-              <p className="text-lg font-bold tabular-nums text-slate-900">{s.value.toLocaleString('id-ID')}</p>
-              <p className="text-[10px] text-slate-400">{s.hint}</p>
-            </div>
-          ))}
+      {!loading && !error && data && data.totalsByUnit.length > 0 && (
+        <div className="overflow-x-auto border-t border-slate-100 px-5 py-3">
+          <p className="mb-2 text-xs font-semibold text-slate-800">Subtotal per satuan ({data.itemCount} jenis barang)</p>
+          <table className="w-full whitespace-nowrap text-right text-xs tabular-nums">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="text-left">Satuan</th>
+                <th>Stok Awal</th>
+                <th>Barang Masuk</th>
+                <th>Keluar</th>
+                {data.hasAdjustment && <th>Penyesuaian</th>}
+                <th>Sisa Akhir</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.totalsByUnit.map((t) => (
+                <tr key={t.unit}>
+                  <th scope="row" className="py-1 text-left font-medium">{t.unit}</th>
+                  <td>{t.openingStock.toLocaleString('id-ID')}</td>
+                  <td>{t.inQty.toLocaleString('id-ID')}</td>
+                  <td>{t.outQty.toLocaleString('id-ID')}</td>
+                  {data.hasAdjustment && <td>{t.adjustment.toLocaleString('id-ID')}</td>}
+                  <td>{t.closingStock.toLocaleString('id-ID')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -216,8 +220,8 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
             <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50 text-xs uppercase font-semibold text-slate-500">
               <tr>
                 <th className="px-3.5 py-3">Barang</th>
-                <th className="px-2.5 py-3 text-right whitespace-nowrap">Stok Lama</th>
-                <th className="px-2.5 py-3 text-right text-emerald-700 whitespace-nowrap">Stok Baru</th>
+                <th className="px-2.5 py-3 text-right whitespace-nowrap">Stok Awal</th>
+                <th className="px-2.5 py-3 text-right text-emerald-700 whitespace-nowrap">Barang Masuk</th>
                 <th className="px-2.5 py-3 text-right whitespace-nowrap">Total</th>
                 <th className="px-2.5 py-3 text-right text-maroon-800 whitespace-nowrap">Keluar</th>
                 {showAdj && <th className="px-2.5 py-3 text-right whitespace-nowrap">Penyesuaian</th>}
@@ -273,8 +277,8 @@ export function StockPositionSection({ periode, jenis }: { periode: string; jeni
         </div>
       )}
       <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-2.5 text-[11px] text-slate-500">
-        Stok Lama = stok {data?.period.openingLabel ?? 'awal periode'} · Total = Stok Lama + Stok Baru · Sisa Akhir = Total − Keluar
-        {showAdj ? ' ± Penyesuaian' : ''}. Pembatalan distribusi otomatis mengurangi angka keluar.
+        Stok Awal = stok {data?.period.openingLabel ?? 'awal periode'} · Total = Stok Awal + Barang Masuk · Sisa Akhir = Total − Keluar
+        {showAdj ? ' ± Penyesuaian' : ''}. Distribusi mengikuti tanggal dokumen. Pembatalan mengikuti tanggal pencatatannya.
       </div>
     </section>
   );

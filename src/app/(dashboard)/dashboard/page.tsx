@@ -113,9 +113,9 @@ export default function DashboardPage() {
         />
 
         <KPICard
-          title="Total Unit Stok"
-          value={data?.kpi?.totalAggregateStock ?? '...'}
-          subtitle="Total fisik agregat persediaan"
+          title="Jenis Barang Tersedia"
+          value={data?.kpi?.inStockSku ?? '...'}
+          subtitle="SKU aktif dengan stok tersisa"
           icon={Layers}
           variant="maroon"
         />

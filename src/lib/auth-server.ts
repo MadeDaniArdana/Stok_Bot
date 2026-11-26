@@ -7,6 +7,8 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/session';
 export const SAFE_USER_SELECT = {
   id: true,
   name: true,
+  divisionName: true,
+  requestTemplateId: true,
   email: true,
   role: true,
   isActive: true,
@@ -17,6 +19,8 @@ export const SAFE_USER_SELECT = {
 type SafeSessionUser = {
   id: string;
   name: string;
+  divisionName: string | null;
+  requestTemplateId: string | null;
   email: string;
   role: string;
   isActive: boolean;

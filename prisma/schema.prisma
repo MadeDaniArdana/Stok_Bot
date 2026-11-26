@@ -10,6 +10,9 @@ datasource db {
 model User {
   id                String             @id @default(uuid())
   name              String
+  divisionName      String?
+  requestTemplateId String?
+  requestTemplate   DistributionTemplate? @relation(fields: [requestTemplateId], references: [id], onDelete: SetNull)
   email             String             @unique
   passwordHash      String?
   role              String             @default("USER") // ADMIN, DIVISI (pengaju barang), USER
@@ -22,6 +25,8 @@ model User {
   notifications     Notification[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+
+  @@index([requestTemplateId])
 }
 
 model Category {
@@ -277,6 +282,7 @@ model DistributionTemplate {
   storageLocation String?
   receiverName    String?
   items           DistributionTemplateItem[]
+  divisionUsers   User[]
   createdAt       DateTime                   @default(now())
   updatedAt       DateTime                   @updatedAt
 

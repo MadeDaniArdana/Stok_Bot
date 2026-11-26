@@ -301,3 +301,125 @@ test('getStockParts memecah kemasan dan sisa eceran untuk tampilan tabel ringkas
     rest: '30 ml',
   });
 });
+
+test('ACC yang gagal setelah pengurangan stok membatalkan distribusi dan bisa dicoba ulang', async () => {
+  const admin = { id: 'admin', name: 'Admin' };
+  const requestId = 'request-1';
+  const item = { id: 'line-1', quantity: 4, productId: 'product-1' };
+  let state = { status: 'PENDING', stock: 10, distribution: null };
+  let failFinalUpdate = true;
+  const alerts = [];
+  const prisma = {
+    itemRequest: {
+      create: async ({ data }) => ({ ...data }),
+      findFirst: async () => null,
+    },
+    $transaction: async (work) => {
+      const next = { ...state };
+      const tx = {
+        itemRequest: {
+          updateMany: async ({ where, data }) => {
+            if (next.status !== where.status) return { count: 0 };
+            next.status = data.status;
+            return { count: 1 };
+          },
+          findUniqueOrThrow: async () => ({
+            id: requestId, items: [item], stockGroup: 'ATK', number: 'PJ-202602-001',
+            divisionName: 'Keuangan', requesterName: 'Pengaju',
+          }),
+          update: async ({ data }) => {
+            if (failFinalUpdate) throw new Error('Gagal menyimpan status');
+            next.status = data.status;
+            return { id: requestId, ...data };
+          },
+        },
+        itemRequestItem: { update: async () => {} },
+        distribution: { findFirst: async () => next.distribution },
+        applyDistribution: async (input) => {
+          assert.equal(input.items[0].quantity, 2);
+          next.stock -= input.items[0].quantity;
+          next.distribution = { id: 'dist-1', number: 'ATK-202602-001' };
+          return { distribution: next.distribution, stockAfter: [{ productId: item.productId, stock: next.stock }] };
+        },
+      };
+      const result = await work(tx);
+      state = next;
+      return result;
+    },
+    product: {
+      findMany: async () => [{ id: item.productId, isActive: true, category: { stockGroup: 'ATK' } }],
+    },
+  };
+  const { DistributionService } = loadTypeScript('src/services/distribution.service.ts', {
+    '@/lib/prisma': { prisma },
+    '@/lib/report-period': period,
+    '@/lib/stock-groups': {},
+    './notification.service': { NotificationService: {
+      checkStockLevelAndAlert: async (_id, stock) => alerts.push(stock),
+    } },
+    '@/lib/task-proof-storage': {},
+    '@/lib/phone': {},
+    '@/lib/product-units': productUnits,
+  });
+  DistributionService.createInTransaction = (tx, input) => tx.applyDistribution(input);
+  const { RequestService } = loadTypeScript('src/services/request.service.ts', {
+    '@/lib/prisma': { prisma },
+    './distribution.service': { DistributionService },
+  });
+  await RequestService.create({ id: 'divisi', name: 'Keuangan' }, {
+    stockGroup: 'ATK', receiverName: 'Pengaju', signature: 'data:image/png;base64,YQ==',
+    items: [item],
+  });
+  assert.equal(state.stock, 10);
+  const approve = () => RequestService.approve(requestId, admin, {
+    date: '2026-02-03',
+    items: [{ id: item.id, approvedQuantity: 2 }],
+  });
+  await assert.rejects(approve(), /Gagal menyimpan status/);
+  assert.deepEqual(state, { status: 'PENDING', stock: 10, distribution: null });
+  assert.deepEqual(alerts, []);
+  failFinalUpdate = false;
+  assert.equal((await approve()).status, 'APPROVED');
+  await assert.rejects(approve(), /sudah diproses/);
+  assert.equal(state.stock, 8);
+  assert.deepEqual(alerts, [8]);
+});
+
+test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap satuan', async () => {
+  const { Prisma } = require('@prisma/client');
+  const subtotal = loadTypeScript('src/lib/stock-position-totals.ts');
+  const stockGroups = loadTypeScript('src/lib/stock-groups.ts');
+  const january = period.parseStockReportPeriod('2026-01');
+  const product = (id, unit, currentStock) => ({
+    id, sku: id, name: id, unit, currentStock, createdAt: new Date('2025-12-01'),
+    isActive: true, category: { stockGroup: 'ATK', name: 'ATK' },
+  });
+  const prisma = {
+    $queryRaw: (strings, ...values) => {
+      const query = Prisma.sql(strings, ...values);
+      assert.match(query.text, /COALESCE\(d\."distributedAt", m\."createdAt"\)/);
+      assert.match(query.text, /di\."movementId" = m.id/);
+      assert.ok(query.values.includes(january.gte));
+      assert.ok(query.values.includes(january.lt));
+      return Promise.resolve([
+        { productId: 'marker', hasMovement: true, afterDelta: 8, periodDelta: -3, outQty: 3 },
+      ]);
+    },
+    product: { findMany: async () => [product('marker', 'PCS', 20), product('pen', 'pcs', 2), product('paper', 'rim', 5)] },
+    $transaction: (queries, options) => {
+      assert.equal(options.isolationLevel, 'RepeatableRead');
+      return Promise.all(queries);
+    },
+  };
+  const { ReportService } = loadTypeScript('src/services/report.service.ts', {
+    '@/lib/prisma': { prisma },
+    '@/lib/stock-groups': stockGroups,
+    '@/lib/stock-position-totals': subtotal,
+  });
+  const report = await ReportService.getStockPositionReport(january, 'ATK');
+  const marker = report.rows.find((r) => r.id === 'marker');
+  assert.deepEqual([marker.openingStock, marker.outQty, marker.closingStock], [15, 3, 12]);
+  assert.deepEqual(report.totalsByUnit.map((r) => [r.unit, r.itemCount, r.closingStock]), [
+    ['pcs', 2, 14], ['rim', 1, 5],
+  ]);
+});

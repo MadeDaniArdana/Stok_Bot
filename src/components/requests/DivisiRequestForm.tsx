@@ -35,10 +35,14 @@ const inputClass =
  * "PENGAJUAN PENGADAAN BARANG ATK — UNIVERSITAS TEKNOKRAT INDONESIA":
  * Nama Barang, Spesifikasi, Kebutuhan*, Ket., Ka. Divisi, Yang Mengajukan + tanda tangan digital).
  */
-export function DivisiRequestForm() {
+export function DivisiRequestForm({ divisionName, template }: {
+  divisionName: string;
+  template: { name: string; items: { productId: string; quantity: number }[] } | null;
+}) {
   const router = useRouter();
   const { showToast } = useToast();
   const [products, setProducts] = useState<Product[] | null>(null);
+  const [productsError, setProductsError] = useState(false);
   const [search, setSearch] = useState('');
   // Jumlah dibutuhkan (Kebutuhan*), spesifikasi, & keterangan per barang master.
   const [qty, setQty] = useState<Record<string, string>>({});
@@ -52,17 +56,29 @@ export function DivisiRequestForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch('/api/divisi/products', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setProducts);
+    const controller = new AbortController();
+    fetch('/api/divisi/products', { cache: 'no-store', signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (!controller.signal.aborted) setProducts(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setProductsError(true);
+      });
+    return () => controller.abort();
   }, []);
+
+  const templateRows = useMemo(() => new Map(
+    template?.items.map((item, index) => [item.productId, { index, quantity: item.quantity }])
+  ), [template]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (products ?? []).filter(
       (p) => p.stockGroup === 'ATK' && (!q || p.name.toLowerCase().includes(q) || p.categoryName.toLowerCase().includes(q))
-    );
-  }, [products, search]);
+    ).sort((a, b) => (templateRows.get(a.id)?.index ?? Infinity) - (templateRows.get(b.id)?.index ?? Infinity));
+  }, [products, search, templateRows]);
 
   const chosen = (products ?? []).filter((p) => p.stockGroup === 'ATK' && Number(qty[p.id]) > 0);
   const customFilled = custom.filter((row) => row.name.trim() && Number(row.quantity) > 0);
@@ -127,6 +143,10 @@ export function DivisiRequestForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-soft sm:p-5">
+      <div>
+        <p className="text-sm font-semibold text-slate-800">{divisionName}</p>
+        <p className="text-xs text-slate-500">{template ? `Template ATK ${template.name}` : 'Formulir ATK standar'}</p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor="req-name" className="mb-1 block text-xs font-semibold text-slate-700">
@@ -183,7 +203,11 @@ export function DivisiRequestForm() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {products === null ? (
+              {productsError ? (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-rose-600" role="alert">Daftar barang gagal dimuat. Muat ulang halaman untuk mencoba lagi.</td>
+                </tr>
+              ) : products === null ? (
                 <tr>
                   <td colSpan={4} className="py-8 text-center text-slate-400">Memuat daftar barang...</td>
                 </tr>
@@ -196,11 +220,15 @@ export function DivisiRequestForm() {
                   const empty = p.currentStock <= 0;
                   const chosenQty = Number(qty[p.id]) > 0;
                   const over = Number(qty[p.id]) > p.currentStock;
+                  const suggestedQuantity = templateRows.get(p.id)?.quantity;
                   return (
                     <tr key={p.id} className={chosenQty ? 'bg-maroon-50/40' : undefined}>
                       <td className="px-3 py-2 align-top">
                         <p className="font-medium text-slate-800">{p.name}</p>
                         <p className="text-[11px] text-slate-500">{p.categoryName}</p>
+                        {suggestedQuantity !== undefined && (
+                          <p className="text-[11px] text-maroon-800">Jumlah di template {suggestedQuantity} {p.unit}</p>
+                        )}
                         {chosenQty && (
                           <div className="mt-1.5 flex flex-col gap-1.5 sm:flex-row">
                             <input
@@ -227,7 +255,6 @@ export function DivisiRequestForm() {
                           value={spec[p.id] ?? ''}
                           onChange={(e) => setSpec((cur) => ({ ...cur, [p.id]: e.target.value }))}
                           maxLength={120}
-                          disabled={empty}
                           placeholder="Merek / ukuran / warna"
                           aria-label={`Spesifikasi ${p.name}`}
                           className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs focus:border-maroon-700 focus:outline-none disabled:bg-slate-100"
@@ -242,7 +269,6 @@ export function DivisiRequestForm() {
                             type="number"
                             min={0}
                             step={1}
-                            disabled={empty}
                             value={qty[p.id] ?? ''}
                             onChange={(e) => setQty((cur) => ({ ...cur, [p.id]: e.target.value }))}
                             placeholder="0"

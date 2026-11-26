@@ -77,13 +77,13 @@ export default async function PrintInventorySummaryPage({
           <tbody>
             <tr>
               <td className={cell}>Total Jenis Barang Aktif: <strong>{summary.kpi.totalActiveSku} SKU</strong></td>
-              <td className={cell}>Total Persediaan Fisik: <strong>{summary.kpi.totalAggregateStock} unit</strong></td>
+              <td className={cell}>Jenis Barang Tersedia pada Akhir Periode: <strong>{summary.kpi.inStockSku} SKU</strong></td>
               <td className={cell}>Perlu Pengadaan: <strong>{summary.criticalItems.length} barang</strong> ({summary.kpi.outOfStockCount} habis, {summary.kpi.lowStockCount} menipis)</td>
             </tr>
             <tr>
-              <td className={cell}>Total Barang Masuk: <strong>+{summary.kpi.totalInQuantity}</strong></td>
-              <td className={cell}>Total Barang Keluar: <strong>-{summary.kpi.totalOutQuantity}</strong></td>
-              <td className={cell}>Selisih Pergerakan (Net): <strong>{summary.kpi.netMovement > 0 ? `+${summary.kpi.netMovement}` : summary.kpi.netMovement}</strong></td>
+              <td className={cell}>Jenis Barang Masuk: <strong>{summary.kpi.incomingSku} SKU</strong></td>
+              <td className={cell}>Jenis Barang Keluar: <strong>{summary.kpi.outgoingSku} SKU</strong></td>
+              <td className={cell}>Jenis Barang Bermutasi: <strong>{summary.kpi.movedSku} SKU</strong></td>
             </tr>
           </tbody>
         </table>

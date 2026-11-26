@@ -38,9 +38,9 @@ export async function GET(req: NextRequest) {
       'Jenis',
       'Kategori',
       'Satuan',
-      `Stok Lama (${period.openingLabel})`,
-      'Stok Baru (Masuk)',
-      'Total (Lama + Baru)',
+      `Stok Awal (${period.openingLabel})`,
+      'Barang Masuk',
+      'Total (Awal + Masuk)',
       'Keluar',
       ...(report.hasAdjustment ? ['Penyesuaian'] : []),
       'Sisa Akhir',
@@ -71,12 +71,14 @@ export async function GET(req: NextRequest) {
           .join(',')
       );
     });
-    const t = report.totals;
-    lines.push(
-      ['', '', 'TOTAL', '', '', '', t.openingStock, t.inQty, t.totalAvailable, t.outQty, ...(report.hasAdjustment ? [t.adjustment] : []), t.closingStock]
-        .map(csvCell)
-        .join(',')
-    );
+    for (const t of report.totalsByUnit) {
+      lines.push(
+        ['', '', `SUBTOTAL (${t.itemCount} jenis barang)`, '', '', t.unit, t.openingStock, t.inQty,
+          t.totalAvailable, t.outQty, ...(report.hasAdjustment ? [t.adjustment] : []), t.closingStock]
+          .map(csvCell)
+          .join(',')
+      );
+    }
 
     const groupSlug = stockGroup ? getStockGroup(stockGroup).slug : 'semua';
     const fileLabel = period.kind === 'year' ? `tahun-${period.value}` : `bulan-${period.value}`;

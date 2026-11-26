@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/layout/AuthContext';
+import { DIVISION_OPTIONS } from '@/lib/division-options';
+
+type RequestTemplateOption = { id: string; name: string; recipientUnit: string };
 
 export default function UsersPage() {
   const { showToast } = useToast();
@@ -37,6 +40,10 @@ export default function UsersPage() {
 
   // Form State
   const [formName, setFormName] = useState('');
+  const [formDivision, setFormDivision] = useState('');
+  const [formTemplate, setFormTemplate] = useState('auto');
+  const [templates, setTemplates] = useState<RequestTemplateOption[]>([]);
+  const [templateStatus, setTemplateStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [formEmail, setFormEmail] = useState('');
   const [formRole, setFormRole] = useState<'ADMIN' | 'USER' | 'DIVISI'>('USER');
   const [formPassword, setFormPassword] = useState('');
@@ -63,6 +70,34 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
+  const showDivisionFields = (isAddOpen || Boolean(editingUser)) && formRole === 'DIVISI';
+  useEffect(() => {
+    if (!showDivisionFields) return;
+    const controller = new AbortController();
+    setTemplateStatus('loading');
+    fetch('/api/distribution-templates?jenis=ATK', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (!controller.signal.aborted) {
+          setTemplates(data.templates);
+          setTemplateStatus('ready');
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setTemplateStatus('error');
+      });
+    return () => controller.abort();
+  }, [showDivisionFields]);
+
+  const divisionOptions = Array.from(new Set([...DIVISION_OPTIONS, ...templates.map((template) => template.recipientUnit)]))
+    .sort((a, b) => a.localeCompare(b, 'id'));
+  const assignedTemplate = formTemplate === 'auto'
+    ? templates.find((template) => [template.recipientUnit, template.name].some(
+      (value) => value.trim().toLowerCase() === formDivision.trim().toLowerCase()
+    ))?.id ?? null
+    : formTemplate || null;
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formEmail.trim()) return;
@@ -76,6 +111,8 @@ export default function UsersPage() {
           name: formName.trim(),
           email: formEmail.trim(),
           role: formRole,
+          divisionName: formRole === 'DIVISI' ? formDivision : undefined,
+          requestTemplateId: formRole === 'DIVISI' ? assignedTemplate : undefined,
           password: formPassword || undefined,
           telegramUserId: formTgId.trim() || undefined,
           telegramUsername: formTgUsername.trim() || undefined,
@@ -108,6 +145,8 @@ export default function UsersPage() {
         body: JSON.stringify({
           name: formName.trim(),
           role: formRole,
+          divisionName: formRole === 'DIVISI' ? formDivision : undefined,
+          requestTemplateId: formRole === 'DIVISI' ? assignedTemplate : undefined,
           password: formPassword || undefined,
           telegramUserId: formTgId.trim() || undefined,
           telegramUsername: formTgUsername.trim() || undefined,
@@ -183,6 +222,8 @@ export default function UsersPage() {
 
   const resetForm = () => {
     setFormName('');
+    setFormDivision('');
+    setFormTemplate('auto');
     setFormEmail('');
     setFormRole('USER');
     setFormPassword('');
@@ -256,6 +297,7 @@ export default function UsersPage() {
                             </span>
                           )}
                         </div>
+                        {u.role === 'DIVISI' && u.divisionName && <p className="text-xs text-slate-600">{u.divisionName}</p>}
                         <p className="mt-0.5 text-xs text-slate-500 truncate max-w-[18rem]" title={u.email}>{u.email}</p>
                       </td>
 
@@ -322,6 +364,8 @@ export default function UsersPage() {
                               onClick={() => {
                                 setEditingUser(u);
                                 setFormName(u.name);
+                                setFormDivision(u.role === 'DIVISI' ? u.divisionName ?? u.name : '');
+                                setFormTemplate(u.requestTemplateId ?? '');
                                 setFormEmail(u.email);
                                 setFormRole(u.role);
                                 setFormTgId(u.telegram?.telegramUserId || '');
@@ -370,7 +414,7 @@ export default function UsersPage() {
       {/* Modal Add / Edit */}
       {(isAddOpen || editingUser) && (
         <ModalOverlay className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md max-h-[90dvh] overflow-y-auto w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Users className="w-5 h-5 text-maroon-800" />
@@ -436,22 +480,62 @@ export default function UsersPage() {
               </div>
 
               {formRole === 'DIVISI' && (
+                <>
+                <div>
+                  <label htmlFor="account-division" className="block font-semibold text-slate-700 mb-1">
+                    Nama Divisi <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="account-division"
+                    list="account-divisions"
+                    required
+                    maxLength={100}
+                    value={formDivision}
+                    onChange={(e) => setFormDivision(e.target.value)}
+                    placeholder="Pilih atau ketik nama divisi"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                  <datalist id="account-divisions">
+                    {divisionOptions.map((division) => <option key={division} value={division} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label htmlFor="account-template" className="block font-semibold text-slate-700 mb-1">Template Pengajuan ATK</label>
+                  <select
+                    id="account-template"
+                    value={formTemplate}
+                    onChange={(e) => setFormTemplate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
+                  >
+                    <option value="auto">Otomatis sesuai nama divisi</option>
+                    <option value="">Formulir ATK standar</option>
+                    {formTemplate && formTemplate !== 'auto' && !templates.some((template) => template.id === formTemplate) && (
+                      <option value={formTemplate}>Template akun saat ini</option>
+                    )}
+                    {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+                  </select>
+                  {templateStatus === 'loading' && <p className="mt-1 text-xs text-slate-500">Memuat template ATK...</p>}
+                  {templateStatus === 'error' && <p role="alert" className="mt-1 text-xs text-rose-600">Daftar template gagal dimuat. Buka ulang formulir atau pilih formulir ATK standar.</p>}
+                  {formTemplate === 'auto' && templateStatus === 'ready' && (
+                    <p className="mt-1 text-xs text-slate-500">Aktif: {templates.find((template) => template.id === assignedTemplate)?.name ?? 'Formulir ATK standar'}</p>
+                  )}
+                </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Kata Sandi Login {!editingUser && <span className="text-rose-500">*</span>}
                   </label>
                   <input
-                    type="text"
+                    type="password"
                     required={!editingUser}
                     minLength={8}
-                    autoComplete="off"
+                    autoComplete="new-password"
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
                     placeholder={editingUser ? 'Kosongkan jika tidak diubah' : 'Minimal 8 karakter'}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-maroon-500/20 focus:border-maroon-700"
                   />
-                  <p className="mt-1 text-[11px] text-slate-500">Nama akun dipakai sebagai nama divisi di pengajuan (misal: Divisi Keuangan). Berikan email dan kata sandi ini kepada divisi.</p>
                 </div>
+                </>
               )}
 
               <div className="pt-2 border-t border-slate-100">
@@ -502,7 +586,7 @@ export default function UsersPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (showDivisionFields && formTemplate === 'auto' && templateStatus !== 'ready')}
                   className="px-4 py-2 rounded-lg bg-maroon-800 hover:bg-maroon-900 active:bg-maroon-950 text-white font-semibold transition-colors disabled:opacity-50"
                 >
                   {isSubmitting ? 'Menyimpan...' : 'Simpan Pengguna'}

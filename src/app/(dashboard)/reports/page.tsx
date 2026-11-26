@@ -222,7 +222,7 @@ export default function ReportsPage() {
                   </span>
                   <span>·</span>
                   <span>
-                    <strong className="text-sm text-slate-900">{g.totalStock.toLocaleString('id-ID')}</strong> unit
+                    <strong className="text-sm text-slate-900">{g.inStockSku}</strong> tersedia
                   </span>
                 </div>
               </button>
@@ -234,31 +234,25 @@ export default function ReportsPage() {
       {/* KPI Arus Periode */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          title="Total Barang Masuk"
-          value={data?.kpi?.totalInQuantity ?? '...'}
+          title="Jenis Barang Masuk"
+          value={data?.kpi?.incomingSku ?? '...'}
           subtitle={`Penerimaan ${periodLabel}`}
           icon={ArrowDownToLine}
           variant="success"
         />
 
         <KPICard
-          title="Total Barang Keluar"
-          value={data?.kpi?.totalOutQuantity ?? '...'}
+          title="Jenis Barang Keluar"
+          value={data?.kpi?.outgoingSku ?? '...'}
           subtitle="Distribusi unit & pemasangan"
           icon={ArrowUpFromLine}
           variant="maroon"
         />
 
         <KPICard
-          title="Selisih (Net)"
-          value={
-            data?.kpi?.netMovement !== undefined
-              ? data.kpi.netMovement > 0
-                ? `+${data.kpi.netMovement}`
-                : data.kpi.netMovement
-              : '...'
-          }
-          subtitle="Selisih Masuk vs Keluar"
+          title="Jenis Barang Bermutasi"
+          value={data?.kpi?.movedSku ?? '...'}
+          subtitle="SKU dengan mutasi pada periode ini"
           icon={TrendingUp}
           variant="default"
         />
@@ -285,7 +279,7 @@ export default function ReportsPage() {
               Dinamika Arus Persediaan ({periodLabel})
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Perbandingan volume penerimaan (IN) vs pengeluaran (OUT) {data?.trendGranularity === 'monthly' ? 'per bulan' : isWeekly ? 'per minggu' : 'per hari'}
+              Jumlah baris penerimaan dan pengeluaran {data?.trendGranularity === 'monthly' ? 'per bulan' : isWeekly ? 'per minggu' : 'per hari'}
             </p>
           </div>
           {loading && <span className="text-[11px] text-slate-400">Memperbarui data...</span>}
@@ -369,7 +363,7 @@ export default function ReportsPage() {
         )}
       </section>
 
-      {/* Riwayat Stok Lama & Stok Baru per Bulan / Tahun */}
+      {/* Riwayat Posisi Stok per Bulan / Tahun */}
       <StockPositionSection periode={periode} jenis={groupFilter === 'ALL' ? undefined : groupFilter} />
 
       {/* Analitik Bawah: Top Barang Dipakai, Unit/Gedung Aktif, & Sebaran Kategori */}
@@ -473,7 +467,7 @@ export default function ReportsPage() {
                     </span>
                   </div>
                   <span className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono font-bold text-slate-800">
-                    {cat.totalStock.toLocaleString('id-ID')} unit
+                    {cat.inStockSku} tersedia
                   </span>
                 </div>
               ))

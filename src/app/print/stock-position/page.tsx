@@ -42,7 +42,6 @@ export default async function PrintStockPositionPage({ searchParams }: { searchP
   const qty = (row: (typeof report.rows)[number], value: number) =>
     value < 0 ? `-${formatStock(row, -value)}` : formatStock(row, value);
   const showAdj = report.hasAdjustment;
-  const t = report.totals;
 
   return (
     <>
@@ -74,9 +73,9 @@ export default async function PrintStockPositionPage({ searchParams }: { searchP
               <th className={`${cell} w-7`}>No</th>
               <th className={cell}>Nama Barang</th>
               <th className={cell}>Jenis</th>
-              <th className={cell}>Stok Lama<br /><span className="font-normal">({period.openingLabel})</span></th>
-              <th className={cell}>Stok Baru<br /><span className="font-normal">(Masuk)</span></th>
-              <th className={cell}>Total<br /><span className="font-normal">(Lama + Baru)</span></th>
+              <th className={cell}>Stok Awal<br /><span className="font-normal">({period.openingLabel})</span></th>
+              <th className={cell}>Barang Masuk</th>
+              <th className={cell}>Total<br /><span className="font-normal">(Awal + Masuk)</span></th>
               <th className={cell}>Keluar</th>
               {showAdj && <th className={cell}>Penyesuaian</th>}
               <th className={cell}>Sisa Akhir</th>
@@ -110,8 +109,9 @@ export default async function PrintStockPositionPage({ searchParams }: { searchP
           </tbody>
           {report.rows.length > 0 && (
             <tfoot>
-              <tr className="bg-slate-100 font-bold">
-                <td className={`${cell} text-center`} colSpan={3}>TOTAL ({t.itemCount} barang)</td>
+              {report.totalsByUnit.map((t) => (
+              <tr key={t.unit} className="bg-slate-100 font-bold">
+                <td className={`${cell} text-center`} colSpan={3}>Subtotal {t.unit} ({t.itemCount} jenis barang)</td>
                 <td className={`${cell} text-center`}>{t.openingStock}</td>
                 <td className={`${cell} text-center`}>{t.inQty}</td>
                 <td className={`${cell} text-center`}>{t.totalAvailable}</td>
@@ -119,11 +119,12 @@ export default async function PrintStockPositionPage({ searchParams }: { searchP
                 {showAdj && <td className={`${cell} text-center`}>{t.adjustment}</td>}
                 <td className={`${cell} text-center`}>{t.closingStock}</td>
               </tr>
+              ))}
             </tfoot>
           )}
         </table>
         <p className="mt-1 text-[10px] italic text-slate-700">
-          * Total = Stok Lama + Stok Baru. Sisa Akhir = Total − Keluar{showAdj ? ' ± Penyesuaian' : ''}. Baris TOTAL menjumlahkan angka dalam satuan dasar masing-masing barang.
+          * Total = Stok Awal + Barang Masuk. Sisa Akhir = Total − Keluar{showAdj ? ' ± Penyesuaian' : ''}. Subtotal dihitung per satuan dasar.
         </p>
 
         <footer className="mt-10 grid grid-cols-2 gap-6 text-[12px] break-inside-avoid">

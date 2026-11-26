@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
     const request = await RequestService.create(auth.user, {
       stockGroup: body.stockGroup,
       notes: body.notes,
-      recipientTo: body.recipientTo,
       receiverName: body.receiverName,
       divisionHeadName: body.divisionHeadName,
       signature: body.signature,

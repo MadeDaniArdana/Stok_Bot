@@ -5,6 +5,7 @@ import { invalidateUserSessionCache, requireAdmin, SAFE_USER_SELECT } from '@/li
 import { hashPassword } from '@/lib/password';
 import { apiError } from '@/lib/error-log';
 import { isUserFacingError } from '@/lib/api-errors';
+import { normalizeDivisionName } from '@/lib/division-options';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -13,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const currentUser = auth.user;
     const { id } = await params;
 
-    const { name, role, password, isActive, telegramUserId, telegramUsername, unlinkTelegram } = await req.json();
+    const { name, role, password, isActive, telegramUserId, telegramUsername, unlinkTelegram, divisionName, requestTemplateId } = await req.json();
 
     if (password !== undefined && (typeof password !== 'string' || password.length < 8)) {
       return NextResponse.json({ error: 'Kata sandi minimal 8 karakter.' }, { status: 400 });
@@ -28,6 +29,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (role !== undefined && role !== 'ADMIN') {
         return NextResponse.json({ error: 'Anda tidak dapat menurunkan peran akun yang sedang dipakai login.' }, { status: 400 });
       }
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { role: true, passwordHash: true },
+    });
+    if (!target) return NextResponse.json({ error: 'Akun tidak ditemukan.' }, { status: 404 });
+    const isDivision = (role ?? target.role) === 'DIVISI';
+    const division = normalizeDivisionName(divisionName);
+    if (isDivision && (divisionName !== undefined || target.role !== 'DIVISI') && (!division || division.length > 100)) {
+      return NextResponse.json({ error: 'Nama divisi wajib diisi dan maksimal 100 karakter.' }, { status: 400 });
+    }
+    if (isDivision && target.role !== 'DIVISI' && !target.passwordHash && !password) {
+      return NextResponse.json({ error: 'Atur kata sandi untuk akun divisi.' }, { status: 400 });
+    }
+    if (isDivision && requestTemplateId !== undefined && requestTemplateId !== null &&
+        (typeof requestTemplateId !== 'string' || !await prisma.distributionTemplate.findFirst({
+          where: { id: requestTemplateId, stockGroup: 'ATK' }, select: { id: true },
+        }))) {
+      return NextResponse.json({ error: 'Pilih template ATK yang tersedia.' }, { status: 400 });
     }
 
     // ID admin Telegram otomatis tertaut ulang oleh bot, jadi hak admin-nya harus dicabut agar putusnya permanen.
@@ -50,6 +71,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: {
         name: typeof name === 'string' && name.trim() ? name.trim() : undefined,
         role: role ?? undefined,
+        divisionName: isDivision ? division || undefined : null,
+        requestTemplateId: isDivision ? requestTemplateId : null,
         passwordHash: password ? await hashPassword(password) : undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
       },

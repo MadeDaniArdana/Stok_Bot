@@ -33,7 +33,7 @@ export interface StockReportPeriod {
   lt: Date;
   /** Contoh: "November 2026" atau "Tahun 2026". */
   label: string;
-  /** Label stok lama, contoh: "Stok Lama (per 1 November 2026)". */
+  /** Label stok lama, contoh: "Stok Awal (per 1 November 2026)". */
   openingLabel: string;
 }
 

@@ -282,7 +282,7 @@ export function RequestAdminList({ view }: { view: 'incoming' | 'history' }) {
               <div>
                 <p className="font-mono text-xs font-bold text-maroon-800">{r.number}</p>
                 <p className="text-sm font-semibold text-slate-900">
-                  {view === 'incoming' ? `Dari: ${r.divisionName}` : `Kepada: ${r.divisionName}`}
+                  {view === 'incoming' ? `Dari: ${r.divisionName}` : `Kepada: ${r.storageLocation ?? r.divisionName}`}
                 </p>
                 <p className="text-[11px] text-slate-500">
                   {r.stockGroup === 'ATK' ? 'ATK' : 'Logistik'} • oleh {r.receiverName || r.requesterName} • diajukan {formatDateTime(r.createdAt)}

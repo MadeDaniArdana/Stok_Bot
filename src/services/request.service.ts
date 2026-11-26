@@ -49,13 +49,12 @@ const requestSelect = {
 interface Actor {
   id: string;
   name: string;
+  divisionName?: string | null;
 }
 
 export interface CreateRequestInput {
   stockGroup: string;
   notes?: string | null;
-  /** Opsional: bila tidak diisi, memakai nama akun divisi (admin menetapkan Kepada & Tempat Penyimpanan saat ACC). */
-  recipientTo?: string | null;
   /** Nama yang mengajukan / penerima (penanda tangan). */
   receiverName: string;
   /** Nama Ka. Divisi pada blok "Mengetahui," (opsional). */
@@ -107,7 +106,9 @@ function parseApprovalDate(value: string | null | undefined): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Tanggal ACC tidak valid.');
   const date = new Date(`${value}T12:00:00+07:00`);
   const year = Number(value.slice(0, 4));
-  if (Number.isNaN(date.getTime()) || year < 2020 || year > 2100) throw new Error('Tanggal ACC tidak valid.');
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value || year < 2020 || year > 2100) {
+    throw new Error('Tanggal ACC tidak valid.');
+  }
   return date;
 }
 
@@ -115,7 +116,6 @@ export class RequestService {
   static async create(user: Actor, input: CreateRequestInput) {
     const stockGroup = input.stockGroup || 'ATK';
     if (!(REQUEST_GROUPS as readonly string[]).includes(stockGroup)) throw new Error('Pengajuan barang saat ini hanya tersedia untuk ATK.');
-    const recipientTo = text(input.recipientTo, 'Unit pengaju') ?? user.name;
     const receiverName = text(input.receiverName, 'Nama Yang Mengajukan', true, 100)!;
     const divisionHeadName = text(input.divisionHeadName, 'Nama Ka. Divisi', false, 100);
     const requesterSignature = signature(input.signature, true);
@@ -168,7 +168,7 @@ export class RequestService {
             stockGroup,
             requesterId: user.id,
             requesterName: user.name,
-            divisionName: recipientTo,
+            divisionName: user.divisionName ?? user.name,
             receiverName,
             divisionHeadName,
             requesterSignature,
@@ -228,12 +228,18 @@ export class RequestService {
    * (stok berkurang, tanggal = tanggal ACC). Barang ketikan pengaju harus dipetakan ke barang master atau ditandai "tanpa stok".
    */
   static async approve(id: string, admin: Actor, input: ApproveRequestInput = {}) {
-    // Klaim atomik: dua admin menekan Setujui bersamaan tidak akan mengurangi stok dua kali.
-    const claimed = await prisma.itemRequest.updateMany({ where: { id, status: 'PENDING' }, data: { status: 'PROCESSING' } });
-    if (claimed.count === 0) throw new Error('Pengajuan tidak ditemukan atau sudah diproses.');
+    const { approvedRequest, stockAfter } = await DistributionService.runTransaction(async (tx) => {
+      // Kunci pengajuan sampai distribusi dan persetujuan berhasil disimpan bersama.
+      const claimed = await tx.itemRequest.updateMany({ where: { id, status: 'PENDING' }, data: { status: 'PROCESSING' } });
+      if (claimed.count === 0) throw new Error('Pengajuan tidak ditemukan atau sudah diproses.');
 
-    try {
-      const request = await prisma.itemRequest.findUniqueOrThrow({ where: { id }, include: { items: { orderBy: { id: 'asc' } } } });
+      const request = await tx.itemRequest.findUniqueOrThrow({ where: { id }, include: { items: { orderBy: { id: 'asc' } } } });
+      const existing = await tx.distribution.findFirst({
+        where: { orderNumber: request.number, stockGroup: request.stockGroup, status: 'COMPLETED' },
+        select: { number: true },
+      });
+      if (existing) throw new Error(`Pengajuan sudah memiliki distribusi ${existing.number}. Periksa riwayat stok sebelum mengulangi ACC.`);
+
       const approvedAt = parseApprovalDate(input.date);
       const dateText = input.date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
       // Kepada dan Tempat Penyimpanan selalu disamakan sesuai isian admin saat ACC.
@@ -260,9 +266,8 @@ export class RequestService {
       const totals = new Map<string, number>();
       for (const d of decisions) if (d.productId && d.approved > 0) totals.set(d.productId, (totals.get(d.productId) ?? 0) + d.approved);
 
-      let distribution: { id: string; number: string } | null = null;
-      if (totals.size > 0) {
-        ({ distribution } = await DistributionService.create({
+      const result = totals.size > 0
+        ? await DistributionService.createInTransaction(tx, {
           stockGroup: request.stockGroup,
           recipientUnit,
           orderNumber: request.number,
@@ -274,37 +279,34 @@ export class RequestService {
           notes: `Pengajuan ${request.number}${request.notes ? `: ${request.notes}` : ''}`,
           items: Array.from(totals, ([productId, quantity]) => ({ productId, quantity })),
           actorUserId: admin.id,
-        }));
-      }
+        })
+        : null;
 
-      return await prisma.$transaction(async (tx) => {
-        for (const d of decisions) {
-          await tx.itemRequestItem.update({
-            where: { id: d.id },
-            data: { approvedQuantity: d.approved, productId: d.productId, noStock: d.noStock, itemNotes: d.itemNotes },
-          });
-        }
-        return tx.itemRequest.update({
-          where: { id },
-          data: {
-            status: 'APPROVED',
-            divisionName: recipientUnit,
-            decidedAt: new Date(),
-            decidedByName: admin.name,
-            approvedDate: approvedAt,
-            storageLocation: recipientUnit,
-            adminSignature,
-            distributionId: distribution?.id ?? null,
-            distributionNumber: distribution?.number ?? null,
-          },
-          select: requestSelect,
+      for (const d of decisions) {
+        await tx.itemRequestItem.update({
+          where: { id: d.id },
+          data: { approvedQuantity: d.approved, productId: d.productId, noStock: d.noStock, itemNotes: d.itemNotes },
         });
+      }
+      const approvedRequest = await tx.itemRequest.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          decidedAt: new Date(),
+          decidedByName: admin.name,
+          approvedDate: approvedAt,
+          storageLocation: recipientUnit,
+          adminSignature,
+          distributionId: result?.distribution.id ?? null,
+          distributionNumber: result?.distribution.number ?? null,
+        },
+        select: requestSelect,
       });
-    } catch (error) {
-      // Gagal (mis. stok kurang): kembalikan ke antrean supaya bisa dicoba lagi atau ditolak.
-      await prisma.itemRequest.update({ where: { id }, data: { status: 'PENDING' } });
-      throw error;
-    }
+      return { approvedRequest, stockAfter: result?.stockAfter ?? [] };
+    });
+
+    await DistributionService.notifyStockLevels(stockAfter, admin.id);
+    return approvedRequest;
   }
 
   static async reject(id: string, reason: string, admin: Actor) {

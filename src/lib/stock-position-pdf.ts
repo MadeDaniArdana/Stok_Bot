@@ -1,4 +1,5 @@
 import { formatStock } from '@/lib/product-units';
+import { summarizeStockByUnit } from '@/lib/stock-position-totals';
 
 export interface StockPositionPdfRow {
   sku: string;
@@ -19,15 +20,6 @@ export interface StockPositionPdfRow {
 export interface StockPositionPdfReport {
   period: { kind: 'month' | 'year'; value: string; label: string; openingLabel: string };
   hasAdjustment: boolean;
-  totals: {
-    openingStock: number;
-    inQty: number;
-    totalAvailable: number;
-    outQty: number;
-    adjustment: number;
-    closingStock: number;
-    itemCount: number;
-  };
   rows: StockPositionPdfRow[];
 }
 
@@ -51,7 +43,7 @@ async function loadImageDataUrl(src: string): Promise<string | null> {
   }
 }
 
-/** Buat & unduh PDF A4 Riwayat Stok (Stok Lama, Stok Baru, Total, Keluar, Sisa Akhir) di browser. */
+/** Buat & unduh PDF A4 Riwayat Stok (Stok Awal, Barang Masuk, Total, Keluar, Sisa Akhir) di browser. */
 export async function downloadStockPositionPdf(
   report: StockPositionPdfReport,
   /** scopeLabel: judul cakupan di kop, mis. "Jenis Stok" (bawaan) atau "Kategori". */
@@ -102,9 +94,9 @@ export async function downloadStockPositionPdf(
       'No',
       'Nama Barang',
       'Jenis',
-      `Stok Lama\n(${report.period.openingLabel})`,
-      'Stok Baru\n(Masuk)',
-      'Total\n(Lama + Baru)',
+      `Stok Awal\n(${report.period.openingLabel})`,
+      'Barang Masuk',
+      'Total\n(Awal + Masuk)',
       'Keluar',
       ...(showAdj ? ['Penyesuaian'] : []),
       'Sisa Akhir',
@@ -121,20 +113,15 @@ export async function downloadStockPositionPdf(
     ...(showAdj ? [row.adjustment ? `${row.adjustment > 0 ? '+' : ''}${qty(row, row.adjustment)}` : '-'] : []),
     qty(row, row.closingStock),
   ]);
-  const sum = (key: keyof StockPositionPdfRow) => rows.reduce((acc, r) => acc + (r[key] as number), 0);
-  const foot = rows.length
-    ? [
-        [
-          { content: `TOTAL (${rows.length} barang)`, colSpan: 3 },
-          String(sum('openingStock')),
-          String(sum('inQty')),
-          String(sum('totalAvailable')),
-          String(sum('outQty')),
-          ...(showAdj ? [String(sum('adjustment'))] : []),
-          String(sum('closingStock')),
-        ],
-      ]
-    : undefined;
+  const foot = summarizeStockByUnit(rows).map((t) => [
+    { content: `Subtotal ${t.unit} (${t.itemCount} jenis barang)`, colSpan: 3 },
+    String(t.openingStock),
+    String(t.inQty),
+    String(t.totalAvailable),
+    String(t.outQty),
+    ...(showAdj ? [String(t.adjustment)] : []),
+    String(t.closingStock),
+  ]);
 
   autoTable(doc, {
     startY: 43,
@@ -178,7 +165,7 @@ export async function downloadStockPositionPdf(
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
   doc.text(
-    `* Total = Stok Lama + Stok Baru. Sisa Akhir = Total - Keluar${showAdj ? ' ± Penyesuaian' : ''}. Baris TOTAL menjumlahkan angka dalam satuan dasar masing-masing barang.`,
+    `* Total = Stok Awal + Barang Masuk. Sisa Akhir = Total - Keluar${showAdj ? ' ± Penyesuaian' : ''}. Subtotal dihitung per satuan dasar.`,
     marginX,
     y,
     { maxWidth: pageWidth - marginX * 2 }

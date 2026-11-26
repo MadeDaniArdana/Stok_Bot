@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import type { StockReportPeriod } from '@/lib/report-period';
 import { getStockGroup, STOCK_GROUPS, type StockGroup } from '@/lib/stock-groups';
-import { StockSnapshotService } from './stock-snapshot.service';
+import { Prisma } from '@prisma/client';
+import { summarizeStockByUnit } from '@/lib/stock-position-totals';
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -12,33 +13,26 @@ interface DailyTrendRow {
   qty: number;
 }
 
-/** Agregasi mutasi IN/OUT per tanggal WIB langsung di PostgreSQL (menghindari penarikan ribuan baris ke JS). */
-function queryDailyTrendRows(start: Date, end: Date, stockGroup?: StockGroup): Promise<DailyTrendRow[]> {
-  if (stockGroup) {
-    return prisma.$queryRaw<DailyTrendRow[]>`
-      SELECT
-        to_char(m."createdAt" + interval '7 hours', 'YYYY-MM-DD') AS day,
-        m.type,
-        COALESCE(SUM(m.quantity), 0)::int AS qty
-      FROM "StockMovement" m
-      INNER JOIN "Product" p ON p.id = m."productId"
-      INNER JOIN "Category" c ON c.id = p."categoryId"
-      WHERE m."createdAt" >= ${start}
-        AND m."createdAt" < ${end}
-        AND m.type IN ('IN', 'OUT')
-        AND c."stockGroup" = ${stockGroup}
-      GROUP BY 1, 2
-    `;
-  }
+// Mutasi distribusi memakai tanggal dokumen. Retur dan mutasi lain memakai tanggal pencatatan.
+const movementDistributionJoin = Prisma.sql`
+  LEFT JOIN "DistributionItem" di ON di."movementId" = m.id
+  LEFT JOIN "Distribution" d ON d.id = di."distributionId"`;
+const movementDate = Prisma.sql`COALESCE(d."distributedAt", m."createdAt")`;
+
+function queryDailyTrendRows(start: Date, end: Date, stockGroup?: StockGroup, countMovements = false): Promise<DailyTrendRow[]> {
+  const scope = stockGroup
+    ? Prisma.sql`AND EXISTS (
+        SELECT 1 FROM "Product" p JOIN "Category" c ON c.id = p."categoryId"
+        WHERE p.id = m."productId" AND c."stockGroup" = ${stockGroup}
+      )`
+    : Prisma.empty;
   return prisma.$queryRaw<DailyTrendRow[]>`
-    SELECT
-      to_char(m."createdAt" + interval '7 hours', 'YYYY-MM-DD') AS day,
-      m.type,
-      COALESCE(SUM(m.quantity), 0)::int AS qty
+    SELECT to_char(${movementDate} + interval '7 hours', 'YYYY-MM-DD') AS day,
+           m.type, ${countMovements ? Prisma.sql`COUNT(*)` : Prisma.sql`SUM(m.quantity)`}::int AS qty
     FROM "StockMovement" m
-    WHERE m."createdAt" >= ${start}
-      AND m."createdAt" < ${end}
-      AND m.type IN ('IN', 'OUT')
+    ${movementDistributionJoin}
+    WHERE ${movementDate} >= ${start} AND ${movementDate} < ${end}
+      AND m.type IN ('IN', 'OUT') ${scope}
     GROUP BY 1, 2
   `;
 }
@@ -194,7 +188,7 @@ export class ReportService {
       }),
     ]);
 
-    let totalAggregateStock = 0;
+    let inStockSku = 0;
     let outOfStockCount = 0;
     let lowStockCount = 0;
     const criticalAll: Array<{
@@ -211,7 +205,7 @@ export class ReportService {
     }> = [];
 
     for (const p of activeProducts) {
-      totalAggregateStock += p.currentStock;
+      if (p.currentStock > 0) inStockSku += 1;
       if (p.currentStock <= 0) {
         outOfStockCount += 1;
         criticalAll.push({
@@ -262,7 +256,7 @@ export class ReportService {
       trendGranularity,
       kpi: {
         totalActiveSku: activeProducts.length,
-        totalAggregateStock,
+        inStockSku,
         lowStockCount,
         outOfStockCount,
         totalInQuantity,
@@ -315,14 +309,18 @@ export class ReportService {
           category: { select: { name: true, stockGroup: true } },
         },
       }),
-      prisma.stockMovement.groupBy({
-        by: ['productId'],
-        where: { ...movementPeriodWhere, type: 'OUT' },
-        _sum: { quantity: true },
-        _count: { _all: true },
-        orderBy: { _sum: { quantity: 'desc' } },
-      }),
-      queryDailyTrendRows(start, end, stockGroup),
+      prisma.$queryRaw<{ productId: string; totalOut: number; txCount: number }[]>`
+        SELECT m."productId", SUM(m.quantity)::int AS "totalOut", COUNT(*)::int AS "txCount"
+        FROM "StockMovement" m
+        ${movementDistributionJoin}
+        JOIN "Product" p ON p.id = m."productId"
+        LEFT JOIN "Category" c ON c.id = p."categoryId"
+        WHERE m.type = 'OUT' AND ${movementDate} >= ${start} AND ${movementDate} < ${end}
+          ${stockGroup ? Prisma.sql`AND c."stockGroup" = ${stockGroup}` : Prisma.empty}
+        GROUP BY m."productId"
+        ORDER BY "totalOut" DESC, m."productId"
+      `,
+      queryDailyTrendRows(start, end, stockGroup, true),
       prisma.stockMovement.findMany({
         where: movementPeriodWhere,
         include: {
@@ -347,14 +345,14 @@ export class ReportService {
     const stockGroupMap = new Map(
       STOCK_GROUPS.map((g) => [
         g.id,
-        { id: g.id, slug: g.slug, label: g.label, shortLabel: g.shortLabel, totalSku: 0, totalStock: 0, lowStockCount: 0, outOfStockCount: 0 },
+        { id: g.id, slug: g.slug, label: g.label, shortLabel: g.shortLabel, totalSku: 0, inStockSku: 0, lowStockCount: 0, outOfStockCount: 0 },
       ])
     );
     for (const p of allActiveProducts) {
       const bucket = stockGroupMap.get(getStockGroup(p.category?.stockGroup).id);
       if (!bucket) continue;
       bucket.totalSku += 1;
-      bucket.totalStock += p.currentStock;
+      if (p.currentStock > 0) bucket.inStockSku += 1;
       if (p.currentStock === 0) bucket.outOfStockCount += 1;
       else if (p.currentStock <= p.minimumStock) bucket.lowStockCount += 1;
     }
@@ -363,7 +361,7 @@ export class ReportService {
       ? allActiveProducts.filter((p) => getStockGroup(p.category?.stockGroup).id === stockGroup)
       : allActiveProducts;
 
-    const { trendGranularity, dailyTrends, totalInQuantity, totalOutQuantity } = buildTrendSeries(
+    const { trendGranularity, dailyTrends } = buildTrendSeries(
       trendRows,
       start,
       end,
@@ -371,7 +369,7 @@ export class ReportService {
       periodKind
     );
     const outStatsByProduct = new Map(
-      outByProduct.map((row) => [row.productId, { totalOut: row._sum.quantity ?? 0, txCount: row._count._all }])
+      outByProduct.map((row) => [row.productId, { totalOut: row.totalOut, txCount: row.txCount }])
     );
 
     // Top 10 barang paling banyak digunakan
@@ -403,8 +401,8 @@ export class ReportService {
     }
     const topConsumed = topOutGroups.map((g) => ({
       product: productById.get(g.productId) ?? { id: g.productId, name: '-', sku: '-', unit: '', packUnit: null, packSize: null, currentStock: 0, stockGroup: '-' },
-      totalOut: g._sum.quantity ?? 0,
-      txCount: g._count._all,
+      totalOut: g.totalOut,
+      txCount: g.txCount,
     }));
 
     // Unit / Gedung paling aktif menerima distribusi
@@ -424,7 +422,7 @@ export class ReportService {
     // Sebaran stok per kategori (stok saat ini)
     const categoryStatsMap: Record<
       string,
-      { name: string; stockGroup: string; itemCount: number; totalStock: number; criticalCount: number }
+      { name: string; stockGroup: string; itemCount: number; inStockSku: number; criticalCount: number }
     > = {};
     for (const p of activeProducts) {
       const catName = p.category?.name || 'Tanpa Kategori';
@@ -432,15 +430,15 @@ export class ReportService {
         name: catName,
         stockGroup: getStockGroup(p.category?.stockGroup).shortLabel,
         itemCount: 0,
-        totalStock: 0,
+        inStockSku: 0,
         criticalCount: 0,
       };
       categoryStatsMap[catName].itemCount += 1;
-      categoryStatsMap[catName].totalStock += p.currentStock;
+      if (p.currentStock > 0) categoryStatsMap[catName].inStockSku += 1;
       if (p.currentStock <= p.minimumStock) categoryStatsMap[catName].criticalCount += 1;
     }
     const categoryStats = Object.values(categoryStatsMap).sort(
-      (a, b) => b.totalStock - a.totalStock || a.name.localeCompare(b.name, 'id')
+      (a, b) => b.itemCount - a.itemCount || a.name.localeCompare(b.name, 'id')
     );
 
     // Daftar Usulan Pengadaan: barang aktif yang sisa akhir periodenya habis / di bawah batas minimum.
@@ -486,12 +484,12 @@ export class ReportService {
       trendGranularity,
       kpi: {
         totalActiveSku: activeProducts.length,
-        totalAggregateStock: activeProducts.reduce((sum, p) => sum + p.currentStock, 0),
+        inStockSku: position.rows.filter((p) => p.isActive && p.closingStock > 0).length,
+        incomingSku: position.rows.filter((p) => p.inQty > 0).length,
+        outgoingSku: position.rows.filter((p) => p.outQty > 0).length,
+        movedSku: position.rows.filter((p) => p.hasMovement).length,
         lowStockCount: criticalItems.length - outOfStockCount,
         outOfStockCount,
-        totalInQuantity,
-        totalOutQuantity,
-        netMovement: totalInQuantity - totalOutQuantity,
       },
       stockGroupStats: Array.from(stockGroupMap.values()),
       criticalItems,
@@ -505,7 +503,7 @@ export class ReportService {
 
   /**
    * Posisi stok per periode (bulan/tahun) per barang:
-   * Stok Lama (awal periode) + Stok Baru (masuk) = Total Tersedia, dikurangi Keluar (± penyesuaian) = Sisa Akhir.
+   * Stok Awal (awal periode) + Barang Masuk (masuk) = Total Tersedia, dikurangi Keluar (± penyesuaian) = Sisa Akhir.
    * Stok awal/akhir dihitung mundur dari stok saat ini memakai selisih stockAfter - stockBefore setiap mutasi,
    * sehingga pembatalan (REVERSAL) dan penyesuaian ikut terhitung dengan benar.
    */
@@ -513,60 +511,54 @@ export class ReportService {
     const start = period.gte;
     const end = period.lt;
 
-    // Hanya transaksi DI DALAM periode yang dijumlah; sisa akhir diambil dari cache bulanan
-    // (StockSnapshotService), lalu stok lama = sisa akhir - selisih periode.
-    const lastMonth = period.kind === 'year' ? `${period.value}-12` : period.value;
-    const [deltas, closingById] = await Promise.all([
-      prisma.$queryRaw<
-        Array<{
-          productId: string;
-          periodDelta: number;
-          inQty: number;
-          outQty: number;
-          cancelOut: number;
-          cancelIn: number;
-          adjustment: number;
-        }>
-      >`
-        SELECT
-          m."productId" AS "productId",
-          COALESCE(SUM(m."stockAfter" - m."stockBefore"), 0)::int AS "periodDelta",
-          COALESCE(SUM(CASE WHEN m.type = 'IN' THEN m."stockAfter" - m."stockBefore" ELSE 0 END), 0)::int AS "inQty",
-          COALESCE(SUM(CASE WHEN m.type = 'OUT' THEN m."stockBefore" - m."stockAfter" ELSE 0 END), 0)::int AS "outQty",
-          COALESCE(SUM(CASE WHEN m.type = 'REVERSAL' AND m."stockAfter" > m."stockBefore" THEN m."stockAfter" - m."stockBefore" ELSE 0 END), 0)::int AS "cancelOut",
-          COALESCE(SUM(CASE WHEN m.type = 'REVERSAL' AND m."stockAfter" < m."stockBefore" THEN m."stockBefore" - m."stockAfter" ELSE 0 END), 0)::int AS "cancelIn",
-          COALESCE(SUM(CASE WHEN m.type NOT IN ('IN', 'OUT', 'REVERSAL') THEN m."stockAfter" - m."stockBefore" ELSE 0 END), 0)::int AS "adjustment"
-        FROM "StockMovement" m
-        WHERE m."createdAt" >= ${start} AND m."createdAt" < ${end}
-        GROUP BY m."productId"
+    // Rekonstruksi saldo menggunakan tanggal efektif, termasuk distribusi yang dicatat mundur.
+    // Mutasi dan saldo saat ini dibaca dalam snapshot database yang sama.
+    const [deltas, products] = await prisma.$transaction([
+      prisma.$queryRaw<Array<{
+        productId: string;
+        firstDate: Date;
+        hasMovement: boolean;
+        afterDelta: number;
+        periodDelta: number;
+        inQty: number;
+        outQty: number;
+        cancelOut: number;
+        cancelIn: number;
+        adjustment: number;
+      }>>`
+        WITH movements AS (
+          SELECT m."productId", m.type, m."stockAfter" - m."stockBefore" AS delta, ${movementDate} AS date
+          FROM "StockMovement" m
+          ${movementDistributionJoin}
+        )
+        SELECT "productId", MIN(date) AS "firstDate",
+          BOOL_OR(date >= ${start} AND date < ${end}) AS "hasMovement",
+          COALESCE(SUM(delta) FILTER (WHERE date >= ${end}), 0)::int AS "afterDelta",
+          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end}), 0)::int AS "periodDelta",
+          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'IN'), 0)::int AS "inQty",
+          COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'OUT'), 0)::int AS "outQty",
+          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta > 0), 0)::int AS "cancelOut",
+          COALESCE(SUM(-delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type = 'REVERSAL' AND delta < 0), 0)::int AS "cancelIn",
+          COALESCE(SUM(delta) FILTER (WHERE date >= ${start} AND date < ${end} AND type NOT IN ('IN', 'OUT', 'REVERSAL')), 0)::int AS "adjustment"
+        FROM movements
+        GROUP BY "productId"
       `,
-      StockSnapshotService.getClosingStocks(lastMonth),
-    ]);
+      prisma.product.findMany({
+        where: stockGroup ? { category: { stockGroup } } : undefined,
+        select: {
+          id: true, sku: true, name: true, unit: true, packUnit: true, packSize: true,
+          currentStock: true, isActive: true, createdAt: true, categoryId: true,
+          category: { select: { name: true, stockGroup: true } },
+        },
+      }),
+    ], { isolationLevel: 'RepeatableRead' });
     const deltaById = new Map(deltas.map((row) => [row.productId, row]));
 
-    const products = await prisma.product.findMany({
-      where: {
-        createdAt: { lt: end },
-        ...(stockGroup ? { category: { stockGroup } } : {}),
-      },
-      select: {
-        id: true,
-        sku: true,
-        name: true,
-        unit: true,
-        packUnit: true,
-        packSize: true,
-        currentStock: true,
-        isActive: true,
-        categoryId: true,
-        category: { select: { name: true, stockGroup: true } },
-      },
-    });
-
     const rows = products
+      .filter((p) => p.createdAt < end || (deltaById.get(p.id)?.firstDate ?? end) < end)
       .map((p) => {
         const d = deltaById.get(p.id);
-        const closingStock = closingById ? closingById.get(p.id) ?? p.currentStock : p.currentStock;
+        const closingStock = p.currentStock - (d?.afterDelta ?? 0);
         const openingStock = closingStock - Number(d?.periodDelta ?? 0);
         const inQty = Number(d?.inQty ?? 0) - Number(d?.cancelIn ?? 0);
         const outQty = Number(d?.outQty ?? 0) - Number(d?.cancelOut ?? 0);
@@ -584,6 +576,7 @@ export class ReportService {
           packUnit: p.packUnit,
           packSize: p.packSize,
           isActive: p.isActive,
+          hasMovement: d?.hasMovement ?? false,
           openingStock,
           inQty,
           totalAvailable: openingStock + inQty,
@@ -593,28 +586,13 @@ export class ReportService {
         };
       })
       // Barang nonaktif hanya tampil bila masih ada stok atau ada transaksi di periode ini.
-      .filter((r) => r.isActive || deltaById.has(r.id) || r.openingStock !== 0 || r.closingStock !== 0)
+      .filter((r) => r.isActive || r.hasMovement || r.openingStock !== 0 || r.closingStock !== 0)
       .sort(
         (a, b) =>
           a.stockGroupLabel.localeCompare(b.stockGroupLabel, 'id') ||
           a.category.localeCompare(b.category, 'id') ||
           a.name.localeCompare(b.name, 'id')
       );
-
-    const totals = rows.reduce(
-      (acc, r) => {
-        acc.openingStock += r.openingStock;
-        acc.inQty += r.inQty;
-        acc.totalAvailable += r.totalAvailable;
-        acc.outQty += r.outQty;
-        acc.adjustment += r.adjustment;
-        acc.closingStock += r.closingStock;
-        if (r.inQty > 0) acc.itemsWithIn += 1;
-        if (r.outQty > 0) acc.itemsWithOut += 1;
-        return acc;
-      },
-      { openingStock: 0, inQty: 0, totalAvailable: 0, outQty: 0, adjustment: 0, closingStock: 0, itemsWithIn: 0, itemsWithOut: 0 }
-    );
 
     return {
       period: {
@@ -627,7 +605,8 @@ export class ReportService {
       },
       stockGroup: stockGroup ?? null,
       hasAdjustment: rows.some((r) => r.adjustment !== 0),
-      totals: { ...totals, itemCount: rows.length },
+      totalsByUnit: summarizeStockByUnit(rows),
+      itemCount: rows.length,
       rows,
     };
   }
