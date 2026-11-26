@@ -36,7 +36,7 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
   if (!request || (user.role !== 'ADMIN' && request.requesterId !== user.id)) notFound();
 
   const documentTitle = `Pengajuan Pengadaan ATK - ${safe(request.divisionName)} (${request.number})`;
-  const cell = 'border border-black px-2 py-1';
+  const cell = 'border border-black px-2 py-2.5';
 
   return (
     <>
@@ -48,9 +48,9 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
       />
 
       <article style={FONT} className="relative mx-auto max-w-[210mm] bg-white p-10 shadow-lg print:max-w-none print:p-0 print:shadow-none">
-        <ReportLetterhead doubleRule subtitle="IZIN OPERASIONAL : SK MENRISTEKDIKTI No. 44/KPT/I/2017" />
+        <ReportLetterhead variant="request" />
 
-        <div className="mt-5 text-center">
+        <div className="mt-3 text-center leading-tight">
           <h1 className="text-[14px] font-bold uppercase tracking-wide">PENGAJUAN PENGADAAN BARANG ATK</h1>
           <p className="text-[14px] font-bold uppercase tracking-wide">UNIVERSITAS TEKNOKRAT INDONESIA</p>
           <p className="mt-1 font-mono text-[10px] text-slate-600">
@@ -58,26 +58,26 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
           </p>
         </div>
 
-        <table className="mt-5 w-full border-collapse border border-black text-[12px]">
-          <thead>
-            <tr className="bg-slate-100 print:bg-slate-100">
-              <th rowSpan={2} className="w-10 border border-black px-1.5 py-1.5 text-center">No.</th>
+        <table className="mt-3 w-full table-fixed border-collapse border border-black font-serif text-[12px]">
+          <thead className="bg-[#bfbfbf] print:[print-color-adjust:exact]">
+            <tr>
+              <th rowSpan={2} className="w-[5%] border border-black px-1.5 py-1.5 text-center">No.</th>
               <th rowSpan={2} className="border border-black px-2 py-1.5 text-center">Nama Barang</th>
-              <th rowSpan={2} className="w-36 border border-black px-2 py-1.5 text-center">Spesifikasi</th>
-              <th rowSpan={2} className="w-24 border border-black px-2 py-1.5 text-center">Kebutuhan</th>
-              <th colSpan={2} className="border border-black px-2 py-1 text-center">Jumlah</th>
+              <th rowSpan={2} className="w-[22%] border border-black px-2 py-1.5 text-center">Spesifikasi</th>
+              <th rowSpan={2} className="w-[17%] border border-black px-2 py-1.5 text-center">Kebutuhan*</th>
+              <th colSpan={2} className="w-[33%] border border-black px-2 py-1 text-center">Jumlah</th>
             </tr>
-            <tr className="bg-slate-100 print:bg-slate-100">
+            <tr>
               <th className="w-24 border border-black px-2 py-1 text-center">Pesanan</th>
               <th className="w-28 border border-black px-2 py-1 text-center">Ket.</th>
             </tr>
           </thead>
           <tbody>
             {request.items.map((item, index) => (
-              <tr key={item.id}>
+              <tr key={item.id} className="break-inside-avoid">
                 <td className="border border-black px-1.5 py-1 text-center">{index + 1}</td>
                 <td className={cell}>{itemName(item)}</td>
-                <td className={cell}>{item.specification || ''}</td>
+                <td className={`${cell} text-center`}>{item.specification || ''}</td>
                 <td className={`${cell} text-center`}>{item.need || ''}</td>
                 <td className={`${cell} text-center`}>
                   {itemQty(item, item.approvedQuantity ?? item.quantity)}
@@ -89,23 +89,22 @@ export default async function PrintRequestPage({ params }: { params: Promise<{ i
         </table>
 
         <p className="mt-2 text-[11px]">
-          <span className="font-semibold">Ket :</span> Jumlah Pesanan mengikuti persetujuan admin setelah pengajuan disetujui.
+          <span className="font-semibold">Ket.</span> *Jumlah yang dibutuhkan.
         </p>
         {request.notes && <p className="mt-1 text-[11px] italic">Catatan: {request.notes}</p>}
 
         {/* Blok Tanda Tangan sesuai template Excel */}
-        <footer className="mt-8 grid grid-cols-2 gap-10 text-[12px]">
+        <footer className="mt-6 grid break-inside-avoid grid-cols-[2fr_1fr] gap-6 text-[12px]">
           <div>
             <p>&nbsp;</p>
             <p>Mengetahui,</p>
             <p>Ka. Divisi,</p>
             <div className="h-16" />
-            <p className="font-bold">{request.divisionHeadName || '.......................'}</p>
+            <p className="font-bold">{request.divisionHeadName || '................................'}</p>
           </div>
-          <div className="pl-6">
+          <div>
             <p>Bandar Lampung, {dayMonthYear(request.createdAt)}</p>
             <p>Yang Mengajukan,</p>
-            <p>&nbsp;</p>
             <div className="flex h-16 items-center">
               {request.requesterSignature && (
                 // eslint-disable-next-line @next/next/no-img-element
