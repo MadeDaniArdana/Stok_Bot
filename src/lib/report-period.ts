@@ -25,16 +25,18 @@ const MONTH_NAMES_ID = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
-/** Batas saldo awal khusus untuk bulan yang memuat waktu konfigurasi server. */
+const DEFAULT_STOCK_OPENING_BALANCE_AT = '2026-11-26T15:30:00+07:00';
+
+/** Batas saldo awal bulanan dengan opsi penggantian per server. */
 export function getStockOpeningBalance(month: string) {
-  const value = process.env.STOCK_OPENING_BALANCE_AT?.trim();
-  if (!value) return null;
+  const value = process.env.STOCK_OPENING_BALANCE_AT?.trim() || DEFAULT_STOCK_OPENING_BALANCE_AT;
+  if (value === 'off') return null;
 
   const match = /^([1-9]\d{3}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d)\+07:00$/.exec(value);
   const date = new Date(value);
   if (!match || !Number.isFinite(date.getTime()) ||
       new Date(date.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 19) !== match[1]) {
-    throw new Error('STOCK_OPENING_BALANCE_AT harus dalam format YYYY-MM-DDTHH:mm:ss+07:00.');
+    throw new Error('STOCK_OPENING_BALANCE_AT harus berformat YYYY-MM-DDTHH:mm:ss+07:00 atau bernilai off.');
   }
   if (!value.startsWith(`${month}-`)) return null;
 

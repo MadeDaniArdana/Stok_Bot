@@ -394,13 +394,20 @@ test('ACC yang gagal setelah pengurangan stok membatalkan distribusi dan bisa di
 
 test('posisi stok memakai tanggal distribusi dan subtotal terpisah untuk setiap satuan', async (t) => {
   const previous = process.env.STOCK_OPENING_BALANCE_AT;
-  process.env.STOCK_OPENING_BALANCE_AT = '2026-11-26T15:30:00+07:00';
+  delete process.env.STOCK_OPENING_BALANCE_AT;
   t.after(() => {
     if (previous === undefined) delete process.env.STOCK_OPENING_BALANCE_AT;
     else process.env.STOCK_OPENING_BALANCE_AT = previous;
   });
   assert.equal(period.getStockOpeningBalance('2026-11').date.toISOString(), '2026-11-26T08:30:00.000Z');
   assert.equal(period.getStockOpeningBalance('2026-12'), null);
+  process.env.STOCK_OPENING_BALANCE_AT = '';
+  assert.equal(period.getStockOpeningBalance('2026-11').date.toISOString(), '2026-11-26T08:30:00.000Z');
+  process.env.STOCK_OPENING_BALANCE_AT = '2026-11-27T09:00:00+07:00';
+  assert.equal(period.getStockOpeningBalance('2026-11').date.toISOString(), '2026-11-27T02:00:00.000Z');
+  process.env.STOCK_OPENING_BALANCE_AT = 'off';
+  assert.equal(period.getStockOpeningBalance('2026-11'), null);
+  delete process.env.STOCK_OPENING_BALANCE_AT;
   const { Prisma } = require('@prisma/client');
   const subtotal = loadTypeScript('src/lib/stock-position-totals.ts');
   const stockGroups = loadTypeScript('src/lib/stock-groups.ts');

@@ -92,6 +92,6 @@ docker compose exec -T db pg_dump -U "${POSTGRES_USER:-stockflow}" -d "${POSTGRE
 
 ### Batas saldo awal per lingkungan
 
-Gunakan `STOCK_OPENING_BALANCE_AT` pada konfigurasi server yang memakai database tersebut. Isi tanggal dan jam saldo awal dalam format WIB, misalnya `2026-11-26T15:30:00+07:00` hanya jika itu jadwal stok opname kampus. Kosongkan variabel jika kampus ingin menghitung seluruh transaksi dalam periode bulanan.
+Batas bawaan adalah `2026-11-26T15:30:00+07:00`. Nilai ini berlaku saat `STOCK_OPENING_BALANCE_AT` kosong atau belum ditetapkan. Untuk memakai waktu lain, isi variabel dengan tanggal dan jam saldo awal kampus dalam format `YYYY-MM-DDTHH:mm:ss+07:00`. Untuk menghitung seluruh transaksi bulanan, isi `STOCK_OPENING_BALANCE_AT="off"`.
 
 Pada bulan yang memuat batas tersebut, transaksi yang dicatat sebelum batas menjadi bagian dari saldo awal. Transaksi mulai dari batas muncul pada Barang Masuk atau Barang Keluar sesuai periode dokumennya. Riwayat tetap tersedia. Konfigurasi ini tidak mengubah skema atau data stok. Untuk Docker Compose, jalankan `docker compose up -d --build app` setelah pull dan mengatur `.env`. Untuk PM2, build ulang lalu restart proses aplikasi dengan konfigurasi baru.
